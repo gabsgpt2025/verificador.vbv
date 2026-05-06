@@ -27,11 +27,19 @@ export function LogoutButton() {
         })
       }
 
-      // Sign out
+      // Sign out of Supabase session
       await supabase.auth.signOut()
+
+      // TODO: REMOVER - bypass temporário de senha
+      // Clear the bypass cookie if active
+      await fetch("/api/auth/bypass?action=logout").catch((err) => {
+        console.error("Error clearing bypass cookie:", err)
+      })
+
       router.push("/auth/login")
     } catch (error) {
       console.error("Error logging out:", error)
+      router.push("/auth/login")
     } finally {
       setIsLoading(false)
     }

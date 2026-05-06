@@ -1,6 +1,29 @@
 # 🔐 Credenciais de Teste - VeriFiBIN
 
-## 👤 Usuário Normal de Teste
+## ⚡ ACESSO TEMPORÁRIO SEM SENHA (ativo agora)
+
+> ⚠️ **O login está temporariamente configurado para funcionar sem senha.**
+> Acesse `/auth/login` e use um dos botões de acesso rápido:
+>
+> - **"ENTRAR COMO ADMIN"** → redireciona para `/admin/dashboard` com role `admin`
+> - **"ENTRAR COMO USUÁRIO"** → redireciona para `/dashboard` com role `user`
+>
+> Nenhuma credencial é necessária. O acesso é controlado pelo cookie `bypass_auth_role`.
+>
+> Para sair, use o botão "Log out" normalmente — o cookie será removido.
+
+### Como reverter o bypass
+Quando o Supabase estiver configurado e as credenciais reais estiverem disponíveis:
+1. Remova `app/api/auth/bypass/route.ts`
+2. Reverta os comentários `// TODO: REMOVER` em:
+   - `lib/auth.ts`
+   - `lib/supabase/middleware.ts`
+   - `app/auth/login/page.tsx`
+   - `components/auth/logout-button.tsx`
+
+---
+
+## 👤 Usuário Normal de Teste (Supabase)
 - **Email:** `teste.usuario@verifibin.com`
 - **Senha:** `usuario123`
 - **Nome:** Usuário de Teste
@@ -8,7 +31,7 @@
 - **Créditos Iniciais:** 500
 - **Acesso:** Dashboard, Verificações BIN, Histórico
 
-## 👨‍💼 Administrador de Teste
+## 👨‍💼 Administrador de Teste (Supabase)
 - **Email:** `admin@verifibin.com`
 - **Senha:** `admin123`
 - **Nome:** Administrador Teste
@@ -16,13 +39,13 @@
 - **Créditos Iniciais:** 1000
 - **Acesso:** Dashboard, Admin Panel, Todas as funcionalidades
 
-## 🚀 Como Usar
+## 🚀 Como Usar (com Supabase configurado)
 
 ### 1. Iniciar o Sistema
-\`\`\`bash
+```bash
 cd /caminho/para/verifibin
 npm run dev
-\`\`\`
+```
 
 ### 2. Fazer Login
 - Acesse: `http://localhost:3000/auth/login`
@@ -65,7 +88,7 @@ npm run dev
 ## 📊 Verificação Manual
 
 ### Via SQL (Supabase Dashboard):
-\`\`\`sql
+```sql
 -- Verificar usuários de teste
 SELECT id, email, full_name, role, credits, is_active
 FROM public.users 
@@ -78,7 +101,7 @@ FROM public.user_activity_logs ual
 JOIN public.users u ON ual.user_id = u.id
 WHERE u.email ILIKE '%@verifibin.com'
 ORDER BY ual.created_at DESC;
-\`\`\`
+```
 
 ### Via Interface:
 1. Login com as credenciais
@@ -95,6 +118,7 @@ ORDER BY ual.created_at DESC;
 - Não use em produção
 - Altere as senhas se necessário
 - Remova os usuários de teste antes do deploy
+- **Remova o bypass de senha antes de ir para produção**
 
 ## 📱 Status dos Arquivos
 
@@ -104,3 +128,4 @@ ORDER BY ual.created_at DESC;
 - ✅ Sistema de autenticação configurado
 - ✅ Banco de dados estruturado
 - ✅ Middleware de proteção ativo
+- ⚠️ `app/api/auth/bypass/route.ts` - Bypass temporário sem senha (REMOVER em produção)
