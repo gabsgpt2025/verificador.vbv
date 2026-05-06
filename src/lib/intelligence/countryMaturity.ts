@@ -140,6 +140,90 @@ export const COUNTRY_MATURITY_REGISTRY: Record<string, CountryMaturityConfig> = 
     regulatoryFramework: "SARB guidelines", notes: "Adoção por grandes bancos",
   },
 
+  // ── PAÍSES NÓRDICOS / BÁLTICOS ────────────────────────────────────────────
+  EE: {
+    code: "EE", name: "Estonia", maturity: "ALTA", mandateLevel: "FORTE",
+    regulatoryFramework: "PSD2/SCA (EU)", notes: "EU member — SCA obrigatório. Sede de fintechs como Advcash. Alta taxa de fluxo frictionless por emissores locais.",
+  },
+  LT: {
+    code: "LT", name: "Lithuania", maturity: "ALTA", mandateLevel: "FORTE",
+    regulatoryFramework: "PSD2/SCA (EU)", notes: "EU member — Líder global em taxa de sucesso 3DS. Revolut opera com licença bancária aqui. Alta taxa de autenticação frictionless (sem desafio visual).",
+  },
+  LV: {
+    code: "LV", name: "Latvia", maturity: "ALTA", mandateLevel: "FORTE",
+    regulatoryFramework: "PSD2/SCA (EU)", notes: "EU member — SCA obrigatório. Alta taxa de desafio 3DS por emissores locais.",
+  },
+  IS: {
+    code: "IS", name: "Iceland", maturity: "ALTA", mandateLevel: "FORTE",
+    regulatoryFramework: "PSD2/SCA (EEA)", notes: "EEA — aplica PSD2. Alta taxa de frictionless.",
+  },
+  SI: {
+    code: "SI", name: "Slovenia", maturity: "ALTA", mandateLevel: "FORTE",
+    regulatoryFramework: "PSD2/SCA (EU)", notes: "EU member — alta taxa de frictionless.",
+  },
+  LU: {
+    code: "LU", name: "Luxembourg", maturity: "ALTA", mandateLevel: "FORTE",
+    regulatoryFramework: "PSD2/SCA (EU)", notes: "EU member — sede de muitas fintechs europeias.",
+  },
+  GR: {
+    code: "GR", name: "Greece", maturity: "ALTA", mandateLevel: "FORTE",
+    regulatoryFramework: "PSD2/SCA (EU)", notes: "EU member.",
+  },
+  CY: {
+    code: "CY", name: "Cyprus", maturity: "ALTA", mandateLevel: "FORTE",
+    regulatoryFramework: "PSD2/SCA (EU)", notes: "EU member.",
+  },
+  MT: {
+    code: "MT", name: "Malta", maturity: "ALTA", mandateLevel: "FORTE",
+    regulatoryFramework: "PSD2/SCA (EU)", notes: "EU member — hub de fintechs e cripto.",
+  },
+  HU: {
+    code: "HU", name: "Hungary", maturity: "ALTA", mandateLevel: "FORTE",
+    regulatoryFramework: "PSD2/SCA (EU)", notes: "EU member.",
+  },
+  SK: {
+    code: "SK", name: "Slovakia", maturity: "ALTA", mandateLevel: "FORTE",
+    regulatoryFramework: "PSD2/SCA (EU)", notes: "EU member.",
+  },
+  HR: {
+    code: "HR", name: "Croatia", maturity: "ALTA", mandateLevel: "FORTE",
+    regulatoryFramework: "PSD2/SCA (EU)", notes: "EU member.",
+  },
+  CZ: {
+    code: "CZ", name: "Czech Republic", maturity: "ALTA", mandateLevel: "FORTE",
+    regulatoryFramework: "PSD2/SCA (EU)", notes: "EU member.",
+  },
+
+  // ── PAÍSES COM MATURIDADE VARIÁVEL / BAIXA (LESTE EUROPEU / CIS) ──────────
+  UA: {
+    code: "UA", name: "Ukraine", maturity: "VARIAVEL", mandateLevel: "OPCIONAL",
+    regulatoryFramework: "NBU regulations", notes: "Maturidade variável. Monobank implementa 3DS obrigatório via app. Outros emissores menores têm infraestrutura fraca. Contexto de guerra afeta infraestrutura.",
+  },
+  RU: {
+    code: "RU", name: "Russia", maturity: "VARIAVEL", mandateLevel: "OPCIONAL",
+    regulatoryFramework: "CBR regulations", notes: "Maturidade variável. Tinkoff e Sberbank têm 3DS. Emissores menores frequentemente sem implementação completa. Sanções internacionais afetam integrações.",
+  },
+  GE: {
+    code: "GE", name: "Georgia", maturity: "BAIXA", mandateLevel: "BAIXO",
+    regulatoryFramework: "NBG regulations", notes: "Infraestrutura bancária em desenvolvimento. Usada frequentemente em contas stealth e exchanges de cripto.",
+  },
+  HK: {
+    code: "HK", name: "Hong Kong", maturity: "VARIAVEL", mandateLevel: "OPCIONAL",
+    regulatoryFramework: "HKMA guidelines", notes: "Maturidade variável. Emissores tradicionais têm 3DS. Fintechs como Crypto.com podem usar fluxo frictionless extensivo.",
+  },
+  CN: {
+    code: "CN", name: "China", maturity: "VARIAVEL", mandateLevel: "OPCIONAL",
+    regulatoryFramework: "PBOC regulations", notes: "Ecossistema próprio (UnionPay, WeChat Pay, Alipay). 3DS menos relevante para pagamentos domésticos.",
+  },
+  KZ: {
+    code: "KZ", name: "Kazakhstan", maturity: "BAIXA", mandateLevel: "BAIXO",
+    regulatoryFramework: "NBK regulations", notes: "Infraestrutura em desenvolvimento.",
+  },
+  BY: {
+    code: "BY", name: "Belarus", maturity: "BAIXA", mandateLevel: "BAIXO",
+    regulatoryFramework: "NBRB regulations", notes: "Infraestrutura limitada. Sanções internacionais.",
+  },
+
   // ── BAIXA / VARIÁVEL 3DS ─────────────────────────────────────────────────
   BD: {
     code: "BD", name: "Bangladesh", maturity: "BAIXA", mandateLevel: "BAIXO",
