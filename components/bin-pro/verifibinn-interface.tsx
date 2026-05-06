@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, type ReactNode } from "react"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -8,6 +8,19 @@ import { Badge } from "@/components/ui/badge"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { CyberText } from "@/components/cyberpunk/cyber-typography"
 import type { FullBinAnalysis } from "@/lib/bin/types"
+import { AnalysisModeToggle } from "@/components/bin-pro/analysis-mode-toggle"
+import { useAnalysisMode, type AnalysisMode } from "@/lib/analysis/useAnalysisMode"
+import { findGlossaryEntry, formatGlossaryTerm, translateGlossaryText } from "@/lib/analysis/glossary"
+import {
+  buildAnalystActions,
+  buildExecutiveDescription,
+  buildExecutiveHeadline,
+  buildMerchantActions,
+  buildWhyThisScore,
+  getRiskSegment,
+  groupRiskFactors,
+  riskSegments,
+} from "@/lib/analysis/presentation"
 import {
   Search,
   Loader2,
@@ -108,12 +121,102 @@ function RiskImpact({ impact }: { impact: number }) {
   return <span className={`font-mono font-bold ${color}`}>{prefix}{impact}</span>
 }
 
+function GlossaryTerm({ term, mode }: { term: string; mode: AnalysisMode }) {
+  const entry = findGlossaryEntry(term)
+
+  if (!entry) {
+    return <>{term}</>
+  }
+
+  const tooltipId = `glossary-${entry.technical.replace(/[^a-z0-9]/gi, "-").toLowerCase()}`
+
+  return (
+    <span aria-describedby={tooltipId} title={entry.tooltip}>
+      {formatGlossaryTerm(entry.technical, mode)}
+      <span id={tooltipId} className="sr-only">
+        {entry.tooltip}
+      </span>
+    </span>
+  )
+}
+
+function RiskImpactByMode({ impact, mode }: { impact: number; mode: AnalysisMode }) {
+  if (mode === "merchant") {
+    if (impact < 0) {
+      return <span className="font-mono font-bold text-green-400">⬇️ Reduz risco</span>
+    }
+    return <span className="font-mono font-bold text-destructive">⬆️ Aumenta risco</span>
+  }
+
+  return <RiskImpact impact={impact} />
+}
+
+function ModeStack({
+  mode,
+  popular,
+  technical,
+}: {
+  mode: AnalysisMode
+  popular: ReactNode
+  technical: ReactNode
+}) {
+  if (mode === "analyst") {
+    return <>{technical}</>
+  }
+
+  if (mode === "merchant") {
+    return <>{popular}</>
+  }
+
+  return (
+    <div className="space-y-3">
+      {popular}
+      <details className="rounded-md border border-border bg-muted/10 p-3">
+        <summary className="cursor-pointer text-xs font-mono text-muted-foreground">
+          Ver detalhes técnicos
+        </summary>
+        <div className="mt-3">{technical}</div>
+      </details>
+    </div>
+  )
+}
+
+function SegmentedRiskBar({ score }: { score: number }) {
+  const markerPosition = `${Math.min(Math.max(score, 0), 100)}%`
+
+  return (
+    <div className="space-y-2">
+      <div className="relative h-3 w-full overflow-hidden rounded-full border border-border">
+        <div className="grid h-full grid-cols-4">
+          {riskSegments.map((segment) => (
+            <div key={segment.label} style={{ backgroundColor: segment.color }} />
+          ))}
+        </div>
+        <div
+          className="absolute top-[-3px] h-5 w-0.5 bg-background border border-foreground/80"
+          style={{ left: markerPosition }}
+          aria-hidden
+        />
+      </div>
+      <div className="grid grid-cols-4 gap-2">
+        {riskSegments.map((segment) => (
+          <CyberText key={segment.label} variant="caption" color="muted" className="text-[10px] text-center">
+            {segment.label}
+          </CyberText>
+        ))}
+      </div>
+    </div>
+  )
+}
+
 export function VeriFiBINInterface({ userId: _userId }: VeriFiBINInterfaceProps) {
   const [bin, setBin] = useState("")
   const [isAnalyzing, setIsAnalyzing] = useState(false)
   const [result, setResult] = useState<FullBinAnalysis | null>(null)
   const [error, setError] = useState("")
   const [activeTab, setActiveTab] = useState("basica")
+  const { mode, setMode } = useAnalysisMode()
+  const isAnalystMode = mode === "analyst"
 
   const handleAnalyze = async () => {
     const cleanBin = bin.replace(/\s/g, "")
@@ -149,6 +252,9 @@ export function VeriFiBINInterface({ userId: _userId }: VeriFiBINInterfaceProps)
   }
 
   // userId is available for future use (e.g., analytics, session tracking)
+  const riskSegment = result ? getRiskSegment(result.riskAnalysis.score) : null
+  const groupedFactors = result ? groupRiskFactors(result.riskAnalysis.factors) : { favorable: [], attention: [] }
+  const whyThisScore = result ? buildWhyThisScore(result) : ""
 
   return (
     <div className="space-y-8">
@@ -157,7 +263,7 @@ export function VeriFiBINInterface({ userId: _userId }: VeriFiBINInterfaceProps)
         <CardHeader>
           <CardTitle className="flex items-center space-x-2 font-mono text-primary neon-glow">
             <Shield className="h-5 w-5" />
-            <span>VeriFiBIN 2.0 — ANÁLISE ANTIFRAUDE DE BIN</span>
+            <span>{isAnalystMode ? "VeriFiBIN 2.0 — ANÁLISE ANTIFRAUDE DE BIN" : "VeriFiBIN 2.0 — Confira se esse cartão é confiável"}</span>
           </CardTitle>
           <CardDescription className="font-mono text-muted-foreground">
             Classificação de risco, inferência de autenticação e compliance regulatório
@@ -211,6 +317,18 @@ export function VeriFiBINInterface({ userId: _userId }: VeriFiBINInterfaceProps)
       {/* Results Tabs */}
       {result && (
         <div className="space-y-4">
+          <Card className="cyber-card">
+            <CardContent className="pt-4 flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
+              <div>
+                <CyberText variant="caption" color="muted">
+                  Modo de linguagem da análise
+                </CyberText>
+                <CyberText className="font-mono font-semibold">Escolha a camada de leitura</CyberText>
+              </div>
+              <AnalysisModeToggle value={mode} onChange={setMode} />
+            </CardContent>
+          </Card>
+
           {/* Summary Banner */}
           <Card className="cyber-card">
             <CardContent className="pt-4">
@@ -247,9 +365,15 @@ export function VeriFiBINInterface({ userId: _userId }: VeriFiBINInterfaceProps)
 
               {/* Summary box */}
               <div className="mt-4 p-4 bg-muted/20 border border-border rounded-md space-y-1">
-                <CyberText className="font-mono font-semibold">{result.finalSummary.title}</CyberText>
-                <CyberText variant="caption" color="muted">{result.finalSummary.message}</CyberText>
-                <CyberText variant="caption" className="text-accent">{result.finalSummary.action}</CyberText>
+                <CyberText className="font-mono font-semibold">
+                  {translateGlossaryText(result.finalSummary.title, mode)}
+                </CyberText>
+                <CyberText variant="caption" color="muted">
+                  {translateGlossaryText(result.finalSummary.message, mode)}
+                </CyberText>
+                <CyberText variant="caption" className="text-accent">
+                  {translateGlossaryText(result.finalSummary.action, mode)}
+                </CyberText>
               </div>
             </CardContent>
           </Card>
@@ -403,82 +527,197 @@ export function VeriFiBINInterface({ userId: _userId }: VeriFiBINInterfaceProps)
             {/* ABA 3 — AVANÇADA */}
             <TabsContent value="avancada">
               <div className="space-y-4">
+                {!isAnalystMode && riskSegment && (
+                  <Card className="cyber-card">
+                    <CardHeader>
+                      <CardTitle className="font-mono text-primary text-sm">Resumo executivo</CardTitle>
+                    </CardHeader>
+                    <CardContent className="space-y-3">
+                      <div className="flex items-start justify-between gap-4">
+                        <div>
+                          <CyberText className="font-mono font-bold text-2xl" style={{ color: riskSegment.color }}>
+                            {riskSegment.icon} {buildExecutiveHeadline(result)}
+                          </CyberText>
+                          <CyberText variant="caption" color="muted">
+                            {buildExecutiveDescription(result)}
+                          </CyberText>
+                        </div>
+                        <Badge className="font-mono text-sm" style={{ backgroundColor: riskSegment.color, color: "#0b0b0b" }}>
+                          {result.riskAnalysis.score}/100
+                        </Badge>
+                      </div>
+                      <div className="rounded-md border border-border bg-muted/20 p-3">
+                        <CyberText className="font-mono font-semibold mb-1 block">👉 O que fazer</CyberText>
+                        <ul className="space-y-1">
+                          {buildMerchantActions(result).map((action) => (
+                            <li key={action}>
+                              <CyberText variant="caption">{action}</CyberText>
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+                    </CardContent>
+                  </Card>
+                )}
+
                 {/* Risk Analysis */}
                 <Card className="cyber-card">
                   <CardHeader>
                     <CardTitle className="font-mono text-accent text-sm flex items-center gap-2">
                       <BarChart2 className="h-4 w-4" />
-                      SCORE DE RISCO
+                      {isAnalystMode ? "SCORE DE RISCO" : "Confira se esse cartão é confiável"}
                     </CardTitle>
                   </CardHeader>
                   <CardContent className="space-y-4">
-                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                      <div>
-                        <CyberText variant="caption" color="muted">Score</CyberText>
-                        <CyberText className="font-mono font-bold text-2xl text-accent">
-                          {result.riskAnalysis.score}/100
-                        </CyberText>
-                      </div>
-                      <div>
-                        <CyberText variant="caption" color="muted">Classificação</CyberText>
-                        <Badge variant={getRiskBadgeVariant(result.riskAnalysis.level)} className="font-mono mt-1">
-                          {result.riskAnalysis.level}
-                        </Badge>
-                      </div>
-                      <div className="col-span-2">
-                        <CyberText variant="caption" color="muted">Recomendação</CyberText>
-                        <CyberText className="font-mono font-bold">
-                          {result.riskAnalysis.recommendation}
-                        </CyberText>
-                      </div>
-                    </div>
-
-                    {/* Risk Bar */}
-                    <div>
-                      <div className="flex justify-between mb-1">
-                        <CyberText variant="caption" color="muted">Baixo</CyberText>
-                        <CyberText variant="caption" color="muted">Crítico</CyberText>
-                      </div>
-                      <div className="w-full bg-muted rounded-full h-3 relative">
-                        <div
-                          className={`h-3 rounded-full transition-all duration-700 ${
-                            result.riskAnalysis.score >= 81
-                              ? "bg-destructive"
-                              : result.riskAnalysis.score >= 61
-                                ? "bg-orange-500"
-                                : result.riskAnalysis.score >= 31
-                                  ? "bg-yellow-500"
-                                  : "bg-green-500"
-                          }`}
-                          style={{ width: `${result.riskAnalysis.score}%` }}
-                        />
-                      </div>
-                    </div>
-
-                    {/* Factors Breakdown */}
-                    <div>
-                      <CyberText variant="caption" color="muted" className="mb-2 block font-semibold">
-                        Fatores do score (score base: 30)
-                      </CyberText>
-                      <div className="space-y-2">
-                        {result.riskAnalysis.factors.map((factor, i) => (
-                          <div
-                            key={i}
-                            className="flex items-start justify-between p-2 bg-muted/10 border border-border rounded gap-2"
-                          >
-                            <div className="flex-1">
-                              <CyberText variant="caption" className="font-medium">
-                                {factor.label}
+                    <ModeStack
+                      mode={mode}
+                      popular={
+                        <div className="space-y-4">
+                          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                            <div className="col-span-2">
+                              <CyberText variant="caption" color="muted">
+                                Recomendação
                               </CyberText>
-                              <CyberText variant="caption" color="muted" className="text-xs">
-                                {factor.reason}
+                              <CyberText className="font-mono font-bold">
+                                <GlossaryTerm term={result.riskAnalysis.recommendation} mode={mode} />
                               </CyberText>
                             </div>
-                            <RiskImpact impact={factor.impact} />
+                            <div>
+                              <CyberText variant="caption" color="muted">
+                                Score
+                              </CyberText>
+                              <CyberText className="font-mono font-bold text-2xl text-accent">
+                                {result.riskAnalysis.score}/100
+                              </CyberText>
+                            </div>
+                            <div>
+                              <CyberText variant="caption" color="muted">
+                                Semáforo
+                              </CyberText>
+                              <CyberText className="font-mono font-bold" style={{ color: riskSegment?.color }}>
+                                {riskSegment?.icon} {riskSegment?.label}
+                              </CyberText>
+                            </div>
                           </div>
-                        ))}
-                      </div>
-                    </div>
+
+                          <SegmentedRiskBar score={result.riskAnalysis.score} />
+
+                          <div className="rounded-md border border-border bg-muted/10 p-3">
+                            <CyberText className="font-mono font-semibold mb-1 block">Entenda o porquê da nota</CyberText>
+                            <CyberText variant="caption" className="leading-relaxed">
+                              {translateGlossaryText(whyThisScore, mode)}
+                            </CyberText>
+                          </div>
+
+                          <div className="space-y-3">
+                            <div>
+                              <CyberText className="font-mono font-semibold mb-2 block">✅ Pontos a favor</CyberText>
+                              <div className="space-y-2">
+                                {groupedFactors.favorable.length > 0 ? groupedFactors.favorable.map((factor, i) => (
+                                  <div key={`fav-${i}`} className="flex items-start justify-between p-2 bg-muted/10 border border-border rounded gap-2">
+                                    <div className="flex-1">
+                                      <CyberText variant="caption" className="font-medium">{factor.label}</CyberText>
+                                      <CyberText variant="caption" color="muted" className="text-xs">
+                                        {translateGlossaryText(factor.reason, mode)}
+                                      </CyberText>
+                                    </div>
+                                    <RiskImpactByMode impact={factor.impact} mode={mode} />
+                                  </div>
+                                )) : <CyberText variant="caption" color="muted">Sem pontos fortes relevantes no momento.</CyberText>}
+                              </div>
+                            </div>
+                            <div>
+                              <CyberText className="font-mono font-semibold mb-2 block">⚠️ Pontos de atenção</CyberText>
+                              <div className="space-y-2">
+                                {groupedFactors.attention.length > 0 ? groupedFactors.attention.map((factor, i) => (
+                                  <div key={`att-${i}`} className="flex items-start justify-between p-2 bg-muted/10 border border-border rounded gap-2">
+                                    <div className="flex-1">
+                                      <CyberText variant="caption" className="font-medium">{factor.label}</CyberText>
+                                      <CyberText variant="caption" color="muted" className="text-xs">
+                                        {translateGlossaryText(factor.reason, mode)}
+                                      </CyberText>
+                                    </div>
+                                    <RiskImpactByMode impact={factor.impact} mode={mode} />
+                                  </div>
+                                )) : <CyberText variant="caption" color="muted">Sem alertas críticos no momento.</CyberText>}
+                              </div>
+                            </div>
+                          </div>
+
+                          <div className="rounded-md border border-border bg-muted/20 p-3">
+                            <CyberText className="font-mono font-semibold mb-1 block">Checklist para comerciante</CyberText>
+                            <ul className="space-y-1">
+                              {buildMerchantActions(result).map((action) => (
+                                <li key={`merchant-${action}`}>
+                                  <CyberText variant="caption">{action}</CyberText>
+                                </li>
+                              ))}
+                            </ul>
+                          </div>
+                        </div>
+                      }
+                      technical={
+                        <div className="space-y-4">
+                          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                            <div>
+                              <CyberText variant="caption" color="muted">Score</CyberText>
+                              <CyberText className="font-mono font-bold text-2xl text-accent">
+                                {result.riskAnalysis.score}/100
+                              </CyberText>
+                            </div>
+                            <div>
+                              <CyberText variant="caption" color="muted">Classificação</CyberText>
+                              <Badge variant={getRiskBadgeVariant(result.riskAnalysis.level)} className="font-mono mt-1">
+                                {result.riskAnalysis.level}
+                              </Badge>
+                            </div>
+                            <div className="col-span-2">
+                              <CyberText variant="caption" color="muted">Recomendação</CyberText>
+                              <CyberText className="font-mono font-bold">
+                                <GlossaryTerm term={result.riskAnalysis.recommendation} mode="analyst" />
+                              </CyberText>
+                            </div>
+                          </div>
+
+                          <SegmentedRiskBar score={result.riskAnalysis.score} />
+
+                          <div>
+                            <CyberText variant="caption" color="muted" className="mb-2 block font-semibold">
+                              Fatores do score (score base: 30)
+                            </CyberText>
+                            <div className="space-y-2">
+                              {result.riskAnalysis.factors.map((factor, i) => (
+                                <div
+                                  key={i}
+                                  className="flex items-start justify-between p-2 bg-muted/10 border border-border rounded gap-2"
+                                >
+                                  <div className="flex-1">
+                                    <CyberText variant="caption" className="font-medium">
+                                      {factor.label}
+                                    </CyberText>
+                                    <CyberText variant="caption" color="muted" className="text-xs">
+                                      {factor.reason}
+                                    </CyberText>
+                                  </div>
+                                  <RiskImpact impact={factor.impact} />
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+
+                          <div className="rounded-md border border-border bg-muted/20 p-3">
+                            <CyberText className="font-mono font-semibold mb-1 block">Recomendações técnicas</CyberText>
+                            <ul className="space-y-1">
+                              {buildAnalystActions(result).map((action) => (
+                                <li key={`analyst-${action}`}>
+                                  <CyberText variant="caption">{action}</CyberText>
+                                </li>
+                              ))}
+                            </ul>
+                          </div>
+                        </div>
+                      }
+                    />
                   </CardContent>
                 </Card>
 
@@ -487,24 +726,46 @@ export function VeriFiBINInterface({ userId: _userId }: VeriFiBINInterfaceProps)
                   <CardHeader>
                     <CardTitle className="font-mono text-primary text-sm flex items-center gap-2">
                       <Globe className="h-4 w-4" />
-                      COMPLIANCE REGULATÓRIO
+                      {isAnalystMode ? "COMPLIANCE REGULATÓRIO" : "Está dentro das regras? (Compliance)"}
                     </CardTitle>
                   </CardHeader>
                   <CardContent>
-                    <div className="grid grid-cols-2 gap-4">
-                      <DataField label="Região regulatória" value={result.compliance.regulatoryRegion} />
-                      <DataField
-                        label="Mandato 3DS"
-                        value={result.compliance.threeDSMandateLevel}
-                      />
-                      <DataField label="Risco de compliance" value={result.compliance.complianceRisk} />
-                      <div className="col-span-2">
-                        <CyberText variant="caption" color="muted">Nota regulatória</CyberText>
-                        <CyberText variant="caption" className="leading-relaxed">
-                          {result.compliance.regulationNote}
-                        </CyberText>
-                      </div>
-                    </div>
+                    <ModeStack
+                      mode={mode}
+                      popular={
+                        <div className="space-y-2">
+                          <CyberText variant="caption" color="muted">Leitura rápida</CyberText>
+                          <CyberText className="font-mono font-bold">
+                            {translateGlossaryText(result.compliance.regulatoryRegion, mode)}
+                          </CyberText>
+                          <CyberText variant="caption">
+                            {translateGlossaryText(result.compliance.regulationNote, mode)}
+                          </CyberText>
+                          <CyberText variant="caption" className="block">
+                            Nível: <GlossaryTerm term={`Compliance ${result.compliance.complianceRisk}`} mode={mode} />
+                          </CyberText>
+                        </div>
+                      }
+                      technical={
+                        <div className="grid grid-cols-2 gap-4">
+                          <DataField label="Região regulatória" value={result.compliance.regulatoryRegion} />
+                          <DataField
+                            label="Mandato 3DS"
+                            value={result.compliance.threeDSMandateLevel}
+                          />
+                          <DataField
+                            label="Risco de compliance"
+                            value={result.compliance.complianceRisk}
+                          />
+                          <div className="col-span-2">
+                            <CyberText variant="caption" color="muted">Nota regulatória</CyberText>
+                            <CyberText variant="caption" className="leading-relaxed">
+                              {translateGlossaryText(result.compliance.regulationNote, mode)}
+                            </CyberText>
+                          </div>
+                        </div>
+                      }
+                    />
                   </CardContent>
                 </Card>
 
@@ -517,58 +778,78 @@ export function VeriFiBINInterface({ userId: _userId }: VeriFiBINInterfaceProps)
                     </CardTitle>
                   </CardHeader>
                   <CardContent className="space-y-4">
-                    <div className="grid grid-cols-3 gap-4">
-                      <div>
-                        <CyberText variant="caption" color="muted">Score de qualidade</CyberText>
-                        <CyberText className="font-mono font-bold text-xl text-secondary">
-                          {result.dataQuality.score}%
-                        </CyberText>
-                      </div>
-                      <div>
-                        <CyberText variant="caption" color="muted">Nível</CyberText>
-                        <Badge
-                          variant={
-                            result.dataQuality.level === "HIGH"
-                              ? "default"
-                              : result.dataQuality.level === "MEDIUM"
-                                ? "secondary"
-                                : "destructive"
-                          }
-                          className="font-mono mt-1"
-                        >
-                          {result.dataQuality.level}
-                        </Badge>
-                      </div>
-                      <div>
-                        <CyberText variant="caption" color="muted">Campos ausentes</CyberText>
-                        <CyberText className="font-mono font-bold">
-                          {result.dataQuality.missingFields.length > 0
-                            ? result.dataQuality.missingFields.join(", ")
-                            : "Nenhum"}
-                        </CyberText>
-                      </div>
-                    </div>
+                    <ModeStack
+                      mode={mode}
+                      popular={
+                        <div className="space-y-2">
+                          <CyberText variant="caption" color="muted">Qualidade dos dados da análise</CyberText>
+                          <CyberText className="font-mono font-bold text-xl text-secondary">
+                            {result.dataQuality.score}%
+                          </CyberText>
+                          <CyberText variant="caption">
+                            {result.dataQuality.missingFields.length > 0
+                              ? `Faltam dados: ${result.dataQuality.missingFields.join(", ")}`
+                              : "Sem dados ausentes ✅"}
+                          </CyberText>
+                        </div>
+                      }
+                      technical={
+                        <>
+                          <div className="grid grid-cols-3 gap-4">
+                            <div>
+                              <CyberText variant="caption" color="muted">Score de qualidade</CyberText>
+                              <CyberText className="font-mono font-bold text-xl text-secondary">
+                                {result.dataQuality.score}%
+                              </CyberText>
+                            </div>
+                            <div>
+                              <CyberText variant="caption" color="muted">Nível</CyberText>
+                              <Badge
+                                variant={
+                                  result.dataQuality.level === "HIGH"
+                                    ? "default"
+                                    : result.dataQuality.level === "MEDIUM"
+                                      ? "secondary"
+                                      : "destructive"
+                                }
+                                className="font-mono mt-1"
+                              >
+                                {result.dataQuality.level}
+                              </Badge>
+                            </div>
+                            <div>
+                              <CyberText variant="caption" color="muted">Campos ausentes</CyberText>
+                              <CyberText className="font-mono font-bold">
+                                {result.dataQuality.missingFields.length > 0
+                                  ? result.dataQuality.missingFields.join(", ")
+                                  : "Nenhum"}
+                              </CyberText>
+                            </div>
+                          </div>
 
-                    <div className="grid grid-cols-2 gap-4">
-                      <div>
-                        <div className="flex items-center gap-1 mb-1">
-                          <CyberText variant="caption" color="muted">Campos da API</CyberText>
-                          <RealApiBadge />
-                        </div>
-                        <CyberText variant="caption">
-                          {result.dataQuality.realApiFields.join(", ") || "—"}
-                        </CyberText>
-                      </div>
-                      <div>
-                        <div className="flex items-center gap-1 mb-1">
-                          <CyberText variant="caption" color="muted">Campos inferidos</CyberText>
-                          <InferredBadge />
-                        </div>
-                        <CyberText variant="caption">
-                          {result.dataQuality.inferredFields.join(", ")}
-                        </CyberText>
-                      </div>
-                    </div>
+                          <div className="grid grid-cols-2 gap-4">
+                            <div>
+                              <div className="flex items-center gap-1 mb-1">
+                                <CyberText variant="caption" color="muted">Campos da API</CyberText>
+                                <RealApiBadge />
+                              </div>
+                              <CyberText variant="caption">
+                                {result.dataQuality.realApiFields.join(", ") || "—"}
+                              </CyberText>
+                            </div>
+                            <div>
+                              <div className="flex items-center gap-1 mb-1">
+                                <CyberText variant="caption" color="muted">Campos inferidos</CyberText>
+                                <InferredBadge />
+                              </div>
+                              <CyberText variant="caption">
+                                {result.dataQuality.inferredFields.join(", ")}
+                              </CyberText>
+                            </div>
+                          </div>
+                        </>
+                      }
+                    />
                   </CardContent>
                 </Card>
               </div>
