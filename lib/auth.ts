@@ -1,34 +1,35 @@
 import { createClient } from "@/lib/supabase/server"
 import { redirect } from "next/navigation"
-import { cookies } from "next/headers"
 
-// TODO: REMOVER - bypass temporário de senha
-const BYPASS_COOKIE = "bypass_auth_role"
+// DEV MODE: Set to true to bypass authentication during development
+const DEV_MODE_SKIP_AUTH = true
 
-// TODO: REMOVER - bypass temporário de senha
-async function getBypassRole(): Promise<string | null> {
-  try {
-    const cookieStore = await cookies()
-    const role = cookieStore.get(BYPASS_COOKIE)?.value
-    if (role === "admin" || role === "user") return role
-    return null
-  } catch {
-    return null
-  }
+// Mock user for development mode
+const MOCK_USER = {
+  id: "dev-user-12345",
+  email: "dev@verifibin.com",
+  app_metadata: {},
+  user_metadata: { full_name: "Dev User" },
+  aud: "authenticated",
+  created_at: new Date().toISOString(),
+}
+
+// Mock profile for development mode
+const MOCK_PROFILE = {
+  id: "dev-user-12345",
+  email: "dev@verifibin.com",
+  full_name: "Dev User",
+  role: "admin", // Change to "user" if you want to test as regular user
+  is_active: true,
+  credits: 1000,
+  created_at: new Date().toISOString(),
+  updated_at: new Date().toISOString(),
 }
 
 export async function getUser() {
-  // TODO: REMOVER - bypass temporário de senha
-  const bypassRole = await getBypassRole()
-  if (bypassRole) {
-    return {
-      id: `bypass-${bypassRole}`,
-      email: bypassRole === "admin" ? "admin@bypass.test" : "user@bypass.test",
-      app_metadata: {},
-      user_metadata: {},
-      aud: "authenticated",
-      created_at: new Date().toISOString(),
-    }
+  // Dev mode: return mock user
+  if (DEV_MODE_SKIP_AUTH) {
+    return MOCK_USER as any
   }
 
   const supabase = await createClient()
@@ -55,18 +56,9 @@ export async function requireAuth() {
 }
 
 export async function getUserProfile(userId: string) {
-  // TODO: REMOVER - bypass temporário de senha
-  const bypassRole = await getBypassRole()
-  if (bypassRole) {
-    return {
-      id: userId,
-      email: bypassRole === "admin" ? "admin@bypass.test" : "user@bypass.test",
-      full_name: bypassRole === "admin" ? "Admin (Bypass Temporário)" : "Usuário (Bypass Temporário)",
-      role: bypassRole,
-      credits: bypassRole === "admin" ? 1000 : 500,
-      is_active: true,
-      created_at: new Date().toISOString(),
-    }
+  // Dev mode: return mock profile
+  if (DEV_MODE_SKIP_AUTH) {
+    return MOCK_PROFILE as any
   }
 
   const supabase = await createClient()

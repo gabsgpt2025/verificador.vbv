@@ -1,45 +1,16 @@
 import { createServerClient } from "@supabase/ssr"
 import { NextResponse, type NextRequest } from "next/server"
 
-// TODO: REMOVER - bypass temporário de senha
-const BYPASS_COOKIE = "bypass_auth_role"
+// DEV MODE: Set to true to bypass authentication during development
+const DEV_MODE_SKIP_AUTH = true
 
 export async function updateSession(request: NextRequest) {
   let supabaseResponse = NextResponse.next({
     request,
   })
 
-  const isAuthRoute = request.nextUrl.pathname.startsWith("/auth")
-  const isPublicRoute = request.nextUrl.pathname === "/"
-  const isAdminRoute = request.nextUrl.pathname.startsWith("/admin")
-  const isProtectedRoute = !isAuthRoute && !isPublicRoute
-
-  // TODO: REMOVER - bypass temporário de senha
-  // If bypass cookie is set, apply role-based routing without Supabase
-  const bypassRole = request.cookies.get(BYPASS_COOKIE)?.value
-  if (bypassRole === "admin" || bypassRole === "user") {
-    // Redirect authenticated bypass users away from auth pages
-    if (isAuthRoute && !request.nextUrl.pathname.includes("/verify-email")) {
-      const url = request.nextUrl.clone()
-      url.pathname = bypassRole === "admin" ? "/admin/dashboard" : "/dashboard"
-      return NextResponse.redirect(url)
-    }
-
-    // Redirect non-admin bypass users away from admin routes
-    if (isAdminRoute && bypassRole !== "admin") {
-      const url = request.nextUrl.clone()
-      url.pathname = "/dashboard"
-      return NextResponse.redirect(url)
-    }
-
-    // Redirect admin bypass users from /dashboard to /admin/dashboard
-    if (request.nextUrl.pathname === "/dashboard" && bypassRole === "admin") {
-      const url = request.nextUrl.clone()
-      url.pathname = "/admin/dashboard"
-      return NextResponse.redirect(url)
-    }
-
-    // Allow all other routes
+  // Dev mode: skip all auth checks
+  if (DEV_MODE_SKIP_AUTH) {
     return supabaseResponse
   }
 
@@ -82,6 +53,11 @@ export async function updateSession(request: NextRequest) {
   const {
     data: { user },
   } = await supabase.auth.getUser()
+
+  const isAuthRoute = request.nextUrl.pathname.startsWith("/auth")
+  const isPublicRoute = request.nextUrl.pathname === "/"
+  const isAdminRoute = request.nextUrl.pathname.startsWith("/admin")
+  const isProtectedRoute = !isAuthRoute && !isPublicRoute
 
   // Redirect authenticated users away from auth pages
   if (user && isAuthRoute && !request.nextUrl.pathname.includes("/verify-email")) {
