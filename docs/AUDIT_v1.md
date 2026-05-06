@@ -1,124 +1,62 @@
-# AUDIT v1 — VeriFiBIN Diagnóstico da Base Atual
+# AUDIT_v1 — VeriFiBIN Base Analysis
 
-## 1. Onde é feita a consulta da BIN
+## Onde está a página principal da ferramenta?
+`app/dashboard/bin-pro/page.tsx` e `app/dashboard/page.tsx` (verificação básica)
 
-Há dois endpoints que realizam consultas de BIN:
+## Onde está a chamada da API de BIN?
+`app/api/bin-analysis/route.ts` — função `simulateBINLookup()` (dados SIMULADOS, sem API real integrada)
+`app/api/bin/verify/route.ts` — verificação básica também com dados simulados
 
-- **`app/api/bin-analysis/route.ts`** — endpoint principal do "BIN Pro 2.0". Usa a função local `simulateBINLookup()` que **não chama API real**; retorna dados pseudoaleatórios com base no hash do BIN. Integra `@ai-sdk/xai` (Grok-4) para gerar uma análise textual.
-- **`app/api/bin/verify/route.ts`** — endpoint de verificação básica. Também usa funções locais (`getBrandFromBin`, `getIssuerFromBin`) com dados hardcoded/aleatórios; sem chamada a API externa real.
+## Qual API está integrada?
+NENHUMA API real de BIN está integrada. Os dados são gerados por simulação (`simulateBINLookup`). A integração com Neutrino, FraudLabs, Binlist ou outra API real **não existe ainda** na base.
 
-**Conclusão**: nenhuma consulta real a API externa (Neutrino, BinList, etc.) está integrada. Todo dado de BIN é simulado/fictício.
+## Onde o resultado da API é normalizado?
+Não existe normalização. A função `simulateBINLookup()` retorna dados diretamente sem validação ou normalização de campos.
 
----
+## Onde o score atual é calculado?
+`lib/bin-analysis/ml-scoring.ts` — classe `MLRiskScoring.calculateRiskScore()`. Usa pesos fixos com dados randômicos (`Math.random()`) para fatores como `historicalFraud` e `velocityRisk`, tornando o score não determinístico e não auditável.
 
-## 2. APIs Externas Integradas
+## Quais componentes exibem os cards de resultado?
+`components/bin-pro/bin-analysis-cards.tsx` — 8 cards fixos
+`components/bin-pro/bin-pro-interface.tsx` — card de overview
 
-| Integração | Descrição |
-|---|---|
-| `@ai-sdk/xai` (Grok-4) | Usada em `app/api/bin-analysis/route.ts` para gerar texto de análise via LLM |
-| Supabase | Autenticação, banco de dados (Postgres), armazenamento de histórico |
+## Existe armazenamento de consultas?
+Sim, em `bin_verifications` (via Supabase), mas sem estrutura de logs de análise ou overrides.
 
-**Nenhuma API de lookup de BIN está integrada** (ex: Neutrino, BinList, FraudLabs Pro, BINCheck). Todos os dados de bandeira, tipo, país e emissor são mock/simulados.
+## Existe dado hardcoded?
+Sim: lista de países de alto risco em `ml-scoring.ts`, lista de bancos confiáveis, BINs de alto risco. Nenhum dado vem de API real.
 
----
+## Existe afirmação absoluta sobre 3DS/VBV sem fonte?
+**SIM — PROBLEMA CRÍTICO.** O campo `threeDSStatus` pode retornar `"ENABLED"` sem nenhuma fonte confiável. O prompt da IA diz literalmente `"threeDSStatus": "ENABLED/DISABLED/PARTIAL"` sem diferenciar dado real de inferência.
 
-## 3. Onde os Dados são Normalizados
+## Existe risco de armazenar PAN completo?
+Não foram encontrados campos de PAN no código. O sistema trabalha apenas com BIN (6-8 dígitos). Sem risco imediato de exposição de PAN.
 
-Não há camada formal de normalização. Os dados são produzidos diretamente pelas funções mock:
+## Existe mascaramento correto?
+Não aplicável na base atual — apenas BIN é processado.
 
-- `simulateBINLookup()` em `app/api/bin-analysis/route.ts` — retorna `brand`, `type`, `level`, `bank`, `country`, `currency` com valores aleatórios.
-- `getBrandFromBin()` e `getIssuerFromBin()` em `app/api/bin/verify/route.ts` — lógica de prefixo simples + array estático de bancos.
+## Existe separação entre "dado real da API" e "dado inferido"?
+**NÃO.** Todo dado é tratado como equivalente, sem distinção entre dado real da API e inferência interna.
 
----
+## Problemas Encontrados
 
-## 4. Onde o Score é Calculado
+### Críticos
+1. `bypassProbability` — campo que indica probabilidade de "bypass" de autenticação. Linguagem inadequada para sistema antifraude profissional.
+2. Score não determinístico — usa `Math.random()` em fatores de risco.
+3. Sem API real de BIN integrada — todos os dados são simulados.
+4. `threeDSStatus: "ENABLED"` retornado como fato sem fonte.
 
-- **`lib/bin-analysis/ml-scoring.ts`** — `MLRiskScoring.calculateRiskScore()`: combina 5 fatores ponderados (`geographicRisk`, `bankReputation`, `cardTypeRisk`, `historicalFraud`, `velocityRisk`). `historicalFraud` usa `Math.random()`, `velocityRisk` usa `Math.random()` — scores não são determinísticos.
-- **`lib/bin-analysis/advanced-ml-scoring.ts`** — `AdvancedMLScoring.calculateAdvancedRiskScore()`: expande para 10 fatores, mas 5 deles ainda usam `Math.random()` (velocidade, device, comportamento, rede, tempo).
-- O score gerado pelo LLM (Grok-4) inclui `bypassProbability` — terminologia inadequada (ver seção 7).
+### Importantes
+5. Sem separação visual/técnica entre dados reais e inferidos.
+6. Sem tabela de maturidade 3DS por país.
+7. Sem histórico de análises (apenas verificações básicas).
+8. Sem sistema de overrides para correção manual.
+9. Sem qualidade de dados quantificada.
+10. Sem compliance por região.
 
----
+### Menores
+11. `lib/bin-analysis/advanced-ml-scoring.ts` usa `Math.random()` em `velocityRisk` e `deviceFingerprint`.
+12. Prompt da IA pede `bypassProbability` — linguagem inapropriada.
 
-## 5. Componentes de UI que Exibem o Resultado
-
-| Componente | Descrição |
-|---|---|
-| `components/bin-pro/bin-pro-interface.tsx` | Input do BIN, botão de análise, exibição do overview de risco |
-| `components/bin-pro/bin-analysis-cards.tsx` | 8 cards: Card Info, Geographic, Security, AI Insights, Currency, Fraud Indicators, Risk Scoring, Recommendations |
-| `components/bin-pro/bin-pro-history.tsx` | Histórico de análises do usuário |
-| `components/bin-pro/bin-pro-glossary.tsx` | Glossário de termos |
-| `components/bin-pro/ml-scoring-dashboard.tsx` | Dashboard de métricas do modelo |
-| `components/bin-pro/currency-converter-widget.tsx` | Conversor de moedas |
-
----
-
-## 6. Problemas de Arquitetura
-
-### 6.1 Dados Completamente Fictícios
-Todos os dados retornados são simulados. Sem integração com API real de BIN, o sistema não tem valor analítico real.
-
-### 6.2 Não-Determinismo nos Scores
-`Math.random()` é usado em `historicalFraud` e `velocityRisk` — o mesmo BIN recebe scores diferentes a cada consulta.
-
-### 6.3 Duplicação de Lógica
-Há dois endpoints fazendo a mesma coisa (`/api/bin-analysis` e `/api/bin/verify`) com lógicas diferentes e sem compartilhamento de código.
-
-### 6.4 Sem Separação de "Dado Real" vs "Inferido"
-O sistema não distingue entre dados vindos de API e inferências do algoritmo. Tudo é tratado como verdade.
-
-### 6.5 Ausência de Modelo de Dados Estruturado
-Não há um modelo de resultado padronizado com módulos (técnico, 3DS, risco, compliance, qualidade).
-
-### 6.6 Ausência de Tabela de Países
-Maturidade 3DS por país está hardcoded em arrays dispersos sem configuração centralizada.
-
----
-
-## 7. Pontos onde o Sistema Afirma como Verdade Absoluta sem Fonte
-
-- `bypassProbability` em `BINAnalysisResult.analysis` — implicação de que fraude pode ser calculada como probabilidade de sucesso. Terminologia inadequada e enganosa.
-- `threeDSStatus: "ENABLED/DISABLED/PARTIAL"` — retornado pelo LLM sem fonte real. O LLM não tem acesso a dados reais de 3DS.
-- `vbvStatus: "ENABLED/DISABLED"` — mesma situação, sem confirmação de fonte confiável.
-- O prompt enviado ao Grok-4 pede explicitamente `bypassProbability` — instrução inadequada para um sistema antifraude.
-- A resposta mock de fallback do LLM usa `bypassProbability: Math.min(riskScore + 10, 95)` — valor completamente fictício apresentado como dado real.
-
----
-
-## 8. Falhas de UX, Mensagens Confusas e Campos Ausentes
-
-### Campos Ausentes
-- `issuerWebsite`, `issuerPhone` — presentes no tipo `BinVerificationResult` mas ausentes em `BINAnalysisResult`
-- `isPrepaid`, `isCommercial` — não exibidos na UI
-- `countryCode` — ausente
-- `currency` do cartão vs moeda de conversão — misturados sem distinção
-
-### Mensagens Confusas / Problemáticas
-- "Bypass Probability" — linguagem de fraude
-- "Security Analysis" com "Bypass Probability: X%" — frame inadequado
-- Sem indicação visual de "dado real" vs "inferido"
-- Sem indicação de qual fonte (API, algoritmo, LLM) originou cada campo
-
-### Ausência de Compliance
-- Nenhuma menção a regulação (PSD2, SCA, RBI, etc.)
-- Sem aviso de que 3DS não é confirmado pela API
-
-### UX Geral
-- Sem separação de análise básica vs avançada
-- Sem score explicável (breakdown dos fatores)
-- Sem ações recomendadas específicas por cenário
-
----
-
-## Resumo dos Pontos Críticos
-
-| Prioridade | Problema |
-|---|---|
-| 🔴 CRÍTICO | Terminologia "bypass" e "bypassProbability" — deve ser removida |
-| 🔴 CRÍTICO | 3DS status afirmado como certeza sem fonte real |
-| 🔴 CRÍTICO | Nenhuma API real de BIN integrada |
-| 🟠 ALTO | `Math.random()` em scoring — não determinístico |
-| 🟠 ALTO | Sem separação dado real vs inferido |
-| 🟠 ALTO | Sem compliance / regulação |
-| 🟡 MÉDIO | Dois endpoints duplicados sem arquitetura comum |
-| 🟡 MÉDIO | Sem tabela de maturidade 3DS por país |
-| 🟡 MÉDIO | UI sem badges visual de fonte dos dados |
+## Diagnóstico Geral
+A ferramenta atual é um MVP funcional mas com arquitetura de prova de conceito. O score não é auditável, a linguagem não é adequada para compliance/antifraude, e não há distinção entre dados reais e inferências. A versão 2.0 resolve todos esses pontos com módulos separados, linguagem profissional e score explicável.
