@@ -1,27 +1,7 @@
 # 🔐 Credenciais de Teste - VeriFiBIN
 
-## ⚡ ACESSO TEMPORÁRIO SEM SENHA (ativo agora)
-
-> ⚠️ **O login está temporariamente configurado para funcionar sem senha.**
-> Acesse `/auth/login` e use um dos botões de acesso rápido:
->
-> - **"ENTRAR COMO ADMIN"** → redireciona para `/admin/dashboard` com role `admin`
-> - **"ENTRAR COMO USUÁRIO"** → redireciona para `/dashboard` com role `user`
->
-> Nenhuma credencial é necessária. O acesso é controlado pelo cookie `bypass_auth_role`.
->
-> Para sair, use o botão "Log out" normalmente — o cookie será removido.
-
-### Como reverter o bypass
-Quando o Supabase estiver configurado e as credenciais reais estiverem disponíveis:
-1. Remova `app/api/auth/bypass/route.ts`
-2. Reverta os comentários `// TODO: REMOVER` em:
-   - `lib/auth.ts`
-   - `lib/supabase/middleware.ts`
-   - `app/auth/login/page.tsx`
-   - `components/auth/logout-button.tsx`
-
----
+> ⚠️ **O bypass temporário de senha foi removido.** A autenticação agora exige credenciais reais via Supabase Auth.
+> Configure as variáveis de ambiente `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY` e `SUPABASE_SERVICE_ROLE_KEY` na Vercel e crie os usuários no Supabase Auth.
 
 ## 👤 Usuário Normal de Teste (Supabase)
 - **Email:** `teste.usuario@verifibin.com`
@@ -118,7 +98,6 @@ ORDER BY ual.created_at DESC;
 - Não use em produção
 - Altere as senhas se necessário
 - Remova os usuários de teste antes do deploy
-- **Remova o bypass de senha antes de ir para produção**
 
 ## 📱 Status dos Arquivos
 
@@ -128,4 +107,3 @@ ORDER BY ual.created_at DESC;
 - ✅ Sistema de autenticação configurado
 - ✅ Banco de dados estruturado
 - ✅ Middleware de proteção ativo
-- ⚠️ `app/api/auth/bypass/route.ts` - Bypass temporário sem senha (REMOVER em produção)

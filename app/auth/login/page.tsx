@@ -12,14 +12,13 @@ import { CyberHeading, CyberText } from "@/components/cyberpunk/cyber-typography
 import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { useState } from "react"
-import { Shield, AlertCircle, UserCheck, ShieldCheck } from "lucide-react"
+import { Shield, AlertCircle } from "lucide-react"
 
 export default function LoginPage() {
   const [email, setEmail] = useState("")
   const [password, setPassword] = useState("")
   const [error, setError] = useState<string | null>(null)
   const [isLoading, setIsLoading] = useState(false)
-  const [bypassLoading, setBypassLoading] = useState<"admin" | "user" | null>(null)
   const router = useRouter()
 
   const handleLogin = async (e: React.FormEvent) => {
@@ -58,14 +57,6 @@ export default function LoginPage() {
     }
   }
 
-  // TODO: REMOVER - bypass temporário de senha
-  // Botões de acesso direto sem validação de credenciais
-  const handleBypassLogin = async (role: "admin" | "user") => {
-    setBypassLoading(role)
-    setError(null)
-    router.push(`/api/auth/bypass?role=${role}`)
-  }
-
   return (
     <div className="min-h-screen flex items-center justify-center bg-background p-4">
       <div className="w-full max-w-md">
@@ -80,41 +71,6 @@ export default function LoginPage() {
           </CyberHeading>
           <CyberText color="muted">Professional BIN Verification Platform</CyberText>
         </div>
-
-        {/* TODO: REMOVER - bypass temporário de senha */}
-        {/* Seção de acesso rápido sem senha — remover antes de ir para produção */}
-        <Card className="mb-4 border-yellow-500/50 bg-yellow-500/5">
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-mono text-yellow-500 text-center">⚠ ACESSO TEMPORÁRIO SEM SENHA</CardTitle>
-            <CardDescription className="text-center text-xs font-mono">
-              Clique para entrar diretamente sem credenciais
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-2">
-            <Button
-              type="button"
-              variant="outline"
-              className="w-full font-mono border-yellow-500/50 text-yellow-600 hover:bg-yellow-500/10"
-              onClick={() => handleBypassLogin("admin")}
-              disabled={bypassLoading !== null}
-              aria-label="Entrar como Admin — acesso temporário de desenvolvimento sem senha"
-            >
-              <ShieldCheck className="mr-2 h-4 w-4" />
-              {bypassLoading === "admin" ? "ENTRANDO..." : "ENTRAR COMO ADMIN"}
-            </Button>
-            <Button
-              type="button"
-              variant="outline"
-              className="w-full font-mono border-yellow-500/50 text-yellow-600 hover:bg-yellow-500/10"
-              onClick={() => handleBypassLogin("user")}
-              disabled={bypassLoading !== null}
-              aria-label="Entrar como Usuário — acesso temporário de desenvolvimento sem senha"
-            >
-              <UserCheck className="mr-2 h-4 w-4" />
-              {bypassLoading === "user" ? "ENTRANDO..." : "ENTRAR COMO USUÁRIO"}
-            </Button>
-          </CardContent>
-        </Card>
 
         <Card>
           <CardHeader>
