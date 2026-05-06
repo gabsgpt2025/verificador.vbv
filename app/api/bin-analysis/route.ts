@@ -56,8 +56,15 @@ export async function POST(request: NextRequest) {
  */
 async function fetchBINFromAPI(bin: string): Promise<RawBINApiResponse> {
   try {
+    // Strictly validate: only digits, length 6–8 (prevent SSRF via path traversal)
     const cleanBin = bin.replace(/\D/g, "").substring(0, 8)
-    const response = await fetch(`https://lookup.binlist.net/${cleanBin}`, {
+    if (!/^\d{6,8}$/.test(cleanBin)) {
+      return buildFallbackResponse(bin)
+    }
+
+    // Safe: cleanBin is now guaranteed to be 6–8 ASCII digits only
+    const url = new URL(`https://lookup.binlist.net/${cleanBin}`)
+    const response = await fetch(url.toString(), {
       headers: {
         "Accept-Version": "3",
         "User-Agent": "VeriFiBIN/2.0 AntiFraud Platform",
