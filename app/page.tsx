@@ -1,5 +1,6 @@
 import { redirect } from "next/navigation"
 import { getUser } from "@/lib/auth"
+import { OPEN_ACCESS_MODE } from "@/lib/auth"
 import { Button } from "@/components/ui/button"
 import { Card, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { CyberHeading, CyberText } from "@/components/cyberpunk/cyber-typography"
@@ -7,6 +8,11 @@ import { Shield, ArrowRight, Zap, Lock, BarChart3 } from "lucide-react"
 import Link from "next/link"
 
 export default async function HomePage() {
+  // In open-access mode skip the marketing page and go directly to the BIN tool.
+  if (OPEN_ACCESS_MODE) {
+    redirect("/dashboard/bin-pro")
+  }
+
   const user = await getUser()
 
   if (user) {

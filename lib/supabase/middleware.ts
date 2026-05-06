@@ -64,8 +64,9 @@ export async function updateSession(request: NextRequest) {
     return NextResponse.redirect(url)
   }
 
-  // Redirect unauthenticated users to login for protected routes
-  if (!user && isProtectedRoute) {
+  // Redirect unauthenticated users to login for protected routes.
+  // This block is skipped when NEXT_PUBLIC_REQUIRE_AUTH !== "true" (open-access mode).
+  if (!user && isProtectedRoute && process.env.NEXT_PUBLIC_REQUIRE_AUTH === "true") {
     const url = request.nextUrl.clone()
     url.pathname = "/auth/login"
     return NextResponse.redirect(url)
