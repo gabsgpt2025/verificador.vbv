@@ -1,18 +1,16 @@
 import { type NextRequest, NextResponse } from "next/server"
-import { streamText } from "ai"
-import { xai } from "@ai-sdk/xai"
-import { MLRiskScoring } from "@/lib/bin-analysis/ml-scoring"
-import { CurrencyConverter } from "@/lib/bin-analysis/currency-converter"
-import type { BINAnalysisRequest, BINAnalysisResult } from "@/lib/bin-analysis/types"
 import { createClient } from "@/lib/supabase/server"
 import { subtractCredits } from "@/lib/credits/operations"
+import { analyzeBIN } from "@/src/lib/intelligence/binAnalyzer"
+import type { RawBINApiResponse } from "@/src/lib/intelligence/types"
+import type { BINAnalysisV2Result } from "@/src/lib/intelligence/types"
 
 export async function POST(request: NextRequest) {
   try {
-    const { bin, amount = 100, currency = "USD" }: BINAnalysisRequest = await request.json()
+    const { bin }: { bin: string } = await request.json()
 
     if (!bin || bin.length < 6) {
-      return NextResponse.json({ error: "Valid BIN (6+ digits) is required" }, { status: 400 })
+      return NextResponse.json({ error: "BIN válido (6+ dígitos) é obrigatório" }, { status: 400 })
     }
 
     const supabase = await createClient()
@@ -24,149 +22,119 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
     }
 
-    // Check and deduct credits (BIN Pro costs 3 credits)
-    const creditResult = await subtractCredits(user.id, 3, "BIN Pro 2.0 Analysis", `BIN: ${bin}`)
+    // Check and deduct credits (BIN Pro 2.0 costs 3 credits)
+    const creditResult = await subtractCredits(user.id, 3, "VeriFiBIN 2.0 — Análise Antifraude", `BIN: ${bin}`)
     if (!creditResult.success) {
       return NextResponse.json({ error: creditResult.error }, { status: 400 })
     }
 
-    const startTime = Date.now()
+    // Fetch BIN data from external API (BinList.net public API — no key required)
+    const rawApiResponse = await fetchBINFromAPI(bin)
 
-    // Simulate BIN lookup (in production, use real BIN API)
-    const binData = await simulateBINLookup(bin)
+    // Run full anti-fraud intelligence analysis
+    const result = analyzeBIN({
+      bin: bin.trim(),
+      rawApiResponse,
+      providerName: "BINList",
+      analysisType: "advanced",
+    })
 
-    // Calculate ML risk score
-    const riskScore = MLRiskScoring.calculateRiskScore(bin, binData.country, binData.bank, binData.type)
-    const riskLevel = MLRiskScoring.getRiskLevel(riskScore)
-
-    // Generate AI analysis
-    const aiAnalysis = await generateAIAnalysis(bin, binData, riskScore)
-
-    // Convert currencies
-    const conversions = CurrencyConverter.convertToMultipleCurrencies(amount, currency)
-
-    const processingTime = Date.now() - startTime
-
-    const result: BINAnalysisResult = {
-      bin,
-      ...binData,
-      riskScore,
-      riskLevel,
-      analysis: {
-        aiInsights: aiAnalysis.insights,
-        fraudIndicators: aiAnalysis.indicators,
-        recommendations: aiAnalysis.recommendations,
-        bypassProbability: aiAnalysis.bypassProbability,
-        threeDSStatus: aiAnalysis.threeDSStatus,
-        vbvStatus: aiAnalysis.vbvStatus,
-      },
-      conversions,
-      metadata: {
-        analysisDate: new Date().toISOString(),
-        processingTime,
-        confidence: aiAnalysis.confidence,
-      },
-    }
-
-    // Save to history
-    await saveAnalysisToHistory(user.id, result)
+    // Save to analysis logs
+    await saveAnalysisLog(user.id, result)
 
     return NextResponse.json(result)
   } catch (error) {
-    console.error("BIN Analysis error:", error)
-    return NextResponse.json({ error: "Analysis failed" }, { status: 500 })
+    console.error("[VeriFiBIN] BIN Analysis error:", error)
+    return NextResponse.json({ error: "Falha na análise. Tente novamente." }, { status: 500 })
   }
 }
 
-async function simulateBINLookup(bin: string) {
-  // Simulated BIN data - in production, use real BIN API
-  const brands = ["VISA", "MASTERCARD", "AMEX", "DISCOVER"]
-  const types = ["credit", "debit", "prepaid"]
-  const levels = ["STANDARD", "GOLD", "PLATINUM", "BLACK"]
-  const countries = ["US", "CA", "GB", "DE", "FR", "AU", "BR", "MX"]
-  const banks = ["CHASE BANK", "WELLS FARGO", "BANK OF AMERICA", "CITIBANK"]
-
-  return {
-    brand: brands[Number.parseInt(bin[0]) % brands.length],
-    type: types[Number.parseInt(bin[1]) % types.length],
-    level: levels[Number.parseInt(bin[2]) % levels.length],
-    bank: banks[Number.parseInt(bin[3]) % banks.length],
-    country: countries[Number.parseInt(bin[4]) % countries.length],
-    currency: "USD",
-  }
-}
-
-async function generateAIAnalysis(bin: string, binData: any, riskScore: number) {
+/**
+ * Fetches BIN data from BinList.net (free, no API key required for basic lookup).
+ * In production, replace with a premium provider (Neutrino, FraudLabs Pro, etc.)
+ * for higher accuracy and rate limits.
+ */
+async function fetchBINFromAPI(bin: string): Promise<RawBINApiResponse> {
   try {
-    const prompt = `Analyze this BIN for fraud risk and security:
-    
-BIN: ${bin}
-Brand: ${binData.brand}
-Type: ${binData.type}
-Bank: ${binData.bank}
-Country: ${binData.country}
-Risk Score: ${riskScore}/100
-
-Provide analysis in JSON format:
-{
-  "insights": "Detailed AI insights about this BIN",
-  "indicators": ["fraud indicator 1", "fraud indicator 2"],
-  "recommendations": ["recommendation 1", "recommendation 2"],
-  "bypassProbability": 0-100,
-  "threeDSStatus": "ENABLED/DISABLED/PARTIAL",
-  "vbvStatus": "ENABLED/DISABLED/PARTIAL",
-  "confidence": 0-100
-}`
-
-    const result = await streamText({
-      model: xai("grok-4"),
-      prompt,
-      system:
-        "You are a financial fraud analysis expert. Provide detailed, accurate analysis in the requested JSON format.",
+    const cleanBin = bin.replace(/\D/g, "").substring(0, 8)
+    const response = await fetch(`https://lookup.binlist.net/${cleanBin}`, {
+      headers: {
+        "Accept-Version": "3",
+        "User-Agent": "VeriFiBIN/2.0 AntiFraud Platform",
+      },
+      // 5 second timeout
+      signal: AbortSignal.timeout(5000),
     })
 
-    let fullResponse = ""
-    for await (const chunk of result.textStream) {
-      fullResponse += chunk
+    if (response.ok) {
+      const data = await response.json()
+      return data as RawBINApiResponse
     }
 
-    try {
-      return JSON.parse(fullResponse)
-    } catch {
-      // Fallback if AI doesn't return valid JSON
-      return {
-        insights: `Advanced analysis of BIN ${bin} indicates ${riskScore > 60 ? "elevated" : "standard"} risk profile.`,
-        indicators: riskScore > 60 ? ["High risk geography", "Unusual BIN pattern"] : ["Standard risk profile"],
-        recommendations: ["Monitor transactions", "Apply standard verification"],
-        bypassProbability: Math.min(riskScore + 10, 95),
-        threeDSStatus: "ENABLED",
-        vbvStatus: "ENABLED",
-        confidence: 85,
-      }
-    }
-  } catch (error) {
-    console.error("AI Analysis error:", error)
-    return {
-      insights: "AI analysis temporarily unavailable. Using ML scoring.",
-      indicators: ["Analysis pending"],
-      recommendations: ["Standard verification recommended"],
-      bypassProbability: riskScore,
-      threeDSStatus: "UNKNOWN",
-      vbvStatus: "UNKNOWN",
-      confidence: 70,
-    }
+    // API unavailable — return partial data from BIN prefix heuristics
+    return buildFallbackResponse(bin)
+  } catch {
+    // Network error or timeout — return minimal data
+    return buildFallbackResponse(bin)
   }
 }
 
-async function saveAnalysisToHistory(userId: string, result: BINAnalysisResult) {
-  const supabase = await createClient()
+/**
+ * Fallback response when the external API is unavailable.
+ * Uses BIN prefix heuristics to infer basic card brand.
+ * All fields are explicitly null to indicate unavailability.
+ */
+function buildFallbackResponse(bin: string): RawBINApiResponse {
+  const firstDigit = bin.charAt(0)
+  const firstTwo = bin.substring(0, 2)
 
-  await supabase.from("bin_verifications").insert({
-    user_id: userId,
-    bin: result.bin,
-    verification_type: "BIN_PRO_2.0",
-    result: result,
-    risk_score: result.riskScore,
-    credits_used: 3,
-  })
+  let scheme: string | undefined
+  if (firstDigit === "4") scheme = "visa"
+  else if (["51", "52", "53", "54", "55"].includes(firstTwo)) scheme = "mastercard"
+  else if (["34", "37"].includes(firstTwo)) scheme = "amex"
+  else if (firstTwo === "60") scheme = "discover"
+  else if (firstDigit === "6") scheme = "elo"
+  else if (firstTwo === "35") scheme = "jcb"
+
+  return {
+    bin,
+    scheme,
+    // All other fields unavailable without real API
+    type: undefined,
+    prepaid: undefined,
+    country: undefined,
+    bank: undefined,
+  }
 }
+
+async function saveAnalysisLog(userId: string, result: BINAnalysisV2Result) {
+  try {
+    const supabase = await createClient()
+
+    await supabase.from("bin_analysis_logs").insert({
+      user_id: userId,
+      bin: result.bin,
+      bin8: result.bin.length >= 8 ? result.bin.substring(0, 8) : null,
+      issuer: result.technicalData.issuer,
+      country: result.technicalData.country,
+      country_code: result.technicalData.countryCode,
+      card_type: result.technicalData.cardType,
+      card_category: result.technicalData.cardCategory,
+      is_prepaid: result.technicalData.isPrepaid,
+      is_commercial: result.technicalData.isCommercial,
+      brand: result.technicalData.brand,
+      three_ds_status_estimated: result.threeDSAnalysis.status,
+      three_ds_confidence: result.threeDSAnalysis.confidence,
+      risk_score: result.riskAnalysis.score,
+      risk_level: result.riskAnalysis.level,
+      recommendation: result.riskAnalysis.recommendation,
+      data_quality_score: result.dataQuality.score,
+      source_api: result.source.provider,
+      model_version: result.metadata.modelVersion,
+    })
+  } catch (err) {
+    // Log save failure is non-critical — don't fail the analysis
+    console.error("[VeriFiBIN] Failed to save analysis log:", err)
+  }
+}
+

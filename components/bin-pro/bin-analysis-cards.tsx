@@ -1,10 +1,13 @@
 "use client"
 
+// bin-analysis-cards.tsx — Legacy card component (v1)
+// For the new VeriFiBIN 2.0 anti-fraud analysis UI, see bin-analysis-v2-cards.tsx
+
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { CyberText } from "@/components/cyberpunk/cyber-typography"
 import type { BINAnalysisResult } from "@/lib/bin-analysis/types"
-import { CreditCard, Globe, Shield, Brain, DollarSign, AlertTriangle, TrendingUp, Lock } from "lucide-react"
+import { CreditCard, Globe, Shield, Brain, AlertTriangle, TrendingUp, Lock } from "lucide-react"
 
 interface BinAnalysisCardsProps {
   result: BINAnalysisResult
@@ -13,7 +16,7 @@ interface BinAnalysisCardsProps {
 export function BinAnalysisCards({ result }: BinAnalysisCardsProps) {
   const cards = [
     {
-      title: "CARD INFORMATION",
+      title: "INFORMAÇÕES DO CARTÃO",
       icon: <CreditCard className="h-5 w-5" />,
       color: "primary",
       content: (
@@ -21,20 +24,20 @@ export function BinAnalysisCards({ result }: BinAnalysisCardsProps) {
           <div className="grid grid-cols-2 gap-4">
             <div>
               <CyberText variant="caption" color="muted">
-                Type
+                Tipo
               </CyberText>
               <CyberText className="font-mono font-bold capitalize">{result.type}</CyberText>
             </div>
             <div>
               <CyberText variant="caption" color="muted">
-                Level
+                Nível
               </CyberText>
               <CyberText className="font-mono font-bold">{result.level}</CyberText>
             </div>
           </div>
           <div>
             <CyberText variant="caption" color="muted">
-              Issuing Bank
+              Banco Emissor
             </CyberText>
             <CyberText className="font-mono font-bold">{result.bank}</CyberText>
           </div>
@@ -42,20 +45,20 @@ export function BinAnalysisCards({ result }: BinAnalysisCardsProps) {
       ),
     },
     {
-      title: "GEOGRAPHIC DATA",
+      title: "DADOS GEOGRÁFICOS",
       icon: <Globe className="h-5 w-5" />,
       color: "secondary",
       content: (
         <div className="space-y-3">
           <div>
             <CyberText variant="caption" color="muted">
-              Country
+              País
             </CyberText>
             <CyberText className="font-mono font-bold">{result.country}</CyberText>
           </div>
           <div>
             <CyberText variant="caption" color="muted">
-              Currency
+              Moeda
             </CyberText>
             <CyberText className="font-mono font-bold">{result.currency}</CyberText>
           </div>
@@ -63,7 +66,7 @@ export function BinAnalysisCards({ result }: BinAnalysisCardsProps) {
       ),
     },
     {
-      title: "SECURITY ANALYSIS",
+      title: "ANÁLISE DE SEGURANÇA",
       icon: <Shield className="h-5 w-5" />,
       color: "accent",
       content: (
@@ -71,7 +74,7 @@ export function BinAnalysisCards({ result }: BinAnalysisCardsProps) {
           <div className="grid grid-cols-2 gap-4">
             <div>
               <CyberText variant="caption" color="muted">
-                3DS Status
+                Status 3DS (estimado)
               </CyberText>
               <Badge variant={result.analysis.threeDSStatus === "ENABLED" ? "default" : "destructive"}>
                 {result.analysis.threeDSStatus}
@@ -79,7 +82,7 @@ export function BinAnalysisCards({ result }: BinAnalysisCardsProps) {
             </div>
             <div>
               <CyberText variant="caption" color="muted">
-                VBV Status
+                VBV (estimado)
               </CyberText>
               <Badge variant={result.analysis.vbvStatus === "ENABLED" ? "default" : "destructive"}>
                 {result.analysis.vbvStatus}
@@ -88,7 +91,7 @@ export function BinAnalysisCards({ result }: BinAnalysisCardsProps) {
           </div>
           <div>
             <CyberText variant="caption" color="muted">
-              Bypass Probability
+              Probabilidade de Autenticação Adicional
             </CyberText>
             <CyberText className="font-mono font-bold text-accent">{result.analysis.bypassProbability}%</CyberText>
           </div>
@@ -96,7 +99,7 @@ export function BinAnalysisCards({ result }: BinAnalysisCardsProps) {
       ),
     },
     {
-      title: "AI INSIGHTS",
+      title: "INSIGHTS DE ANÁLISE",
       icon: <Brain className="h-5 w-5" />,
       color: "primary",
       content: (
@@ -108,26 +111,7 @@ export function BinAnalysisCards({ result }: BinAnalysisCardsProps) {
       ),
     },
     {
-      title: "CURRENCY CONVERSIONS",
-      icon: <DollarSign className="h-5 w-5" />,
-      color: "secondary",
-      content: (
-        <div className="space-y-2">
-          {Object.entries(result.conversions)
-            .slice(0, 4)
-            .map(([currency, amount]) => (
-              <div key={currency} className="flex justify-between">
-                <CyberText variant="caption" color="muted">
-                  {currency}
-                </CyberText>
-                <CyberText className="font-mono font-bold">{amount.toLocaleString()}</CyberText>
-              </div>
-            ))}
-        </div>
-      ),
-    },
-    {
-      title: "FRAUD INDICATORS",
+      title: "INDICADORES DE RISCO",
       icon: <AlertTriangle className="h-5 w-5" />,
       color: "destructive",
       content: (
@@ -142,14 +126,14 @@ export function BinAnalysisCards({ result }: BinAnalysisCardsProps) {
       ),
     },
     {
-      title: "RISK SCORING",
+      title: "SCORE DE RISCO",
       icon: <TrendingUp className="h-5 w-5" />,
       color: "accent",
       content: (
         <div className="space-y-3">
           <div className="flex items-center justify-between">
             <CyberText variant="caption" color="muted">
-              Overall Risk
+              Nível de Risco
             </CyberText>
             <Badge variant={result.riskLevel === "LOW" ? "default" : "destructive"}>{result.riskLevel}</Badge>
           </div>
@@ -166,7 +150,7 @@ export function BinAnalysisCards({ result }: BinAnalysisCardsProps) {
       ),
     },
     {
-      title: "RECOMMENDATIONS",
+      title: "RECOMENDAÇÕES",
       icon: <Lock className="h-5 w-5" />,
       color: "secondary",
       content: (

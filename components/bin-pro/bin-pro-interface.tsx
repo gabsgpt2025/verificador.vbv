@@ -6,11 +6,11 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Badge } from "@/components/ui/badge"
 import { CyberText } from "@/components/cyberpunk/cyber-typography"
-import { BinAnalysisCards } from "./bin-analysis-cards"
+import { BinAnalysisV2Cards } from "./bin-analysis-v2-cards"
 import { BinProGlossary } from "./bin-pro-glossary"
 import { BinProHistory } from "./bin-pro-history"
-import type { BINAnalysisResult } from "@/lib/bin-analysis/types"
-import { Search, Loader2, AlertTriangle, CheckCircle, XCircle, Brain } from "lucide-react"
+import type { BINAnalysisV2Result } from "@/src/lib/intelligence/types"
+import { Search, Loader2, AlertTriangle, CheckCircle, XCircle, Shield } from "lucide-react"
 
 interface BinProInterfaceProps {
   userId: string
@@ -18,15 +18,14 @@ interface BinProInterfaceProps {
 
 export function BinProInterface({ userId }: BinProInterfaceProps) {
   const [bin, setBin] = useState("")
-  const [amount, setAmount] = useState("100")
-  const [currency, setCurrency] = useState("USD")
   const [isAnalyzing, setIsAnalyzing] = useState(false)
-  const [result, setResult] = useState<BINAnalysisResult | null>(null)
+  const [result, setResult] = useState<BINAnalysisV2Result | null>(null)
   const [error, setError] = useState("")
 
   const handleAnalyze = async () => {
-    if (!bin || bin.length < 6) {
-      setError("Please enter a valid BIN (6+ digits)")
+    const cleanBin = bin.replace(/\D/g, "")
+    if (!cleanBin || cleanBin.length < 6) {
+      setError("Informe um BIN válido (6 ou mais dígitos)")
       return
     }
 
@@ -40,52 +39,33 @@ export function BinProInterface({ userId }: BinProInterfaceProps) {
         headers: {
           "Content-Type": "application/json",
         },
-        body: JSON.stringify({
-          bin: bin.replace(/\s/g, ""),
-          amount: Number.parseFloat(amount) || 100,
-          currency,
-        }),
+        body: JSON.stringify({ bin: cleanBin }),
       })
 
       if (!response.ok) {
         const errorData = await response.json()
-        throw new Error(errorData.error || "Analysis failed")
+        throw new Error(errorData.error || "Falha na análise")
       }
 
       const analysisResult = await response.json()
       setResult(analysisResult)
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Analysis failed")
+      setError(err instanceof Error ? err.message : "Falha na análise")
     } finally {
       setIsAnalyzing(false)
     }
   }
 
-  const getRiskBadgeVariant = (riskLevel: string) => {
-    switch (riskLevel) {
-      case "LOW":
-        return "default"
-      case "MEDIUM":
-        return "secondary"
-      case "HIGH":
-        return "destructive"
-      case "CRITICAL":
-        return "destructive"
-      default:
-        return "default"
-    }
-  }
-
-  const getRiskIcon = (riskLevel: string) => {
-    switch (riskLevel) {
-      case "LOW":
-        return <CheckCircle className="h-4 w-4" />
-      case "MEDIUM":
-        return <AlertTriangle className="h-4 w-4" />
-      case "HIGH":
-        return <XCircle className="h-4 w-4" />
-      case "CRITICAL":
-        return <XCircle className="h-4 w-4" />
+  const getRiskIcon = (level: string) => {
+    switch (level) {
+      case "BAIXO":
+        return <CheckCircle className="h-4 w-4 text-green-400" />
+      case "MEDIO":
+        return <AlertTriangle className="h-4 w-4 text-yellow-400" />
+      case "ALTO":
+        return <XCircle className="h-4 w-4 text-orange-400" />
+      case "CRITICO":
+        return <XCircle className="h-4 w-4 text-red-400" />
       default:
         return <AlertTriangle className="h-4 w-4" />
     }
@@ -97,47 +77,34 @@ export function BinProInterface({ userId }: BinProInterfaceProps) {
       <Card className="cyber-card">
         <CardHeader>
           <CardTitle className="flex items-center space-x-2 font-mono text-primary neon-glow">
-            <Brain className="h-5 w-5" />
-            <span>BIN PRO 2.0 ANALYSIS</span>
+            <Shield className="h-5 w-5" />
+            <span>VERIFÍBIN 2.0 — ANÁLISE ANTIFRAUDE</span>
           </CardTitle>
           <CardDescription className="font-mono">
-            Enter BIN details for comprehensive AI-powered analysis
+            Plataforma profissional de inteligência de risco e análise de BIN.
+            Classifica risco, estima suporte a 3DS/VBV e avalia qualidade dos dados.
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <div className="md:col-span-2">
-              <label className="block text-sm font-mono font-medium mb-2">BIN Number</label>
+          <div className="p-3 bg-blue-500/5 border border-blue-500/20 rounded-md">
+            <CyberText variant="caption" className="text-blue-400 text-xs">
+              ℹ️ Esta ferramenta é um sistema de análise antifraude e inteligência de risco.
+              Status 3DS é estimado com base em país, bandeira, tipo e emissor — não confirmado diretamente por API.
+              Probabilidades são inferências, não certezas.
+            </CyberText>
+          </div>
+
+          <div className="flex gap-4">
+            <div className="flex-1">
+              <label className="block text-sm font-mono font-medium mb-2">Número do BIN</label>
               <Input
-                placeholder="Enter BIN (6+ digits)"
+                placeholder="Ex: 405708 ou 40570891"
                 value={bin}
                 onChange={(e) => setBin(e.target.value)}
                 className="font-mono"
                 maxLength={19}
+                onKeyDown={(e) => e.key === "Enter" && handleAnalyze()}
               />
-            </div>
-            <div>
-              <label className="block text-sm font-mono font-medium mb-2">Amount</label>
-              <div className="flex space-x-2">
-                <Input
-                  type="number"
-                  placeholder="100"
-                  value={amount}
-                  onChange={(e) => setAmount(e.target.value)}
-                  className="font-mono"
-                />
-                <select
-                  value={currency}
-                  onChange={(e) => setCurrency(e.target.value)}
-                  className="px-3 py-2 border border-border rounded-md bg-background font-mono"
-                >
-                  <option value="USD">USD</option>
-                  <option value="EUR">EUR</option>
-                  <option value="GBP">GBP</option>
-                  <option value="JPY">JPY</option>
-                  <option value="CAD">CAD</option>
-                </select>
-              </div>
             </div>
           </div>
 
@@ -153,12 +120,12 @@ export function BinProInterface({ userId }: BinProInterfaceProps) {
             {isAnalyzing ? (
               <>
                 <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                Analyzing...
+                Analisando...
               </>
             ) : (
               <>
                 <Search className="mr-2 h-4 w-4" />
-                Analyze BIN (3 Credits)
+                Analisar BIN (3 Créditos)
               </>
             )}
           </Button>
@@ -167,50 +134,42 @@ export function BinProInterface({ userId }: BinProInterfaceProps) {
 
       {/* Analysis Results */}
       {result && (
-        <div className="space-y-6">
-          {/* Risk Overview */}
+        <div className="space-y-4">
+          {/* Overview Bar */}
           <Card className="cyber-card">
-            <CardHeader>
-              <CardTitle className="flex items-center justify-between font-mono">
-                <span className="text-primary neon-glow">ANALYSIS OVERVIEW</span>
-                <Badge variant={getRiskBadgeVariant(result.riskLevel)} className="font-mono">
-                  {getRiskIcon(result.riskLevel)}
-                  <span className="ml-1">{result.riskLevel} RISK</span>
-                </Badge>
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+            <CardContent className="py-4">
+              <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
                 <div>
-                  <CyberText variant="caption" color="muted">
-                    BIN
-                  </CyberText>
+                  <CyberText variant="caption" color="muted">BIN</CyberText>
                   <CyberText className="font-mono font-bold">{result.bin}</CyberText>
                 </div>
                 <div>
-                  <CyberText variant="caption" color="muted">
-                    Brand
-                  </CyberText>
-                  <CyberText className="font-mono font-bold">{result.brand}</CyberText>
+                  <CyberText variant="caption" color="muted">Bandeira</CyberText>
+                  <CyberText className="font-mono font-bold">{result.technicalData.brand ?? "—"}</CyberText>
                 </div>
                 <div>
-                  <CyberText variant="caption" color="muted">
-                    Risk Score
-                  </CyberText>
-                  <CyberText className="font-mono font-bold text-accent">{result.riskScore}/100</CyberText>
+                  <CyberText variant="caption" color="muted">País</CyberText>
+                  <CyberText className="font-mono font-bold">{result.technicalData.countryCode ?? "—"}</CyberText>
                 </div>
                 <div>
-                  <CyberText variant="caption" color="muted">
-                    Confidence
-                  </CyberText>
-                  <CyberText className="font-mono font-bold text-secondary">{result.metadata.confidence}%</CyberText>
+                  <CyberText variant="caption" color="muted">Score de Risco</CyberText>
+                  <div className="flex items-center gap-1">
+                    {getRiskIcon(result.riskAnalysis.level)}
+                    <CyberText className="font-mono font-bold text-accent">{result.riskAnalysis.score}/100</CyberText>
+                  </div>
+                </div>
+                <div>
+                  <CyberText variant="caption" color="muted">Recomendação</CyberText>
+                  <Badge variant="outline" className="font-mono text-xs">
+                    {result.riskAnalysis.recommendation}
+                  </Badge>
                 </div>
               </div>
             </CardContent>
           </Card>
 
-          {/* 8 Analysis Cards */}
-          <BinAnalysisCards result={result} />
+          {/* 5 Analysis Cards */}
+          <BinAnalysisV2Cards result={result} />
         </div>
       )}
 
@@ -222,3 +181,4 @@ export function BinProInterface({ userId }: BinProInterfaceProps) {
     </div>
   )
 }
+
