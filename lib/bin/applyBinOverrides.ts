@@ -3,13 +3,8 @@
 
 import type { BinApiData, BinOverride } from "./types"
 
-type SupabaseClient = {
-  from: (table: string) => {
-    select: (cols: string) => {
-      eq: (col: string, val: string) => Promise<{ data: BinOverride[] | null; error: unknown }>
-    }
-  }
-}
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+type SupabaseClient = any
 
 export async function applyBinOverrides(
   supabase: SupabaseClient,

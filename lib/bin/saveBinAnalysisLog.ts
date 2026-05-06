@@ -3,11 +3,8 @@
 
 import type { FullBinAnalysis } from "./types"
 
-type SupabaseClient = {
-  from: (table: string) => {
-    insert: (data: Record<string, unknown>) => Promise<{ error: unknown }>
-  }
-}
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+type SupabaseClient = any
 
 export async function saveBinAnalysisLog(
   supabase: SupabaseClient,

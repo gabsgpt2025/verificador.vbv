@@ -108,7 +108,7 @@ function RiskImpact({ impact }: { impact: number }) {
   return <span className={`font-mono font-bold ${color}`}>{prefix}{impact}</span>
 }
 
-export function VeriFiBINInterface({ userId }: VeriFiBINInterfaceProps) {
+export function VeriFiBINInterface({ userId: _userId }: VeriFiBINInterfaceProps) {
   const [bin, setBin] = useState("")
   const [isAnalyzing, setIsAnalyzing] = useState(false)
   const [result, setResult] = useState<FullBinAnalysis | null>(null)
@@ -148,8 +148,7 @@ export function VeriFiBINInterface({ userId }: VeriFiBINInterfaceProps) {
     }
   }
 
-  // userId is passed for future use (e.g., analytics, session tracking)
-  void userId
+  // userId is available for future use (e.g., analytics, session tracking)
 
   return (
     <div className="space-y-8">

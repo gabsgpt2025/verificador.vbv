@@ -38,13 +38,13 @@ export async function POST(request: NextRequest) {
     const binData = normalizeBinApiResponse("INTERNAL", rawApiResponse, cleanBin)
 
     // Aplica overrides internos antes da análise
-    const { data: binDataWithOverrides } = await applyBinOverrides(supabase as never, binData)
+    const { data: binDataWithOverrides } = await applyBinOverrides(supabase, binData)
 
     // Executa análise completa
     const analysis: FullBinAnalysis = runFullBinAnalysis(binDataWithOverrides)
 
     // Salva log interno
-    await saveBinAnalysisLog(supabase as never, user.id, analysis)
+    await saveBinAnalysisLog(supabase, user.id, analysis)
 
     return NextResponse.json(analysis)
   } catch (error) {
