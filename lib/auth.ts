@@ -5,7 +5,8 @@ import type { User } from "@supabase/supabase-js"
 // Open-access mode: when NEXT_PUBLIC_REQUIRE_AUTH is not set to "true",
 // authentication is disabled and all routes are publicly accessible.
 // To re-enable auth, set NEXT_PUBLIC_REQUIRE_AUTH=true in your environment.
-const OPEN_ACCESS_MODE = process.env.NEXT_PUBLIC_REQUIRE_AUTH !== "true"
+// TEMPORARY: Testing mode — all auth restrictions disabled
+const OPEN_ACCESS_MODE = true
 
 /** Minimal guest user returned in open-access mode. */
 const GUEST_USER: User = {

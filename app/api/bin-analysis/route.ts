@@ -6,7 +6,8 @@ import type { RawBINApiResponse } from "@/src/lib/intelligence/types"
 import type { BINAnalysisV2Result } from "@/src/lib/intelligence/types"
 
 // Open-access mode: when NEXT_PUBLIC_REQUIRE_AUTH !== "true", allow unauthenticated BIN analysis
-const OPEN_ACCESS_MODE = process.env.NEXT_PUBLIC_REQUIRE_AUTH !== "true"
+// TEMPORARY: Testing mode — all auth restrictions disabled
+const OPEN_ACCESS_MODE = true
 
 export async function POST(request: NextRequest) {
   try {
