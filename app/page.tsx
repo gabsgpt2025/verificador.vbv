@@ -6,7 +6,15 @@ import { CyberHeading, CyberText } from "@/components/cyberpunk/cyber-typography
 import { Shield, ArrowRight, Zap, Lock, BarChart3 } from "lucide-react"
 import Link from "next/link"
 
+// DEV MODE: Set to true to bypass authentication during development
+const DEV_MODE_SKIP_AUTH = true
+
 export default async function HomePage() {
+  // Dev mode: redirect directly to dashboard
+  if (DEV_MODE_SKIP_AUTH) {
+    redirect("/dashboard")
+  }
+
   const user = await getUser()
 
   if (user) {
