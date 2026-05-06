@@ -4,7 +4,7 @@ import { xai } from "@ai-sdk/xai"
 import { MLRiskScoring } from "@/lib/bin-analysis/ml-scoring"
 import { CurrencyConverter } from "@/lib/bin-analysis/currency-converter"
 import type { BINAnalysisRequest, BINAnalysisResult } from "@/lib/bin-analysis/types"
-import { createServerClient } from "@/lib/supabase/server"
+import { createClient } from "@/lib/supabase/server"
 import { subtractCredits } from "@/lib/credits/operations"
 
 export async function POST(request: NextRequest) {
@@ -15,7 +15,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Valid BIN (6+ digits) is required" }, { status: 400 })
     }
 
-    const supabase = createServerClient()
+    const supabase = await createClient()
     const {
       data: { user },
     } = await supabase.auth.getUser()
@@ -159,7 +159,7 @@ Provide analysis in JSON format:
 }
 
 async function saveAnalysisToHistory(userId: string, result: BINAnalysisResult) {
-  const supabase = createServerClient()
+  const supabase = await createClient()
 
   await supabase.from("bin_verifications").insert({
     user_id: userId,

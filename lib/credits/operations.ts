@@ -1,5 +1,4 @@
-import { createServerClient } from "@/lib/supabase/server"
-import { cookies } from "next/headers"
+import { createClient } from "@/lib/supabase/server"
 
 export type CreditOperation = "add" | "subtract" | "reset" | "purchase"
 export type OperationType = "verification" | "purchase" | "refund" | "bonus"
@@ -12,7 +11,7 @@ export interface CreditOperationResult {
 }
 
 export async function getUserCredits(userId: string): Promise<number | null> {
-  const supabase = createServerClient(cookies())
+  const supabase = await createClient()
 
   const { data, error } = await supabase.from("users").select("credits").eq("id", userId).single()
 
@@ -30,7 +29,7 @@ export async function addCredits(
   description = "Credits added",
   operationType: OperationType = "bonus",
 ): Promise<CreditOperationResult> {
-  const supabase = createServerClient(cookies())
+  const supabase = await createClient()
 
   try {
     // Get current credits
@@ -81,7 +80,7 @@ export async function subtractCredits(
   description = "Credits used",
   operationType: OperationType = "verification",
 ): Promise<CreditOperationResult> {
-  const supabase = createServerClient(cookies())
+  const supabase = await createClient()
 
   try {
     // Get current credits
@@ -135,7 +134,7 @@ export async function resetCredits(
   newAmount = 100,
   description = "Credits reset",
 ): Promise<CreditOperationResult> {
-  const supabase = createServerClient(cookies())
+  const supabase = await createClient()
 
   try {
     // Get current credits
@@ -185,7 +184,7 @@ export async function purchaseCredits(
   paymentMethod = "stripe",
   paymentReference?: string,
 ): Promise<CreditOperationResult> {
-  const supabase = createServerClient(cookies())
+  const supabase = await createClient()
 
   try {
     // Create transaction record
@@ -224,7 +223,7 @@ export async function purchaseCredits(
 }
 
 export async function getToolCost(toolName: string): Promise<number> {
-  const supabase = createServerClient(cookies())
+  const supabase = await createClient()
 
   const { data, error } = await supabase
     .from("tools")
