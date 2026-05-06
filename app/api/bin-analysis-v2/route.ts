@@ -7,6 +7,9 @@ import { runFullBinAnalysis } from "@/lib/bin"
 import { saveBinAnalysisLog } from "@/lib/bin/saveBinAnalysisLog"
 import type { BinAnalysisV2Request, FullBinAnalysis } from "@/lib/bin/types"
 
+// Open-access mode: when NEXT_PUBLIC_REQUIRE_AUTH !== "true", allow unauthenticated BIN analysis
+const OPEN_ACCESS_MODE = process.env.NEXT_PUBLIC_REQUIRE_AUTH !== "true"
+
 export async function POST(request: NextRequest) {
   try {
     const { bin }: BinAnalysisV2Request = await request.json()
@@ -22,14 +25,17 @@ export async function POST(request: NextRequest) {
       data: { user },
     } = await supabase.auth.getUser()
 
-    if (!user) {
+    // In open-access mode, allow unauthenticated requests (skip auth & credit checks)
+    if (!user && !OPEN_ACCESS_MODE) {
       return NextResponse.json({ error: "Não autorizado" }, { status: 401 })
     }
 
-    // Deduz créditos (análise avançada custa 3 créditos)
-    const creditResult = await subtractCredits(user.id, 3, `VeriFiBIN 2.0 — BIN: ${cleanBin}`)
-    if (!creditResult.success) {
-      return NextResponse.json({ error: creditResult.message }, { status: 400 })
+    // Deduz créditos somente quando há um usuário autenticado
+    if (user) {
+      const creditResult = await subtractCredits(user.id, 3, `VeriFiBIN 2.0 — BIN: ${cleanBin}`)
+      if (!creditResult.success) {
+        return NextResponse.json({ error: creditResult.message }, { status: 400 })
+      }
     }
 
     // Em produção: chamar API real de BIN (Neutrino, Binlist, etc.)
@@ -37,14 +43,18 @@ export async function POST(request: NextRequest) {
     const rawApiResponse = await simulateBinApiCall(cleanBin)
     const binData = normalizeBinApiResponse("INTERNAL", rawApiResponse, cleanBin)
 
-    // Aplica overrides internos antes da análise
-    const { data: binDataWithOverrides } = await applyBinOverrides(supabase, binData)
+    // Aplica overrides internos antes da análise (requer supabase — skip for guest)
+    const binDataWithOverrides = user
+      ? (await applyBinOverrides(supabase, binData)).data
+      : binData
 
     // Executa análise completa
     const analysis: FullBinAnalysis = runFullBinAnalysis(binDataWithOverrides)
 
-    // Salva log interno
-    await saveBinAnalysisLog(supabase, user.id, analysis)
+    // Salva log interno (somente para usuários autenticados)
+    if (user) {
+      await saveBinAnalysisLog(supabase, user.id, analysis)
+    }
 
     return NextResponse.json(analysis)
   } catch (error) {
