@@ -1,8 +1,16 @@
 import { type NextRequest, NextResponse } from "next/server"
 import { createClient } from "@/lib/supabase/server"
 
+// TEMPORARY: Testing mode — return unlimited credits
+const TESTING_MODE = true
+
 export async function GET(request: NextRequest) {
   try {
+    // Return unlimited credits in testing mode
+    if (TESTING_MODE) {
+      return NextResponse.json({ credits: 9999 })
+    }
+
     const supabase = await createClient()
 
     // Get current user
