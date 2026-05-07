@@ -1,5 +1,6 @@
-// VeriFiBIN 2.0 — Main BIN Analyzer Orchestrator
+// VeriFiBIN 2.0 — Main BIN Analyzer Orchestrator (Enhanced)
 // Coordinates all analysis modules and produces the standard JSON shape
+// Enhanced with: issuer intelligence, fraud alerts, frictionless detection, bypass classification
 
 import type {
   BINAnalysisV2Result,
@@ -7,13 +8,31 @@ import type {
   TechnicalData,
   AnalysisSource,
 } from "./types"
-import { analyzeThreeDSProfile } from "./threeDSAnalyzer"
-import { calculateRiskScore } from "./riskEngine"
+import { analyzeThreeDSProfile, type ThreeDSAnalysisEnhanced } from "./threeDSAnalyzer"
+import { calculateRiskScore, getIssuerProfileForBin } from "./riskEngine"
 import { buildComplianceData } from "./complianceModule"
 import { assessDataQuality } from "./dataQuality"
 import { buildFinalSummary } from "./recommendationModule"
+import { generateFraudAlerts, calculateAlertRiskImpact, type FraudAlert } from "./fraudAlerts"
+import type { IssuerProfile } from "./issuerIntelligence"
 
-const MODEL_VERSION = "2.0.0"
+const MODEL_VERSION = "2.1.0"
+
+// ─── Extended Result with Enhanced Fields ─────────────────────────────────
+
+export interface BINAnalysisV2ResultEnhanced extends BINAnalysisV2Result {
+  threeDSAnalysis: ThreeDSAnalysisEnhanced
+  fraudAlerts: FraudAlert[]
+  issuerProfile: IssuerProfile | null
+  metadata: {
+    analysisDate: string
+    processingTimeMs: number
+    modelVersion: string
+    issuerIntelligenceUsed: boolean
+    alertCount: number
+    criticalAlertCount: number
+  }
+}
 
 // ─── Normalize raw API data ────────────────────────────────────────────────
 
@@ -115,7 +134,7 @@ function normalizeApiResponse(raw: RawBINApiResponse, bin: string): TechnicalDat
     isCommercial,
     isPrepaid,
     realApiFields,
-    inferredFields: ["threeDSAnalysis", "riskAnalysis", "complianceData", "finalSummary"],
+    inferredFields: ["threeDSAnalysis", "riskAnalysis", "complianceData", "finalSummary", "fraudAlerts"],
   }
 }
 
@@ -136,9 +155,22 @@ export interface AnalyzerOptions {
   rawApiResponse: RawBINApiResponse
   providerName?: string
   analysisType?: "basic" | "advanced"
+  // Optional context for enhanced risk analysis
+  transactionContext?: {
+    hour?: number
+    dayOfWeek?: number
+    isHoliday?: boolean
+    amount?: number
+    merchantMCC?: string
+    attemptCount?: number
+    isNewCard?: boolean
+    isDependentCard?: boolean
+    isVirtualCard?: boolean
+    ipCountryCode?: string
+  }
 }
 
-export function analyzeBIN(options: AnalyzerOptions): BINAnalysisV2Result {
+export function analyzeBIN(options: AnalyzerOptions): BINAnalysisV2ResultEnhanced {
   const startTime = Date.now()
 
   const {
@@ -146,6 +178,7 @@ export function analyzeBIN(options: AnalyzerOptions): BINAnalysisV2Result {
     rawApiResponse,
     providerName = "BINList",
     analysisType = "basic",
+    transactionContext = {},
   } = options
 
   // Step 1: Normalize technical data
@@ -167,8 +200,9 @@ export function analyzeBIN(options: AnalyzerOptions): BINAnalysisV2Result {
     isCommercial: technicalData.isCommercial,
   })
 
-  // Step 3: 3DS Analysis (all inferred)
+  // Step 3: 3DS Analysis (enhanced with issuer intelligence)
   const threeDSAnalysis = analyzeThreeDSProfile({
+    bin,
     brand: technicalData.brand,
     cardType: technicalData.cardType,
     cardCategory: technicalData.cardCategory,
@@ -178,7 +212,7 @@ export function analyzeBIN(options: AnalyzerOptions): BINAnalysisV2Result {
     isCommercial: technicalData.isCommercial,
   })
 
-  // Step 4: Risk Score
+  // Step 4: Risk Score (enhanced with context and issuer intelligence)
   const riskAnalysis = calculateRiskScore({
     bin,
     binLength: technicalData.binLength,
@@ -191,12 +225,46 @@ export function analyzeBIN(options: AnalyzerOptions): BINAnalysisV2Result {
     isCommercial: technicalData.isCommercial,
     dataCompleteness: dataQuality.apiDataCompleteness,
     conflictingDataDetected: dataQuality.conflictingDataDetected,
+    // Transaction context
+    transactionHour: transactionContext.hour,
+    transactionDayOfWeek: transactionContext.dayOfWeek,
+    isHoliday: transactionContext.isHoliday,
+    transactionAmount: transactionContext.amount,
+    merchantMCC: transactionContext.merchantMCC,
+    attemptCount: transactionContext.attemptCount,
+    isNewCard: transactionContext.isNewCard,
+    isDependentCard: transactionContext.isDependentCard,
+    isVirtualCard: transactionContext.isVirtualCard,
+    ipCountryCode: transactionContext.ipCountryCode,
   })
 
   // Step 5: Compliance
   const complianceData = buildComplianceData(technicalData.countryCode)
 
-  // Step 6: Final summary / recommendation
+  // Step 6: Get issuer profile
+  const issuerProfile = getIssuerProfileForBin(bin, technicalData.issuer)
+
+  // Step 7: Generate fraud alerts
+  const fraudAlerts = generateFraudAlerts(
+    technicalData,
+    threeDSAnalysis,
+    riskAnalysis,
+    issuerProfile,
+  )
+
+  // Step 8: Adjust risk score based on alert impact
+  const alertRiskImpact = calculateAlertRiskImpact(fraudAlerts)
+  const adjustedScore = Math.min(Math.max(riskAnalysis.score + alertRiskImpact, 0), 100)
+  if (alertRiskImpact !== 0) {
+    riskAnalysis.score = adjustedScore
+    riskAnalysis.riskBreakdown.push({
+      factor: `Ajuste por ${fraudAlerts.length} alertas de inteligência de emissor`,
+      impact: alertRiskImpact > 0 ? `+${alertRiskImpact}` : `${alertRiskImpact}`,
+      numericImpact: alertRiskImpact,
+    })
+  }
+
+  // Step 9: Final summary / recommendation
   const finalSummary = buildFinalSummary({
     recommendation: riskAnalysis.recommendation,
     riskLevel: riskAnalysis.level,
@@ -213,6 +281,7 @@ export function analyzeBIN(options: AnalyzerOptions): BINAnalysisV2Result {
   })
 
   const processingTimeMs = Date.now() - startTime
+  const criticalAlerts = fraudAlerts.filter(a => a.severity === "CRITICO")
 
   return {
     bin,
@@ -224,10 +293,15 @@ export function analyzeBIN(options: AnalyzerOptions): BINAnalysisV2Result {
     complianceData,
     dataQuality,
     finalSummary,
+    fraudAlerts,
+    issuerProfile,
     metadata: {
       analysisDate: new Date().toISOString(),
       processingTimeMs,
       modelVersion: MODEL_VERSION,
+      issuerIntelligenceUsed: issuerProfile !== null,
+      alertCount: fraudAlerts.length,
+      criticalAlertCount: criticalAlerts.length,
     },
   }
 }

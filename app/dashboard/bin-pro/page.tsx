@@ -1,8 +1,9 @@
 import { requireAuth, getUserProfile } from "@/lib/auth"
 import { DashboardHeader } from "@/components/dashboard/dashboard-header"
 import { VeriFiBINInterface } from "@/components/bin-pro/verifibinn-interface"
+import { BinProHighlights } from "@/components/bin-pro/bin-pro-highlights"
 import { CyberHeading, CyberText } from "@/components/cyberpunk/cyber-typography"
-import { Shield, BarChart2, Globe } from "lucide-react"
+import { Shield } from "lucide-react"
 
 export default async function BinProPage() {
   const user = await requireAuth()
@@ -26,26 +27,7 @@ export default async function BinProPage() {
             Plataforma profissional de inteligência antifraude e análise de BIN
           </CyberText>
 
-          <div className="flex items-center space-x-6 mt-4">
-            <div className="flex items-center space-x-2">
-              <Shield className="h-4 w-4 text-secondary" />
-              <CyberText variant="caption" color="secondary">
-                Score Explicável
-              </CyberText>
-            </div>
-            <div className="flex items-center space-x-2">
-              <BarChart2 className="h-4 w-4 text-accent" />
-              <CyberText variant="caption" color="accent">
-                Análise 3DS/VBV Inferida
-              </CyberText>
-            </div>
-            <div className="flex items-center space-x-2">
-              <Globe className="h-4 w-4 text-primary" />
-              <CyberText variant="caption" color="primary">
-                Compliance Regulatório
-              </CyberText>
-            </div>
-          </div>
+          <BinProHighlights />
         </div>
 
         <VeriFiBINInterface userId={user.id} />

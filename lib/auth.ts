@@ -1,37 +1,44 @@
 import { createClient } from "@/lib/supabase/server"
 import { redirect } from "next/navigation"
+import type { User } from "@supabase/supabase-js"
 
-// DEV MODE: Set to true to bypass authentication during development
-const DEV_MODE_SKIP_AUTH = true
+// Open-access mode: when NEXT_PUBLIC_REQUIRE_AUTH is not set to "true",
+// authentication is disabled and all routes are publicly accessible.
+// To re-enable auth, set NEXT_PUBLIC_REQUIRE_AUTH=true in your environment.
+// TEMPORARY: Testing mode — all auth restrictions disabled
+const OPEN_ACCESS_MODE = true
 
-// Mock user for development mode
-const MOCK_USER = {
-  id: "dev-user-12345",
-  email: "dev@verifibin.com",
+/** Minimal guest user returned in open-access mode. */
+const GUEST_USER: User = {
+  id: "00000000-0000-0000-0000-000000000000",
+  email: undefined,
   app_metadata: {},
-  user_metadata: { full_name: "Dev User" },
+  user_metadata: {},
   aud: "authenticated",
-  created_at: new Date().toISOString(),
+  created_at: "",
 }
 
-// Mock profile for development mode
-const MOCK_PROFILE = {
-  id: "dev-user-12345",
-  email: "dev@verifibin.com",
-  full_name: "Dev User",
-  role: "admin", // Change to "user" if you want to test as regular user
+/** Shape expected from the `users` table (profile). */
+interface UserProfile {
+  id: string
+  email: string | null
+  full_name: string | null
+  role: string
+  credits: number
+  is_active: boolean
+  [key: string]: unknown
+}
+
+const GUEST_PROFILE: UserProfile = {
+  id: "00000000-0000-0000-0000-000000000000",
+  email: null,
+  full_name: "Guest",
+  role: "user",
+  credits: 0,
   is_active: true,
-  credits: 1000,
-  created_at: new Date().toISOString(),
-  updated_at: new Date().toISOString(),
 }
 
 export async function getUser() {
-  // Dev mode: return mock user
-  if (DEV_MODE_SKIP_AUTH) {
-    return MOCK_USER as any
-  }
-
   const supabase = await createClient()
   const {
     data: { user },
@@ -46,6 +53,11 @@ export async function getUser() {
 }
 
 export async function requireAuth() {
+  // In open-access mode return the guest user instead of redirecting to login.
+  if (OPEN_ACCESS_MODE) {
+    return GUEST_USER
+  }
+
   const user = await getUser()
 
   if (!user) {
@@ -56,9 +68,9 @@ export async function requireAuth() {
 }
 
 export async function getUserProfile(userId: string) {
-  // Dev mode: return mock profile
-  if (DEV_MODE_SKIP_AUTH) {
-    return MOCK_PROFILE as any
+  // Return a guest profile when userId is the fixed guest UUID.
+  if (userId === GUEST_USER.id) {
+    return GUEST_PROFILE
   }
 
   const supabase = await createClient()
@@ -74,6 +86,11 @@ export async function getUserProfile(userId: string) {
 }
 
 export async function requireAdmin() {
+  // In open-access mode allow admin access for testing, returning a mock admin profile.
+  if (OPEN_ACCESS_MODE) {
+    return { user: GUEST_USER, profile: { ...GUEST_PROFILE, role: "admin" } }
+  }
+
   const user = await requireAuth()
   const profile = await getUserProfile(user.id)
 
@@ -83,3 +100,6 @@ export async function requireAdmin() {
 
   return { user, profile }
 }
+
+/** Whether the application is currently running in open-access mode (auth disabled). */
+export { OPEN_ACCESS_MODE }

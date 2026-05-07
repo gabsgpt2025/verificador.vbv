@@ -5,6 +5,10 @@ import { analyzeBIN } from "@/src/lib/intelligence/binAnalyzer"
 import type { RawBINApiResponse } from "@/src/lib/intelligence/types"
 import type { BINAnalysisV2Result } from "@/src/lib/intelligence/types"
 
+// Open-access mode: when NEXT_PUBLIC_REQUIRE_AUTH !== "true", allow unauthenticated BIN analysis
+// TEMPORARY: Testing mode — all auth restrictions disabled
+const OPEN_ACCESS_MODE = true
+
 export async function POST(request: NextRequest) {
   try {
     const { bin }: { bin: string } = await request.json()
@@ -18,14 +22,17 @@ export async function POST(request: NextRequest) {
       data: { user },
     } = await supabase.auth.getUser()
 
-    if (!user) {
+    // In open-access mode, allow unauthenticated requests (skip auth & credit checks)
+    if (!user && !OPEN_ACCESS_MODE) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
     }
 
-    // Check and deduct credits (BIN Pro 2.0 costs 3 credits)
-    const creditResult = await subtractCredits(user.id, 3, "VeriFiBIN 2.0 — Análise Antifraude", `BIN: ${bin}`)
-    if (!creditResult.success) {
-      return NextResponse.json({ error: creditResult.error }, { status: 400 })
+    // Check and deduct credits only when a real user is present
+    if (user) {
+      const creditResult = await subtractCredits(user.id, 3, "VeriFiBIN 2.0 — Análise Antifraude", `BIN: ${bin}`)
+      if (!creditResult.success) {
+        return NextResponse.json({ error: creditResult.message }, { status: 400 })
+      }
     }
 
     // Fetch BIN data from external API (BinList.net public API — no key required)
@@ -39,8 +46,10 @@ export async function POST(request: NextRequest) {
       analysisType: "advanced",
     })
 
-    // Save to analysis logs
-    await saveAnalysisLog(user.id, result)
+    // Save to analysis logs (only for authenticated users)
+    if (user) {
+      await saveAnalysisLog(user.id, result)
+    }
 
     return NextResponse.json(result)
   } catch (error) {
