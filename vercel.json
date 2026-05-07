@@ -1,0 +1,31 @@
+{
+  "env": [
+    {
+      "key": "NEUTRINO_USER_ID",
+      "value": "@neutrino_user_id"
+    },
+    {
+      "key": "NEUTRINO_API_KEY",
+      "value": "@neutrino_api_key"
+    },
+    {
+      "key": "MASTERCARD_CONSUMER_KEY",
+      "value": "@mastercard_consumer_key"
+    },
+    {
+      "key": "MASTERCARD_P12_CERT",
+      "value": "@mastercard_p12_cert"
+    },
+    {
+      "key": "MAXMIND_ACCOUNT_ID",
+      "value": "@maxmind_account_id"
+    },
+    {
+      "key": "MAXMIND_LICENSE_KEY",
+      "value": "@maxmind_license_key"
+    }
+  ],
+  "buildCommand": "npm run build",
+  "outputDirectory": ".next",
+  "framework": "nextjs"
+}

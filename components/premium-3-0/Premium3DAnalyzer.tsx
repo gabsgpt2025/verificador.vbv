@@ -5,13 +5,11 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
-import { AlertCircle, CheckCircle2, XCircle, AlertTriangle, Globe, Zap, Shield, TrendingUp, Info, Database, Lock, Eye, EyeOff, Percent, Target } from 'lucide-react';
-import { calculateRisk } from '@/lib/premium-3-0/riskEngine';
-import { analyzeBIN } from '@/lib/premium-3-0/binIntelligence';
-import { analyze3DS, getTimeOfDay, getDayOfWeek } from '@/lib/premium-3-0/threeDSEngine';
-import type { AnalysisRequest, AnalysisResponse, LanguageMode } from '@/lib/premium-3-0/types';
+import { AlertCircle, CheckCircle2, XCircle, AlertTriangle, Globe, Zap, Shield, TrendingUp, Info, Database, Lock, Eye, EyeOff, Percent, Target, Gauge, BarChart3, TrendingDown } from 'lucide-react';
+import HolisticEngine from '@/lib/premium-3-0/holisticEngine';
+import type { HolisticAnalysisResult } from '@/lib/premium-3-0/holisticTypes';
 
-const LANGUAGE_MODES: Record<string, LanguageMode> = {
+const LANGUAGE_MODES = {
   TECHNICAL: {
     mode: 'TECHNICAL',
     label: '🔧 Modo Técnico',
@@ -24,40 +22,33 @@ const LANGUAGE_MODES: Record<string, LanguageMode> = {
   },
 };
 
-// Função auxiliar para converter likelihood em porcentagem
-function likelihoodToPercentage(likelihood: string): number {
-  const map: Record<string, number> = {
-    VERY_LOW: 10,
-    LOW: 25,
-    MEDIUM: 50,
-    HIGH: 75,
-    VERY_HIGH: 90,
-  };
-  return map[likelihood] || 50;
-}
-
-// Função auxiliar para converter likelihood em texto
-function likelihoodToText(likelihood: string): string {
-  const map: Record<string, string> = {
-    VERY_LOW: 'Muito Baixa',
-    LOW: 'Baixa',
-    MEDIUM: 'Média',
-    HIGH: 'Alta',
-    VERY_HIGH: 'Muito Alta',
-  };
-  return map[likelihood] || 'Desconhecida';
-}
+// Mock data para teste (será substituído por API real)
+const mockCardData = {
+  card_brand: 'VISA',
+  card_type: 'CREDIT',
+  card_category: 'GOLD',
+  country_code: 'BR',
+  country: 'Brazil',
+  issuer: 'Nubank',
+  is_commercial: false,
+  is_prepaid: false,
+  is_reloadable: false,
+  customer_ip: '192.168.1.1',
+  ip_country: 'BR',
+  ip_matches_bin: true,
+  ip_blocklisted: false,
+};
 
 export default function Premium3DAnalyzer() {
   const [languageMode, setLanguageMode] = useState<'TECHNICAL' | 'POPULAR'>('TECHNICAL');
-  const [cardNumber, setCardNumber] = useState('');
-  const [analysis, setAnalysis] = useState<AnalysisResponse | null>(null);
+  const [binInput, setBinInput] = useState('');
+  const [analysis, setAnalysis] = useState<HolisticAnalysisResult | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [showDetails, setShowDetails] = useState(true);
 
   const handleAnalyze = useCallback(async () => {
-    if (!cardNumber || cardNumber.length < 6) {
+    if (!binInput || binInput.length < 6) {
       setError('Por favor, insira pelo menos os 6 primeiros dígitos do cartão');
       return;
     }
@@ -66,81 +57,44 @@ export default function Premium3DAnalyzer() {
     setError(null);
 
     try {
-      const request: AnalysisRequest = {
-        bin: cardNumber.substring(0, 6),
-        transactionAmount: 500,
-        transactionCurrency: 'BRL',
-        merchantCountry: 'BR',
-        cardholderCountry: 'BR',
-        deviceType: 'DESKTOP',
-        isNewCard: false,
-        isFirstTransaction: false,
-      };
-
-      const riskAnalysis = calculateRisk(request);
-      const binAnalysis = analyzeBIN(request.bin);
-
-      const threeDSContext = {
-        transactionAmount: request.transactionAmount,
-        transactionCurrency: request.transactionCurrency,
-        merchantCountry: request.merchantCountry,
-        cardholderCountry: request.cardholderCountry,
-        deviceType: request.deviceType as any,
-        isNewCard: request.isNewCard,
-        isFirstTransaction: request.isFirstTransaction,
-        timeOfDay: getTimeOfDay(),
-        dayOfWeek: getDayOfWeek(),
-      };
-
-      const threeDSAnalysis = analyze3DS(threeDSContext, binAnalysis.riskScore, binAnalysis.frictionlessLikelihood);
-
-      const response: AnalysisResponse = {
-        requestId: `req_${Date.now()}`,
-        timestamp: new Date().toISOString(),
-        binAnalysis,
-        threeDSAnalysis,
-        riskAnalysis,
-        languageMode: LANGUAGE_MODES[languageMode],
-      };
-
-      setAnalysis(response);
+      const engine = new HolisticEngine();
+      const result = await engine.analyze(binInput.substring(0, 6), mockCardData);
+      setAnalysis(result);
     } catch (err) {
       setError('Erro ao analisar o cartão. Por favor, tente novamente.');
       console.error(err);
     } finally {
       setLoading(false);
     }
-  }, [cardNumber, languageMode]);
+  }, [binInput]);
 
-  const getRiskColor = (level: string) => {
-    const colors: Record<string, string> = {
-      LOW: 'from-emerald-500 to-teal-600',
-      MEDIUM: 'from-amber-500 to-orange-600',
-      HIGH: 'from-rose-500 to-red-600',
-      CRITICAL: 'from-red-600 to-red-900',
-    };
-    return colors[level] || 'from-slate-500 to-slate-600';
+  const getRiskColor = (score: number) => {
+    if (score < 20) return 'from-emerald-500 to-teal-600';
+    if (score < 40) return 'from-lime-500 to-green-600';
+    if (score < 60) return 'from-amber-500 to-orange-600';
+    if (score < 80) return 'from-orange-500 to-red-600';
+    return 'from-red-600 to-red-900';
   };
 
-  const getRiskIcon = (level: string) => {
-    switch (level) {
-      case 'LOW':
-        return <CheckCircle2 className="w-6 h-6 text-emerald-600" />;
-      case 'MEDIUM':
-        return <AlertTriangle className="w-6 h-6 text-amber-600" />;
-      case 'HIGH':
-        return <AlertCircle className="w-6 h-6 text-rose-600" />;
-      case 'CRITICAL':
-        return <XCircle className="w-6 h-6 text-red-50" />;
-      default:
-        return null;
-    }
+  const getRiskLevel = (score: number) => {
+    if (score < 20) return 'MUITO BAIXO';
+    if (score < 40) return 'BAIXO';
+    if (score < 60) return 'MÉDIO';
+    if (score < 80) return 'ALTO';
+    return 'MUITO ALTO';
   };
 
-  // Calcular scores numéricos para 3DS
-  const frictionlessPercentage = analysis ? likelihoodToPercentage(analysis.threeDSAnalysis.frictionlessLikelihood) : 0;
-  const challengePercentage = analysis ? likelihoodToPercentage(analysis.threeDSAnalysis.challengeLikelihood) : 0;
-  const bypassPercentage = analysis ? 100 - challengePercentage : 0;
+  const getRiskIcon = (score: number) => {
+    if (score < 40) return <CheckCircle2 className="w-6 h-6 text-emerald-600" />;
+    if (score < 60) return <AlertTriangle className="w-6 h-6 text-amber-600" />;
+    return <AlertCircle className="w-6 h-6 text-red-600" />;
+  };
+
+  const getConfidenceColor = (confidence: number) => {
+    if (confidence >= 80) return 'text-emerald-400';
+    if (confidence >= 60) return 'text-amber-400';
+    return 'text-red-400';
+  };
 
   return (
     <div className="w-full min-h-screen bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950 py-12">
@@ -156,14 +110,14 @@ export default function Premium3DAnalyzer() {
             </h1>
           </div>
           <p className="text-xl text-slate-300 font-semibold">
-            Motor de Verificação de Segurança Anti-Fraude Completo
+            Motor Holístico de Verificação Anti-Fraude
           </p>
           <p className="text-sm text-slate-400">
-            Análise em tempo real com inteligência proprietária, detecção de frictionless, bypass e integração Mastercard
+            Análise integrada com múltiplas fontes: APIs Mastercard, Neutrino, dados proprietários e históricos de mercado
           </p>
         </div>
 
-        {/* Language Toggle Card */}
+        {/* Language Toggle */}
         <Card className="border-purple-500/30 bg-gradient-to-r from-purple-950/50 to-blue-950/50 backdrop-blur">
           <CardHeader>
             <CardTitle className="flex items-center gap-2 text-lg">
@@ -173,11 +127,11 @@ export default function Premium3DAnalyzer() {
               </span>
             </CardTitle>
             <CardDescription className="text-slate-300">
-              Escolha entre linguagem técnica especializada ou popular e acessível
+              {LANGUAGE_MODES[languageMode].description}
             </CardDescription>
           </CardHeader>
           <CardContent>
-            <div className="flex gap-3 mb-4">
+            <div className="flex gap-3">
               {Object.entries(LANGUAGE_MODES).map(([key, mode]) => (
                 <Button
                   key={key}
@@ -193,9 +147,6 @@ export default function Premium3DAnalyzer() {
                 </Button>
               ))}
             </div>
-            <p className="text-sm text-slate-300">
-              {LANGUAGE_MODES[languageMode].description}
-            </p>
           </CardContent>
         </Card>
 
@@ -209,7 +160,7 @@ export default function Premium3DAnalyzer() {
               </span>
             </CardTitle>
             <CardDescription className="text-slate-300">
-              Insira os 6 primeiros dígitos do cartão para análise completa de segurança, frictionless, bypass e 3DS
+              Insira os 6 primeiros dígitos do cartão para análise holística completa
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
@@ -217,8 +168,8 @@ export default function Premium3DAnalyzer() {
               <Input
                 type="text"
                 placeholder="Insira o BIN (ex: 627961)"
-                value={cardNumber}
-                onChange={(e) => setCardNumber(e.target.value.replace(/\D/g, '').slice(0, 6))}
+                value={binInput}
+                onChange={(e) => setBinInput(e.target.value.replace(/\D/g, '').slice(0, 6))}
                 maxLength={6}
                 className="flex-1 bg-slate-800 border-slate-600 text-white placeholder:text-slate-500 text-lg font-mono"
               />
@@ -253,389 +204,278 @@ export default function Premium3DAnalyzer() {
         {/* Results Section */}
         {analysis && (
           <div className="space-y-6">
-            {/* Main Metrics - 3 Cards com Porcentagens */}
+            {/* 3 Main Metrics */}
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
               {/* Frictionless */}
               <div className="bg-gradient-to-br from-emerald-950/50 to-teal-950/50 border border-emerald-500/30 rounded-lg p-6 backdrop-blur">
                 <div className="flex items-center justify-between mb-4">
                   <div className="flex items-center gap-2">
                     <Percent className="w-5 h-5 text-emerald-400" />
-                    <span className="text-emerald-300 font-mono text-sm font-bold">FRICTIONLESS</span>
+                    <span className="text-sm font-semibold text-emerald-300">Frictionless</span>
                   </div>
-                  <Badge className="bg-emerald-600/50 text-emerald-200 border-emerald-500/50">
-                    {likelihoodToText(analysis.threeDSAnalysis.frictionlessLikelihood)}
+                  <Badge className="bg-emerald-500/20 text-emerald-300 border-emerald-500/30">
+                    {analysis.probabilities.frictionless.level}
                   </Badge>
                 </div>
-                <div className="text-4xl font-bold text-emerald-200 mb-3">{frictionlessPercentage}%</div>
-                <div className="w-full h-2 bg-slate-700 rounded-full overflow-hidden mb-3">
-                  <div
-                    className="h-full bg-gradient-to-r from-emerald-500 to-teal-500"
-                    style={{ width: `${frictionlessPercentage}%` }}
-                  />
+                <div className="space-y-3">
+                  <div className="text-4xl font-bold text-emerald-400">
+                    {analysis.probabilities.frictionless.percentage}%
+                  </div>
+                  <div className="w-full bg-slate-800 rounded-full h-2">
+                    <div
+                      className="bg-gradient-to-r from-emerald-500 to-teal-600 h-2 rounded-full transition-all"
+                      style={{ width: `${analysis.probabilities.frictionless.percentage}%` }}
+                    />
+                  </div>
+                  <div className="text-xs text-slate-400">
+                    Confiança: <span className={getConfidenceColor(analysis.probabilities.frictionless.confidence)}>
+                      {analysis.probabilities.frictionless.confidence}%
+                    </span>
+                  </div>
                 </div>
-                <p className="text-xs text-emerald-300/70">
-                  {languageMode === 'TECHNICAL'
-                    ? 'Probabilidade de fluxo sem desafio 3DS (Frictionless Flow)'
-                    : 'Chance de transação sem verificação adicional'}
-                </p>
               </div>
 
-              {/* Desafio 3DS */}
+              {/* 3DS Challenge */}
               <div className="bg-gradient-to-br from-amber-950/50 to-orange-950/50 border border-amber-500/30 rounded-lg p-6 backdrop-blur">
                 <div className="flex items-center justify-between mb-4">
                   <div className="flex items-center gap-2">
-                    <Target className="w-5 h-5 text-amber-400" />
-                    <span className="text-amber-300 font-mono text-sm font-bold">DESAFIO 3DS</span>
+                    <Shield className="w-5 h-5 text-amber-400" />
+                    <span className="text-sm font-semibold text-amber-300">Desafio 3DS</span>
                   </div>
-                  <Badge className="bg-amber-600/50 text-amber-200 border-amber-500/50">
-                    {likelihoodToText(analysis.threeDSAnalysis.challengeLikelihood)}
+                  <Badge className="bg-amber-500/20 text-amber-300 border-amber-500/30">
+                    {analysis.probabilities.threeDsActive.level}
                   </Badge>
                 </div>
-                <div className="text-4xl font-bold text-amber-200 mb-3">{challengePercentage}%</div>
-                <div className="w-full h-2 bg-slate-700 rounded-full overflow-hidden mb-3">
-                  <div
-                    className="h-full bg-gradient-to-r from-amber-500 to-orange-500"
-                    style={{ width: `${challengePercentage}%` }}
-                  />
+                <div className="space-y-3">
+                  <div className="text-4xl font-bold text-amber-400">
+                    {analysis.probabilities.threeDsActive.percentage}%
+                  </div>
+                  <div className="w-full bg-slate-800 rounded-full h-2">
+                    <div
+                      className="bg-gradient-to-r from-amber-500 to-orange-600 h-2 rounded-full transition-all"
+                      style={{ width: `${analysis.probabilities.threeDsActive.percentage}%` }}
+                    />
+                  </div>
+                  <div className="text-xs text-slate-400">
+                    Confiança: <span className={getConfidenceColor(analysis.probabilities.threeDsActive.confidence)}>
+                      {analysis.probabilities.threeDsActive.confidence}%
+                    </span>
+                  </div>
                 </div>
-                <p className="text-xs text-amber-300/70">
-                  {languageMode === 'TECHNICAL'
-                    ? 'Probabilidade de desafio 3DS (Challenge Flow)'
-                    : 'Chance de precisar fazer verificação adicional'}
-                </p>
               </div>
 
               {/* Bypass */}
               <div className="bg-gradient-to-br from-rose-950/50 to-red-950/50 border border-rose-500/30 rounded-lg p-6 backdrop-blur">
                 <div className="flex items-center justify-between mb-4">
                   <div className="flex items-center gap-2">
-                    <Lock className="w-5 h-5 text-rose-400" />
-                    <span className="text-rose-300 font-mono text-sm font-bold">CHANCE DE BYPASS</span>
+                    <AlertTriangle className="w-5 h-5 text-rose-400" />
+                    <span className="text-sm font-semibold text-rose-300">Chance de Bypass</span>
                   </div>
-                  <Badge className="bg-rose-600/50 text-rose-200 border-rose-500/50">
-                    {bypassPercentage > 60 ? 'Alta' : bypassPercentage > 30 ? 'Média' : 'Baixa'}
+                  <Badge className="bg-rose-500/20 text-rose-300 border-rose-500/30">
+                    {analysis.probabilities.bypass.level}
                   </Badge>
                 </div>
-                <div className="text-4xl font-bold text-rose-200 mb-3">{bypassPercentage}%</div>
-                <div className="w-full h-2 bg-slate-700 rounded-full overflow-hidden mb-3">
-                  <div
-                    className="h-full bg-gradient-to-r from-rose-500 to-red-500"
-                    style={{ width: `${bypassPercentage}%` }}
-                  />
+                <div className="space-y-3">
+                  <div className="text-4xl font-bold text-rose-400">
+                    {analysis.probabilities.bypass.percentage}%
+                  </div>
+                  <div className="w-full bg-slate-800 rounded-full h-2">
+                    <div
+                      className="bg-gradient-to-r from-rose-500 to-red-600 h-2 rounded-full transition-all"
+                      style={{ width: `${analysis.probabilities.bypass.percentage}%` }}
+                    />
+                  </div>
+                  <div className="text-xs text-slate-400">
+                    Mecanismo: <span className="text-rose-300">{analysis.probabilities.bypass.mechanism}</span>
+                  </div>
                 </div>
-                <p className="text-xs text-rose-300/70">
-                  {languageMode === 'TECHNICAL'
-                    ? 'Probabilidade de bypass de autenticação 3DS'
-                    : 'Chance de evitar verificação de segurança'}
-                </p>
               </div>
             </div>
 
-            {/* Risk Score Card - Grande e Destacado */}
-            <div className={`bg-gradient-to-br ${getRiskColor(analysis.riskAnalysis.riskLevel)} rounded-lg p-8 border-2 border-white/10 shadow-2xl`}>
-              <div className="flex items-start justify-between mb-6">
-                <div className="flex items-start gap-4">
-                  {getRiskIcon(analysis.riskAnalysis.riskLevel)}
+            {/* Overall Risk Score */}
+            <Card className={`border-0 bg-gradient-to-r ${getRiskColor(analysis.riskScores.overall)} bg-opacity-10 backdrop-blur`}>
+              <CardHeader>
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    {getRiskIcon(analysis.riskScores.overall)}
+                    <div>
+                      <CardTitle className="text-2xl">Score de Risco Geral</CardTitle>
+                      <CardDescription className="text-slate-300">
+                        Análise consolidada de todos os fatores de risco
+                      </CardDescription>
+                    </div>
+                  </div>
+                  <div className="text-right">
+                    <div className="text-5xl font-bold text-white">
+                      {analysis.riskScores.overall}
+                    </div>
+                    <div className="text-sm font-semibold text-slate-300">
+                      {getRiskLevel(analysis.riskScores.overall)}
+                    </div>
+                  </div>
+                </div>
+              </CardHeader>
+            </Card>
+
+            {/* Recomendação */}
+            <Card className="border-blue-500/30 bg-gradient-to-r from-blue-950/50 to-slate-950/50 backdrop-blur">
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Target className="w-5 h-5 text-blue-400" />
+                  <span className="bg-gradient-to-r from-blue-400 to-cyan-400 bg-clip-text text-transparent">
+                    Recomendação
+                  </span>
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="flex items-center justify-between">
                   <div>
-                    <h2 className="text-3xl font-bold text-white mb-2">Score de Risco Geral</h2>
-                    <p className="text-white/80">
+                    <div className="text-2xl font-bold text-white mb-2">
+                      {analysis.recommendation.action}
+                    </div>
+                    <p className="text-slate-300 text-sm">
                       {languageMode === 'TECHNICAL'
-                        ? 'Análise de risco agregada baseada em múltiplos fatores (BIN, temporal, comportamental, geográfico, dispositivo, gateway)'
-                        : 'Nível geral de segurança da transação'}
+                        ? analysis.explanations.technical.summary
+                        : analysis.explanations.popular.summary}
                     </p>
                   </div>
+                  <div className="text-right">
+                    <div className="text-3xl font-bold text-blue-400">
+                      {analysis.recommendation.confidence}%
+                    </div>
+                    <div className="text-xs text-slate-400">Confiança</div>
+                  </div>
                 </div>
-                <div className="text-right">
-                  <div className="text-6xl font-bold text-white mb-2">{analysis.riskAnalysis.overallRiskScore}</div>
-                  <Badge className="bg-white/20 text-white border-white/30 text-lg px-4 py-1">
-                    {analysis.riskAnalysis.riskLevel}
-                  </Badge>
+                <div className="p-3 bg-slate-800/50 rounded border border-slate-700 text-sm text-slate-300">
+                  {analysis.recommendation.reason}
                 </div>
-              </div>
-              <div className="bg-white/10 rounded p-4 backdrop-blur">
-                <p className="text-white text-lg">
-                  {analysis.riskAnalysis.recommendations.reasoning[languageMode.toLowerCase() as keyof typeof analysis.riskAnalysis.recommendations.reasoning]}
-                </p>
-              </div>
-            </div>
+              </CardContent>
+            </Card>
 
-            {/* Toggle para mostrar/esconder detalhes */}
-            <div className="flex justify-center">
-              <Button
-                variant="outline"
-                onClick={() => setShowDetails(!showDetails)}
-                className="border-slate-600 hover:border-purple-400 text-slate-300"
-              >
-                {showDetails ? (
-                  <>
-                    <EyeOff className="w-4 h-4 mr-2" />
-                    Esconder Detalhes Completos
-                  </>
-                ) : (
-                  <>
-                    <Eye className="w-4 h-4 mr-2" />
-                    Mostrar Detalhes Completos
-                  </>
-                )}
-              </Button>
-            </div>
+            {/* Detalhes Expandíveis */}
+            <Card className="border-slate-500/30 bg-gradient-to-r from-slate-900/50 to-slate-950/50 backdrop-blur">
+              <CardHeader>
+                <button
+                  onClick={() => setShowDetails(!showDetails)}
+                  className="w-full flex items-center justify-between hover:opacity-80 transition-opacity"
+                >
+                  <CardTitle className="flex items-center gap-2">
+                    <BarChart3 className="w-5 h-5 text-slate-400" />
+                    <span className="bg-gradient-to-r from-slate-300 to-slate-400 bg-clip-text text-transparent">
+                      Análise Detalhada
+                    </span>
+                  </CardTitle>
+                  <span className="text-slate-400">{showDetails ? '▼' : '▶'}</span>
+                </button>
+              </CardHeader>
 
-            {showDetails && (
-              <>
-                {/* BIN Analysis - Completo */}
-                <Card className="border-slate-700 bg-slate-800/50 backdrop-blur">
-                  <CardHeader>
-                    <CardTitle className="flex items-center gap-2 text-lg">
-                      <Shield className="w-5 h-5 text-emerald-400" />
-                      <span className="bg-gradient-to-r from-emerald-400 to-teal-400 bg-clip-text text-transparent">
-                        Análise Completa de BIN
-                      </span>
-                    </CardTitle>
-                    <CardDescription className="text-slate-300">
-                      Informações detalhadas do banco emissor, tipo de cartão e características
-                    </CardDescription>
-                  </CardHeader>
-                  <CardContent className="space-y-6">
-                    {/* Grid de Informações Básicas */}
-                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                      <div className="p-4 bg-slate-700/50 rounded-lg border border-slate-600">
-                        <p className="text-xs text-slate-400 mb-2 font-mono uppercase">BIN</p>
-                        <p className="font-mono text-lg font-bold text-white">{analysis.binAnalysis.bin}</p>
+              {showDetails && (
+                <CardContent className="space-y-6">
+                  {/* Dados do Cartão */}
+                  <div>
+                    <h3 className="text-lg font-semibold text-white mb-4">Informações do Cartão</h3>
+                    <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+                      <div className="p-3 bg-slate-800/50 rounded">
+                        <div className="text-xs text-slate-400">BIN</div>
+                        <div className="font-mono text-white">{analysis.bin}</div>
                       </div>
-                      <div className="p-4 bg-slate-700/50 rounded-lg border border-slate-600">
-                        <p className="text-xs text-slate-400 mb-2 font-mono uppercase">Emissor</p>
-                        <p className="font-semibold text-white">{analysis.binAnalysis.binData.issuerName}</p>
+                      <div className="p-3 bg-slate-800/50 rounded">
+                        <div className="text-xs text-slate-400">Marca</div>
+                        <div className="text-white">{analysis.cardData.cardBrand}</div>
                       </div>
-                      <div className="p-4 bg-slate-700/50 rounded-lg border border-slate-600">
-                        <p className="text-xs text-slate-400 mb-2 font-mono uppercase">País</p>
-                        <p className="font-semibold text-white">{analysis.binAnalysis.binData.country}</p>
+                      <div className="p-3 bg-slate-800/50 rounded">
+                        <div className="text-xs text-slate-400">Tipo</div>
+                        <div className="text-white">{analysis.cardData.cardType}</div>
                       </div>
-                      <div className="p-4 bg-slate-700/50 rounded-lg border border-slate-600">
-                        <p className="text-xs text-slate-400 mb-2 font-mono uppercase">Rede</p>
-                        <p className="font-semibold text-white">{analysis.binAnalysis.binData.issuingNetwork}</p>
+                      <div className="p-3 bg-slate-800/50 rounded">
+                        <div className="text-xs text-slate-400">Categoria</div>
+                        <div className="text-white">{analysis.cardData.cardCategory}</div>
                       </div>
-                      <div className="p-4 bg-slate-700/50 rounded-lg border border-slate-600">
-                        <p className="text-xs text-slate-400 mb-2 font-mono uppercase">Tipo</p>
-                        <p className="font-semibold text-white">{analysis.binAnalysis.binData.productType}</p>
+                      <div className="p-3 bg-slate-800/50 rounded">
+                        <div className="text-xs text-slate-400">Emissor</div>
+                        <div className="text-white">{analysis.cardData.issuer}</div>
                       </div>
-                      <div className="p-4 bg-slate-700/50 rounded-lg border border-slate-600">
-                        <p className="text-xs text-slate-400 mb-2 font-mono uppercase">Nível</p>
-                        <p className="font-semibold text-white">{analysis.binAnalysis.binData.cardLevel}</p>
-                      </div>
-                      <div className="p-4 bg-slate-700/50 rounded-lg border border-slate-600">
-                        <p className="text-xs text-slate-400 mb-2 font-mono uppercase">Recarregável</p>
-                        <p className="font-semibold text-white">{analysis.binAnalysis.binData.isReloadable ? 'Sim' : 'Não'}</p>
-                      </div>
-                      <div className="p-4 bg-slate-700/50 rounded-lg border border-slate-600">
-                        <p className="text-xs text-slate-400 mb-2 font-mono uppercase">Score BIN</p>
-                        <p className="font-mono text-lg font-bold text-white">{analysis.binAnalysis.riskScore}</p>
+                      <div className="p-3 bg-slate-800/50 rounded">
+                        <div className="text-xs text-slate-400">País</div>
+                        <div className="text-white">{analysis.cardData.issuerCountryName}</div>
                       </div>
                     </div>
+                  </div>
 
-                    {/* Mecanismos de Bypass e Frictionless */}
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                      <div className="p-4 bg-blue-950/50 border border-blue-500/30 rounded-lg">
-                        <p className="text-xs text-blue-300 font-mono mb-2 uppercase font-bold">Mecanismo de Bypass Detectado</p>
-                        <p className="text-lg font-mono font-bold text-blue-200 mb-2">{analysis.binAnalysis.bypassMechanism}</p>
-                        <p className="text-xs text-blue-300/70">
-                          {languageMode === 'TECHNICAL'
-                            ? 'Método de bypass 3DS identificado (Frictionless 3DS2, SCA Exemption, 3DS Nominal, etc.)'
-                            : 'Forma como este cartão pode evitar verificação de segurança'}
-                        </p>
-                      </div>
-                      <div className="p-4 bg-purple-950/50 border border-purple-500/30 rounded-lg">
-                        <p className="text-xs text-purple-300 font-mono mb-2 uppercase font-bold">Probabilidade de Frictionless</p>
-                        <p className="text-lg font-mono font-bold text-purple-200 mb-2">{analysis.binAnalysis.frictionlessLikelihood}</p>
-                        <p className="text-xs text-purple-300/70">
-                          {languageMode === 'TECHNICAL'
-                            ? 'Chance de fluxo sem desafio 3DS baseado nas características do BIN'
-                            : 'Chance de transação sem verificação adicional'}
-                        </p>
-                      </div>
-                    </div>
-
-                    {/* Recomendações de BIN */}
-                    {analysis.binAnalysis.recommendations.length > 0 && (
-                      <div className="p-4 bg-slate-700/50 border border-slate-600 rounded-lg">
-                        <p className="text-xs text-slate-400 font-mono mb-3 uppercase font-bold">Recomendações de BIN</p>
-                        <ul className="space-y-2">
-                          {analysis.binAnalysis.recommendations.map((rec, idx) => (
-                            <li key={idx} className="text-sm text-slate-300 flex items-start gap-2">
-                              <CheckCircle2 className="w-4 h-4 text-emerald-400 flex-shrink-0 mt-0.5" />
-                              <span>{rec}</span>
-                            </li>
-                          ))}
-                        </ul>
-                      </div>
-                    )}
-                  </CardContent>
-                </Card>
-
-                {/* 3DS Analysis - Completo */}
-                <Card className="border-slate-700 bg-slate-800/50 backdrop-blur">
-                  <CardHeader>
-                    <CardTitle className="flex items-center gap-2 text-lg">
-                      <TrendingUp className="w-5 h-5 text-amber-400" />
-                      <span className="bg-gradient-to-r from-amber-400 to-orange-400 bg-clip-text text-transparent">
-                        Análise Completa 3DS/VBV
-                      </span>
-                    </CardTitle>
-                    <CardDescription className="text-slate-300">
-                      Análise detalhada de autenticação 3D Secure, frictionless e desafios
-                    </CardDescription>
-                  </CardHeader>
-                  <CardContent className="space-y-6">
-                    {/* Fluxo Recomendado */}
-                    <div className="p-4 bg-gradient-to-br from-blue-950/50 to-purple-950/50 border border-blue-500/30 rounded-lg">
-                      <p className="text-xs text-blue-300 font-mono mb-2 uppercase font-bold">Fluxo 3DS Recomendado</p>
-                      <p className="text-2xl font-bold text-blue-200 mb-3">{analysis.threeDSAnalysis.recommendedFlow}</p>
-                      <p className="text-sm text-blue-300/80">
-                        {analysis.threeDSAnalysis.explanation[languageMode.toLowerCase() as keyof typeof analysis.threeDSAnalysis.explanation]}
-                      </p>
-                    </div>
-
-                    {/* Taxa de Sucesso */}
-                    <div className="p-4 bg-gradient-to-br from-emerald-950/50 to-teal-950/50 border border-emerald-500/30 rounded-lg">
-                      <p className="text-xs text-emerald-300 font-mono mb-2 uppercase font-bold">Taxa de Sucesso Estimada</p>
-                      <div className="flex items-center gap-4">
-                        <div className="text-3xl font-bold text-emerald-200">{analysis.threeDSAnalysis.estimatedSuccessRate}%</div>
-                        <div className="flex-1">
-                          <div className="w-full h-3 bg-slate-700 rounded-full overflow-hidden">
-                            <div
-                              className="h-full bg-gradient-to-r from-emerald-500 to-teal-500"
-                              style={{ width: `${analysis.threeDSAnalysis.estimatedSuccessRate}%` }}
-                            />
-                          </div>
-                        </div>
-                      </div>
-                      <p className="text-xs text-emerald-300/70 mt-3">
-                        {languageMode === 'TECHNICAL'
-                          ? 'Probabilidade estimada de aprovação da transação com este fluxo'
-                          : 'Chance de sucesso da transação'}
-                      </p>
-                    </div>
-                  </CardContent>
-                </Card>
-
-                {/* Risk Factors Breakdown - Completo */}
-                <Card className="border-slate-700 bg-slate-800/50 backdrop-blur">
-                  <CardHeader>
-                    <CardTitle className="flex items-center gap-2 text-lg">
-                      <Info className="w-5 h-5 text-cyan-400" />
-                      <span className="bg-gradient-to-r from-cyan-400 to-blue-400 bg-clip-text text-transparent">
-                        Análise Detalhada de Fatores de Risco
-                      </span>
-                    </CardTitle>
-                    <CardDescription className="text-slate-300">
-                      Breakdown completo de cada fator que contribui para o score de risco
-                    </CardDescription>
-                  </CardHeader>
-                  <CardContent className="space-y-4">
-                    {Object.entries(analysis.riskAnalysis.riskFactors).map(([key, value]) => {
-                      const labels: Record<string, string> = {
-                        binRisk: 'Risco de BIN',
-                        temporalRisk: 'Risco Temporal',
-                        behavioralRisk: 'Risco Comportamental',
-                        geographicRisk: 'Risco Geográfico',
-                        deviceRisk: 'Risco de Dispositivo',
-                        gatewayRisk: 'Risco de Gateway',
-                      };
-                      return (
-                        <div key={key} className="p-4 bg-slate-700/50 rounded-lg border border-slate-600">
-                          <div className="flex items-center justify-between mb-3">
-                            <span className="text-sm font-mono font-semibold text-slate-300">
-                              {labels[key] || key}
+                  {/* Scores de Risco Multidimensionais */}
+                  <div>
+                    <h3 className="text-lg font-semibold text-white mb-4">Scores de Risco por Dimensão</h3>
+                    <div className="space-y-3">
+                      {Object.entries(analysis.riskScores).map(([key, score]) => (
+                        <div key={key}>
+                          <div className="flex justify-between mb-1">
+                            <span className="text-sm text-slate-300 capitalize">
+                              {key.replace(/([A-Z])/g, ' $1').trim()}
                             </span>
-                            <span className="text-sm font-bold text-white">{Math.round(value)}/100</span>
+                            <span className="text-sm font-semibold text-white">{score}</span>
                           </div>
-                          <div className="w-full h-3 bg-slate-600 rounded-full overflow-hidden">
+                          <div className="w-full bg-slate-800 rounded-full h-2">
                             <div
-                              className="h-full bg-gradient-to-r from-emerald-500 via-amber-500 to-red-500"
-                              style={{ width: `${value}%` }}
+                              className="bg-gradient-to-r from-blue-500 to-purple-600 h-2 rounded-full"
+                              style={{ width: `${score}%` }}
                             />
                           </div>
-                          <p className="text-xs text-slate-400 mt-2">
-                            {value < 30 ? 'Baixo risco' : value < 60 ? 'Risco moderado' : 'Alto risco'}
-                          </p>
                         </div>
-                      );
-                    })}
-                  </CardContent>
-                </Card>
-
-                {/* Alerts */}
-                {analysis.riskAnalysis.alerts.length > 0 && (
-                  <Card className="border-rose-500/30 bg-rose-950/20 backdrop-blur">
-                    <CardHeader>
-                      <CardTitle className="flex items-center gap-2 text-lg text-rose-300">
-                        <AlertCircle className="w-5 h-5" />
-                        Alertas de Fraude Detectados ({analysis.riskAnalysis.alerts.length})
-                      </CardTitle>
-                      <CardDescription className="text-slate-300">
-                        Indicadores de risco e possíveis padrões de fraude
-                      </CardDescription>
-                    </CardHeader>
-                    <CardContent>
-                      <div className="space-y-3">
-                        {analysis.riskAnalysis.alerts.map((alert) => (
-                          <div key={alert.id} className="p-4 bg-slate-700/50 border border-rose-500/30 rounded-lg">
-                            <div className="flex items-start justify-between mb-2">
-                              <div>
-                                <p className="font-semibold text-white">{alert.title}</p>
-                                <p className="text-xs text-slate-400 font-mono mt-1">{alert.category}</p>
-                              </div>
-                              <Badge className="bg-rose-600/50 text-rose-200 border-rose-500/50">{alert.severity}</Badge>
-                            </div>
-                            <p className="text-sm text-slate-300 mb-2">
-                              {alert.description[languageMode.toLowerCase() as keyof typeof alert.description]}
-                            </p>
-                            <div className="flex items-center justify-between text-xs text-slate-400">
-                              <span>Impacto no risco: +{alert.riskImpact}</span>
-                              <span>{alert.detectionMethod}</span>
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    </CardContent>
-                  </Card>
-                )}
-
-                {/* Recommendations */}
-                <Card className="border-emerald-500/30 bg-emerald-950/20 backdrop-blur">
-                  <CardHeader>
-                    <CardTitle className="flex items-center gap-2 text-lg text-emerald-300">
-                      <CheckCircle2 className="w-5 h-5" />
-                      Recomendação Final
-                    </CardTitle>
-                    <CardDescription className="text-slate-300">
-                      Ação recomendada baseada em toda a análise
-                    </CardDescription>
-                  </CardHeader>
-                  <CardContent className="space-y-3">
-                    <div className="p-4 bg-slate-700/50 border border-emerald-500/30 rounded-lg">
-                      <p className="text-xs text-emerald-300 font-mono mb-2 uppercase font-bold">Ação Recomendada</p>
-                      <p className="text-2xl font-bold text-emerald-200 mb-3">{analysis.riskAnalysis.recommendations.action}</p>
-                      <p className="text-sm text-slate-300 mb-3">
-                        {analysis.riskAnalysis.recommendations.reasoning[languageMode.toLowerCase() as keyof typeof analysis.riskAnalysis.recommendations.reasoning]}
-                      </p>
-                      <div className="flex items-center justify-between text-xs text-slate-400 pt-3 border-t border-slate-600">
-                        <span>Confiança: {analysis.riskAnalysis.recommendations.confidence}%</span>
-                        <span>Request ID: {analysis.requestId}</span>
-                      </div>
+                      ))}
                     </div>
-                  </CardContent>
-                </Card>
-              </>
-            )}
+                  </div>
+
+                  {/* Explicações */}
+                  <div>
+                    <h3 className="text-lg font-semibold text-white mb-4">
+                      {languageMode === 'TECHNICAL' ? 'Análise Técnica' : 'Explicação Simplificada'}
+                    </h3>
+                    <div className="space-y-3">
+                      {(languageMode === 'TECHNICAL'
+                        ? analysis.explanations.technical.details
+                        : analysis.explanations.popular.details
+                      ).map((detail, idx) => (
+                        <div key={idx} className="p-3 bg-slate-800/50 rounded text-sm text-slate-300 flex gap-2">
+                          <Info className="w-4 h-4 flex-shrink-0 mt-0.5 text-blue-400" />
+                          <span>{detail}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Fatores de Risco */}
+                  <div>
+                    <h3 className="text-lg font-semibold text-white mb-4">Fatores de Risco Identificados</h3>
+                    <div className="space-y-2">
+                      {analysis.explanations.technical.factors.map((factor, idx) => (
+                        <div key={idx} className="p-3 bg-slate-800/50 rounded">
+                          <div className="flex items-center justify-between mb-1">
+                            <span className="font-semibold text-white">{factor.name}</span>
+                            <span className={`text-sm font-bold ${factor.impact > 0 ? 'text-red-400' : 'text-emerald-400'}`}>
+                              {factor.impact > 0 ? '+' : ''}{factor.impact}
+                            </span>
+                          </div>
+                          <p className="text-xs text-slate-400">{factor.description}</p>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Metadados */}
+                  <div className="p-4 bg-slate-800/30 rounded border border-slate-700">
+                    <div className="text-xs text-slate-400 space-y-1">
+                      <div>Versão: {analysis.metadata.version}</div>
+                      <div>Tempo de cálculo: {analysis.metadata.calculationTime}ms</div>
+                      <div>Qualidade dos dados: {analysis.metadata.dataQuality}%</div>
+                      <div>Fontes: {analysis.metadata.sourcesUsed.join(', ')}</div>
+                      <div>Timestamp: {new Date(analysis.timestamp).toLocaleString('pt-BR')}</div>
+                    </div>
+                  </div>
+                </CardContent>
+              )}
+            </Card>
           </div>
         )}
-
-        {/* Footer */}
-        <div className="text-center text-xs text-slate-500 pt-8 border-t border-slate-700">
-          <p>VeriFiBIN Premium 3.0 © 2026 | Motor de Inteligência Anti-Fraude Completo</p>
-          <p className="mt-2">Análise em tempo real com dados proprietários, detecção de frictionless, bypass e integração Mastercard</p>
-          <p className="mt-2 text-slate-600">Timestamp: {new Date().toISOString()}</p>
-        </div>
       </div>
     </div>
   );
