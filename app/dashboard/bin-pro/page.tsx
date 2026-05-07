@@ -1,6 +1,6 @@
 import { requireAuth, getUserProfile } from "@/lib/auth"
 import { DashboardHeader } from "@/components/dashboard/dashboard-header"
-import { VeriFiBINInterface } from "@/components/bin-pro/verifibinn-interface"
+import { Premium3DAnalyzer } from "@/components/premium-3-0/Premium3DAnalyzer"
 import { CyberHeading, CyberText } from "@/components/cyberpunk/cyber-typography"
 import { Shield, BarChart2, Globe } from "lucide-react"
 
@@ -48,7 +48,7 @@ export default async function BinProPage() {
           </div>
         </div>
 
-        <VeriFiBINInterface userId={user.id} />
+        <Premium3DAnalyzer userId={user.id} />
       </main>
     </div>
   )
