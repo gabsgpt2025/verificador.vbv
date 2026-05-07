@@ -12,15 +12,6 @@ VeriFiBIN 2.0 é uma ferramenta de **análise antifraude, compliance e inteligê
 
 ---
 
-
-## Novidades de UX (VeriFiBIN 2.0)
-
-- Toggle de linguagem no resultado da análise: **Analista / Comerciante / Ambos** com persistência em `localStorage` (`verifibin:analysisMode`).
-- Resumo executivo para leitura popular com semáforo de risco, ações práticas e narrativa explicável.
-- Glossário técnico-popular centralizado em `lib/analysis/glossary.ts` para tradução consistente de termos críticos.
-
----
-
 ## Arquitetura — Camada de Inteligência (`src/lib/intelligence/`)
 
 | Módulo | Arquivo | Responsabilidade |
