@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -55,6 +55,12 @@ export function Premium3DAnalyzer({ userId }: { userId?: string } = {}) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [showDetails, setShowDetails] = useState(true);
+  const [currentTimestamp, setCurrentTimestamp] = useState<string | null>(null);
+
+  // Set timestamp only on client to avoid hydration mismatch
+  useEffect(() => {
+    setCurrentTimestamp(new Date().toISOString());
+  }, []);
 
   const handleAnalyze = useCallback(async () => {
     if (!cardNumber || cardNumber.length < 6) {
@@ -634,7 +640,7 @@ export function Premium3DAnalyzer({ userId }: { userId?: string } = {}) {
         <div className="text-center text-xs text-slate-500 pt-8 border-t border-slate-700">
           <p>VeriFiBIN Premium 3.0 © 2026 | Motor de Inteligência Anti-Fraude Completo</p>
           <p className="mt-2">Análise em tempo real com dados proprietários, detecção de frictionless, bypass e integração Mastercard</p>
-          <p className="mt-2 text-slate-600">Timestamp: {new Date().toISOString()}</p>
+          {currentTimestamp && <p className="mt-2 text-slate-600">Timestamp: {currentTimestamp}</p>}
         </div>
       </div>
     </div>
