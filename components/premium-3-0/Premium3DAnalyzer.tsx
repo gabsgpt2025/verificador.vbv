@@ -6,10 +6,8 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { AlertCircle, CheckCircle2, XCircle, AlertTriangle, Globe, Zap, Shield, TrendingUp, Info, Database, Lock, Eye, EyeOff, Percent, Target } from 'lucide-react';
-import { calculateRisk } from '@/lib/premium-3-0/riskEngine';
-import { analyzeBIN } from '@/lib/premium-3-0/binIntelligence';
-import { analyze3DS, getTimeOfDay, getDayOfWeek } from '@/lib/premium-3-0/threeDSEngine';
-import type { AnalysisRequest, AnalysisResponse, LanguageMode } from '@/lib/premium-3-0/types';
+import { mapFullBinAnalysisToResponse } from '@/lib/premium-3-0/adapters';
+import type { AnalysisResponse, FullBinAnalysis, LanguageMode } from '@/lib/premium-3-0/types';
 
 const LANGUAGE_MODES: Record<string, LanguageMode> = {
   TECHNICAL: {
@@ -66,47 +64,25 @@ export function Premium3DAnalyzer({ userId }: { userId?: string } = {}) {
     setError(null);
 
     try {
-      const request: AnalysisRequest = {
-        bin: cardNumber.substring(0, 6),
-        transactionAmount: 500,
-        transactionCurrency: 'BRL',
-        merchantCountry: 'BR',
-        cardholderCountry: 'BR',
-        deviceType: 'DESKTOP',
-        isNewCard: false,
-        isFirstTransaction: false,
-      };
+      const res = await fetch('/api/bin-analysis-v2', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ bin: cardNumber.substring(0, 6) }),
+      });
 
-      const riskAnalysis = calculateRisk(request);
-      const binAnalysis = analyzeBIN(request.bin);
+      if (!res.ok) {
+        const { error: apiError } = await res.json().catch(() => ({ error: 'Erro desconhecido' }));
+        throw new Error(apiError || `HTTP ${res.status}`);
+      }
 
-      const threeDSContext = {
-        transactionAmount: request.transactionAmount,
-        transactionCurrency: request.transactionCurrency,
-        merchantCountry: request.merchantCountry,
-        cardholderCountry: request.cardholderCountry,
-        deviceType: request.deviceType as any,
-        isNewCard: request.isNewCard,
-        isFirstTransaction: request.isFirstTransaction,
-        timeOfDay: getTimeOfDay(),
-        dayOfWeek: getDayOfWeek(),
-      };
-
-      const threeDSAnalysis = analyze3DS(threeDSContext, binAnalysis.riskScore, binAnalysis.frictionlessLikelihood);
-
-      const response: AnalysisResponse = {
-        requestId: `req_${Date.now()}`,
-        timestamp: new Date().toISOString(),
-        binAnalysis,
-        threeDSAnalysis,
-        riskAnalysis,
-        languageMode: LANGUAGE_MODES[languageMode],
-      };
+      const apiData: FullBinAnalysis = await res.json();
+      const response: AnalysisResponse = mapFullBinAnalysisToResponse(apiData);
+      response.languageMode = LANGUAGE_MODES[languageMode];
 
       setAnalysis(response);
     } catch (err) {
-      setError('Erro ao analisar o cartão. Por favor, tente novamente.');
-      console.error(err);
+      console.error('[Premium3DAnalyzer] API error:', err);
+      setError(err instanceof Error ? err.message : 'Erro ao analisar o cartão. Por favor, tente novamente.');
     } finally {
       setLoading(false);
     }
