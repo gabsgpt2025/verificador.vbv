@@ -48,7 +48,7 @@ export function generateRecommendation(analysis: Omit<FullBinAnalysis, "finalSum
     }
   }
 
-  // LOW risk — dataQuality used for completeness check
+  // LOW risk — dataQuality is part of the destructured type but not needed in this branch
   void dataQuality
   return {
     title: "Baixo risco estimado — monitoramento padrão",

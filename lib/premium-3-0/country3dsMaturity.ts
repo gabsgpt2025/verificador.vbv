@@ -1,4 +1,4 @@
-// lib/bin/country3dsMaturity.ts
+// lib/premium-3-0/country3dsMaturity.ts
 // Tabela centralizada de maturidade 3DS por país
 
 export type CountryMaturity = "HIGH" | "MEDIUM" | "LOW"

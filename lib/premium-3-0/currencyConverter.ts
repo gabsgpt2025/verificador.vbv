@@ -1,6 +1,16 @@
 // lib/premium-3-0/currencyConverter.ts
 // TODO: Implement real exchange rate API (e.g., Open Exchange Rates, Fixer.io) — current version returns static rates
 
+export interface ConversionRecord {
+  id: string
+  fromCurrency: string
+  toCurrency: string
+  amount: number
+  result: number
+  rate: number
+  timestamp: string
+}
+
 export class CurrencyConverter {
   private static readonly SUPPORTED_CURRENCIES = [
     "USD",
@@ -149,8 +159,8 @@ export class CurrencyConverter {
     }))
   }
 
-  static trackConversion(fromCurrency: string, toCurrency: string, amount: number, result: number) {
-    const conversion = {
+  static trackConversion(fromCurrency: string, toCurrency: string, amount: number, result: number): ConversionRecord {
+    const conversion: ConversionRecord = {
       id: Date.now().toString(),
       fromCurrency,
       toCurrency,
@@ -170,7 +180,7 @@ export class CurrencyConverter {
     return conversion
   }
 
-  static getConversionHistory(): Array<any> {
+  static getConversionHistory(): Array<ConversionRecord> {
     if (typeof window !== "undefined") {
       return JSON.parse(localStorage.getItem("currency_conversions") || "[]")
     }
