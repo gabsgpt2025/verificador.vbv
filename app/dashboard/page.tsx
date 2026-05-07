@@ -3,9 +3,10 @@ import { createClient } from "@/lib/supabase/server"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { CyberStatsCard } from "@/components/cyberpunk/cyber-stats-card"
 import { CyberHeading, CyberText } from "@/components/cyberpunk/cyber-typography"
-import { CreditCard, Activity, TrendingUp, Shield, Clock, CheckCircle } from "lucide-react"
+import { CreditCard, Activity, TrendingUp, Shield, Clock, CheckCircle, Zap, ArrowRight } from "lucide-react"
 import { DashboardHeader } from "@/components/dashboard/dashboard-header"
 import { BinVerificationWidget } from "@/components/dashboard/bin-verification-widget"
+import Link from "next/link"
 
 export default async function DashboardPage() {
   const user = await requireAuth()
@@ -43,6 +44,23 @@ export default async function DashboardPage() {
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+          <Link href="/premium-3-0">
+            <div className="group cursor-pointer">
+              <Card className="h-full hover:border-primary/50 hover:bg-primary/5 transition-all duration-300 transform hover:scale-105">
+                <CardContent className="pt-6">
+                  <div className="flex items-center justify-between mb-4">
+                    <div className="p-2 bg-gradient-to-br from-primary/20 to-secondary/20 rounded-lg border border-primary/30 group-hover:border-primary/50 transition-colors">
+                      <Zap className="h-5 w-5 text-primary" />
+                    </div>
+                    <ArrowRight className="h-4 w-4 text-primary/0 group-hover:text-primary transition-all" />
+                  </div>
+                  <h3 className="font-mono text-sm font-semibold text-primary mb-1">PREMIUM 3.0</h3>
+                  <p className="text-xs text-muted-foreground font-mono">Advanced Anti-Fraud Analysis</p>
+                  <p className="text-xs text-primary/60 mt-3 font-mono">Click to access →</p>
+                </CardContent>
+              </Card>
+            </div>
+          </Link>
           <CyberStatsCard
             title="AVAILABLE CREDITS"
             value={profile?.credits || 0}
