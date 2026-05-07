@@ -10,7 +10,7 @@ type FinalSummary = {
 }
 
 export function generateRecommendation(analysis: Omit<FullBinAnalysis, "finalSummary">): FinalSummary {
-  const { riskAnalysis, threeDSAnalysis, dataQuality } = analysis
+  const { riskAnalysis, threeDSAnalysis } = analysis
 
   if (riskAnalysis.recommendation === "INSUFFICIENT_DATA") {
     return {
@@ -48,8 +48,6 @@ export function generateRecommendation(analysis: Omit<FullBinAnalysis, "finalSum
     }
   }
 
-  // LOW risk — dataQuality is part of the destructured type but not needed in this branch
-  void dataQuality
   return {
     title: "Baixo risco estimado — monitoramento padrão",
     message:

@@ -48,7 +48,7 @@ function likelihoodToText(likelihood: string): string {
   return map[likelihood] || 'Desconhecida';
 }
 
-export default function Premium3DAnalyzer() {
+export function Premium3DAnalyzer({ userId }: { userId?: string } = {}) {
   const [languageMode, setLanguageMode] = useState<'TECHNICAL' | 'POPULAR'>('TECHNICAL');
   const [cardNumber, setCardNumber] = useState('');
   const [analysis, setAnalysis] = useState<AnalysisResponse | null>(null);
@@ -640,3 +640,5 @@ export default function Premium3DAnalyzer() {
     </div>
   );
 }
+
+export default Premium3DAnalyzer;
