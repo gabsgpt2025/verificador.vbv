@@ -4,12 +4,12 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Progress } from "@/components/ui/progress"
 import { CyberText } from "@/components/cyberpunk/cyber-typography"
-import { AdvancedMLScoring } from "@/lib/bin-analysis/advanced-ml-scoring"
+import { getAvailableModels, getModelMetrics } from "@/lib/premium-3-0/mlModels"
 import { Brain, TrendingUp, Target, Zap, Activity, Database } from "lucide-react"
 
 export function MLScoringDashboard() {
-  const models = AdvancedMLScoring.getAvailableModels()
-  const metrics = AdvancedMLScoring.getModelMetrics()
+  const models = getAvailableModels()
+  const metrics = getModelMetrics()
 
   return (
     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">

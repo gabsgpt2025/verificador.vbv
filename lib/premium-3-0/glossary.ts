@@ -1,4 +1,4 @@
-import type { AnalysisMode } from "@/lib/analysis/useAnalysisMode"
+import type { AnalysisMode } from "./useAnalysisMode"
 
 export type GlossaryEntry = {
   technical: string

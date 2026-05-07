@@ -1,4 +1,4 @@
-// lib/bin/saveBinAnalysisLog.ts
+// lib/premium-3-0/saveBinAnalysisLog.ts
 // Salva log de análise de BIN no banco de dados
 
 import type { FullBinAnalysis } from "./types"

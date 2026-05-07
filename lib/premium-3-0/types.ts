@@ -185,3 +185,148 @@ export interface HistoryEntry {
   action: 'APPROVE' | 'CHALLENGE' | 'DECLINE' | 'REVIEW';
   mastercardVerified: boolean;
 }
+
+// ============================================================================
+// TIPOS MIGRADOS DO MOTOR lib/bin (BIN Analysis v2)
+// ============================================================================
+
+export type BinApiData = {
+  bin: string
+  binLength: number
+  brand?: string
+  type?: string
+  category?: string
+  countryCode?: string
+  countryName?: string
+  currency?: string
+  issuer?: string | null
+  issuerWebsite?: string | null
+  issuerPhone?: string | null
+  isCommercial?: boolean
+  isPrepaid?: boolean
+  source: "NEUTRINO" | "FRAUDLABS" | "BINLIST" | "INTERNAL" | "UNKNOWN"
+  raw?: unknown
+}
+
+export type BinThreeDSResult = {
+  status:
+    | "CONFIRMED_ACTIVE"
+    | "CONFIRMED_INACTIVE"
+    | "LIKELY_ACTIVE"
+    | "LIKELY_INACTIVE"
+    | "UNKNOWN"
+  confidence: "LOW" | "MEDIUM" | "HIGH"
+  challengeLikelihood: "LOW" | "MEDIUM" | "HIGH" | "UNKNOWN"
+  protocolLikely:
+    | "EMV_3DS_1"
+    | "EMV_3DS_2"
+    | "EMV_3DS_2_1"
+    | "EMV_3DS_2_2"
+    | "UNKNOWN"
+  authMethodsLikely: string[]
+  explanation: string
+  inferred: boolean
+}
+
+export type BinRiskFactor = {
+  label: string
+  impact: number
+  reason: string
+}
+
+export type BinRiskAnalysis = {
+  score: number
+  level: "LOW" | "MEDIUM" | "HIGH" | "CRITICAL"
+  recommendation:
+    | "ALLOW_WITH_MONITORING"
+    | "REVIEW"
+    | "REQUIRE_3DS"
+    | "BLOCK_PREVENTIVELY"
+    | "INSUFFICIENT_DATA"
+  factors: BinRiskFactor[]
+}
+
+export type BinDataQualityAnalysis = {
+  score: number
+  level: "LOW" | "MEDIUM" | "HIGH"
+  missingFields: string[]
+  realApiFields: string[]
+  inferredFields: string[]
+}
+
+export type BinComplianceAnalysis = {
+  regulatoryRegion: string
+  threeDSMandateLevel:
+    | "MANDATORY"
+    | "STRONG"
+    | "MODERATE"
+    | "OPTIONAL"
+    | "LOW"
+    | "UNKNOWN"
+  regulationNote: string
+  complianceRisk: "LOW" | "MEDIUM" | "HIGH" | "UNKNOWN"
+}
+
+export type FullBinAnalysis = {
+  bin: string
+  source: {
+    provider: string
+    rawDataAvailable: boolean
+    apiConfidence: "LOW" | "MEDIUM" | "HIGH"
+  }
+  technicalData: BinApiData
+  threeDSAnalysis: BinThreeDSResult
+  riskAnalysis: BinRiskAnalysis
+  dataQuality: BinDataQualityAnalysis
+  compliance: BinComplianceAnalysis
+  finalSummary: {
+    title: string
+    message: string
+    action: string
+  }
+}
+
+export type BinAnalysisV2Request = {
+  bin: string
+}
+
+export type BinOverride = {
+  id: string
+  bin: string
+  field: string
+  oldValue: string | null
+  correctedValue: string
+  confidence: "LOW" | "MEDIUM" | "HIGH"
+  reason: string
+  source: string
+  updatedBy: string
+  updatedAt: string
+}
+
+export interface LegacyBINAnalysisResult {
+  bin: string
+  brand: string
+  type: string
+  level: string
+  bank: string
+  country: string
+  currency: string
+  riskScore: number
+  riskLevel: "LOW" | "MEDIUM" | "HIGH" | "CRITICAL"
+  analysis: {
+    aiInsights: string
+    fraudIndicators: string[]
+    recommendations: string[]
+    bypassProbability: number
+    threeDSStatus: string
+    vbvStatus: string
+  }
+  conversions: {
+    [currency: string]: number
+  }
+  metadata: {
+    analysisDate: string
+    processingTime: number
+    confidence: number
+  }
+}

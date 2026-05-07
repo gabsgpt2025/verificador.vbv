@@ -6,11 +6,11 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { CyberText } from "@/components/cyberpunk/cyber-typography"
-import type { BINAnalysisResult } from "@/lib/bin-analysis/types"
+import type { LegacyBINAnalysisResult } from "@/lib/premium-3-0/types"
 import { CreditCard, Globe, Shield, Brain, AlertTriangle, TrendingUp, Lock } from "lucide-react"
 
 interface BinAnalysisCardsProps {
-  result: BINAnalysisResult
+  result: LegacyBINAnalysisResult
 }
 
 export function BinAnalysisCards({ result }: BinAnalysisCardsProps) {

@@ -1,7 +1,7 @@
-// lib/bin/analyzeThreeDS.ts
+// lib/premium-3-0/analyzeThreeDS.ts
 // Motor de análise 3DS/VBV — inferência baseada em regras técnicas
 
-import type { BinApiData, ThreeDSAnalysis } from "./types"
+import type { BinApiData, BinThreeDSResult } from "./types"
 import { getCountryMaturity } from "./country3dsMaturity"
 
 function scoreBrand(brand?: string): number {
@@ -49,7 +49,7 @@ function inferProtocol(
   score: number,
   brand?: string,
   countryCode?: string,
-): ThreeDSAnalysis["protocolLikely"] {
+): BinThreeDSResult["protocolLikely"] {
   const b = (brand ?? "").toUpperCase()
   const isMainBrand = ["VISA", "MASTERCARD", "AMEX", "AMERICAN EXPRESS"].includes(b)
   const entry = getCountryMaturity(countryCode)
@@ -66,7 +66,7 @@ function inferProtocol(
   return "UNKNOWN"
 }
 
-export function analyzeThreeDS(binData: BinApiData): ThreeDSAnalysis {
+export function analyzeThreeDS(binData: BinApiData): BinThreeDSResult {
   const score =
     scoreBrand(binData.brand) +
     scoreType(binData.type) +
@@ -74,9 +74,9 @@ export function analyzeThreeDS(binData: BinApiData): ThreeDSAnalysis {
     scoreCountry(binData.countryCode) +
     scoreIssuer(binData.issuer)
 
-  let status: ThreeDSAnalysis["status"]
-  let confidence: ThreeDSAnalysis["confidence"]
-  let challengeLikelihood: ThreeDSAnalysis["challengeLikelihood"]
+  let status: BinThreeDSResult["status"]
+  let confidence: BinThreeDSResult["confidence"]
+  let challengeLikelihood: BinThreeDSResult["challengeLikelihood"]
 
   if (score >= 70) {
     status = "LIKELY_ACTIVE"
@@ -121,8 +121,8 @@ export function analyzeThreeDS(binData: BinApiData): ThreeDSAnalysis {
 
 function buildExplanation(
   binData: BinApiData,
-  status: ThreeDSAnalysis["status"],
-  confidence: ThreeDSAnalysis["confidence"],
+  status: BinThreeDSResult["status"],
+  confidence: BinThreeDSResult["confidence"],
   score: number,
 ): string {
   const parts: string[] = []

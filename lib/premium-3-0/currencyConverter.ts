@@ -1,3 +1,6 @@
+// lib/premium-3-0/currencyConverter.ts
+// TODO: Implement real exchange rate API (e.g., Open Exchange Rates, Fixer.io) — current version returns static rates
+
 export class CurrencyConverter {
   private static readonly SUPPORTED_CURRENCIES = [
     "USD",
@@ -112,22 +115,16 @@ export class CurrencyConverter {
     return [...this.SUPPORTED_CURRENCIES]
   }
 
+  // TODO: Implement real exchange rate API (e.g., Open Exchange Rates, Fixer.io) — current version returns static rates
   static getRealtimeRate(
     fromCurrency: string,
     toCurrency: string,
   ): { rate: number; change: number; timestamp: string } {
     const baseRate = this.EXCHANGE_RATES[toCurrency] / this.EXCHANGE_RATES[fromCurrency]
 
-    // Simulate market volatility (±2%)
-    const volatility = (Math.random() - 0.5) * 0.04
-    const currentRate = baseRate * (1 + volatility)
-
-    // Simulate daily change (±1%)
-    const dailyChange = (Math.random() - 0.5) * 0.02
-
     return {
-      rate: Number.parseFloat(currentRate.toFixed(6)),
-      change: Number.parseFloat((dailyChange * 100).toFixed(2)),
+      rate: baseRate,
+      change: 0,
       timestamp: new Date().toISOString(),
     }
   }
@@ -148,7 +145,7 @@ export class CurrencyConverter {
 
     return pairs.map((pair) => ({
       ...pair,
-      rate: this.getRealtimeRate(pair.from, pair.to).rate,
+      rate: this.EXCHANGE_RATES[pair.to] / this.EXCHANGE_RATES[pair.from],
     }))
   }
 

@@ -7,7 +7,7 @@ import { Input } from "@/components/ui/input"
 import { Badge } from "@/components/ui/badge"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { CyberText } from "@/components/cyberpunk/cyber-typography"
-import type { FullBinAnalysis } from "@/lib/bin/types"
+import type { FullBinAnalysis } from "@/lib/premium-3-0/types"
 import {
   Search,
   Loader2,

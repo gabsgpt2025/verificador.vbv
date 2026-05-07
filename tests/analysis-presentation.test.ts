@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest"
-import { formatGlossaryTerm, translateGlossaryText } from "../lib/analysis/glossary"
-import { buildWhyThisScore, groupRiskFactors } from "../lib/analysis/presentation"
-import type { FullBinAnalysis } from "../lib/bin/types"
+import { formatGlossaryTerm, translateGlossaryText } from "../lib/premium-3-0/glossary"
+import { buildWhyThisScore, groupRiskFactors } from "../lib/premium-3-0/presentation"
+import type { FullBinAnalysis } from "../lib/premium-3-0/types"
 
 const sampleAnalysis: FullBinAnalysis = {
   bin: "45661X",

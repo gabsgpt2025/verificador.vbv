@@ -1,12 +1,12 @@
 import { type NextRequest, NextResponse } from "next/server"
 import { createClient } from "@/lib/supabase/server"
 import { subtractCredits } from "@/lib/credits/operations"
-import { normalizeBinApiResponse } from "@/lib/bin/normalizeBinApiResponse"
-import { applyBinOverrides } from "@/lib/bin/applyBinOverrides"
-import { runFullBinAnalysis } from "@/lib/bin"
-import { saveBinAnalysisLog } from "@/lib/bin/saveBinAnalysisLog"
-import { callNeutrinoApi, convertNeutrinoResponse } from "@/lib/bin/neutrino-api"
-import type { BinAnalysisV2Request, FullBinAnalysis } from "@/lib/bin/types"
+import { normalizeBinApiResponse } from "@/lib/premium-3-0/normalizeBinApiResponse"
+import { applyBinOverrides } from "@/lib/premium-3-0/applyBinOverrides"
+import { runFullBinAnalysis } from "@/lib/premium-3-0"
+import { saveBinAnalysisLog } from "@/lib/premium-3-0/saveBinAnalysisLog"
+import { callNeutrinoApi, convertNeutrinoResponse } from "@/lib/premium-3-0/neutrino-api"
+import type { BinAnalysisV2Request, FullBinAnalysis } from "@/lib/premium-3-0/types"
 
 // Open-access mode: when NEXT_PUBLIC_REQUIRE_AUTH !== "true", allow unauthenticated BIN analysis
 // TEMPORARY: Testing mode — all auth restrictions disabled

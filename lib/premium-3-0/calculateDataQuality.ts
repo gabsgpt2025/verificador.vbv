@@ -1,7 +1,7 @@
-// lib/bin/calculateDataQuality.ts
+// lib/premium-3-0/calculateDataQuality.ts
 // Avalia qualidade dos dados retornados pela API
 
-import type { BinApiData, DataQualityAnalysis } from "./types"
+import type { BinApiData, BinDataQualityAnalysis } from "./types"
 
 const KEY_FIELDS: Array<keyof BinApiData> = [
   "brand",
@@ -18,7 +18,7 @@ const INFERRED_FIELDS = [
   "finalSummary",
 ]
 
-export function calculateDataQuality(binData: BinApiData): DataQualityAnalysis {
+export function calculateDataQuality(binData: BinApiData): BinDataQualityAnalysis {
   const missingFields: string[] = []
   const realApiFields: string[] = []
 
@@ -42,7 +42,7 @@ export function calculateDataQuality(binData: BinApiData): DataQualityAnalysis {
   const presentCount = KEY_FIELDS.length - missingFields.length
   const score = Math.round((presentCount / KEY_FIELDS.length) * 100)
 
-  let level: DataQualityAnalysis["level"]
+  let level: BinDataQualityAnalysis["level"]
   if (score >= 80) level = "HIGH"
   else if (score >= 40) level = "MEDIUM"
   else level = "LOW"

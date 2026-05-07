@@ -1,15 +1,15 @@
-// lib/bin/calculateRisk.ts
+// lib/premium-3-0/calculateRisk.ts
 // Score de risco explicável — score inicial 30, ajustado por fatores
 
-import type { BinApiData, ThreeDSAnalysis, RiskAnalysis, RiskFactor } from "./types"
+import type { BinApiData, BinThreeDSResult, BinRiskAnalysis, BinRiskFactor } from "./types"
 import { getCountryMaturity } from "./country3dsMaturity"
 
 export function calculateRisk(
   binData: BinApiData,
-  threeDSAnalysis: ThreeDSAnalysis,
-): RiskAnalysis {
+  threeDSAnalysis: BinThreeDSResult,
+): BinRiskAnalysis {
   let score = 30
-  const factors: RiskFactor[] = []
+  const factors: BinRiskFactor[] = []
 
   // Emissor ausente
   if (!binData.issuer) {
@@ -141,14 +141,14 @@ export function calculateRisk(
   return { score, level, recommendation, factors }
 }
 
-function getRiskLevel(score: number): RiskAnalysis["level"] {
+function getRiskLevel(score: number): BinRiskAnalysis["level"] {
   if (score >= 81) return "CRITICAL"
   if (score >= 61) return "HIGH"
   if (score >= 31) return "MEDIUM"
   return "LOW"
 }
 
-function getRecommendation(score: number, binData: BinApiData): RiskAnalysis["recommendation"] {
+function getRecommendation(score: number, binData: BinApiData): BinRiskAnalysis["recommendation"] {
   // Dados muito incompletos
   const hasMinimalData = binData.brand || binData.countryCode || binData.issuer
   if (!hasMinimalData) return "INSUFFICIENT_DATA"

@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest"
-import { runFullBinAnalysis } from "../lib/bin/index"
-import { normalizeBinApiResponse } from "../lib/bin/normalizeBinApiResponse"
-import type { BinApiData } from "../lib/bin/types"
+import { runFullBinAnalysis } from "../lib/premium-3-0/index"
+import { normalizeBinApiResponse } from "../lib/premium-3-0/normalizeBinApiResponse"
+import type { BinApiData } from "../lib/premium-3-0/types"
 
 // Helper to create BinApiData with defaults
 function makeBin(overrides: Partial<BinApiData> = {}): BinApiData {

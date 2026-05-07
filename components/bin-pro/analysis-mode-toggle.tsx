@@ -2,7 +2,7 @@
 
 import type { KeyboardEvent } from "react"
 import { cn } from "@/lib/utils"
-import type { AnalysisMode } from "@/lib/analysis/useAnalysisMode"
+import type { AnalysisMode } from "@/lib/premium-3-0/useAnalysisMode"
 
 const modeOptions: Array<{ value: AnalysisMode; label: string }> = [
   { value: "analyst", label: "🧑‍💼 Analista" },

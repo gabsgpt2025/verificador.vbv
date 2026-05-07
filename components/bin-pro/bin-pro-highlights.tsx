@@ -2,7 +2,7 @@
 
 import { Shield, BarChart2, Globe } from "lucide-react"
 import { CyberText } from "@/components/cyberpunk/cyber-typography"
-import { useAnalysisMode } from "@/lib/analysis/useAnalysisMode"
+import { useAnalysisMode } from "@/lib/premium-3-0/useAnalysisMode"
 
 export function BinProHighlights() {
   const { mode } = useAnalysisMode()

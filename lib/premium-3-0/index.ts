@@ -1,5 +1,5 @@
-// lib/bin/index.ts
-// Orquestrador principal da análise de BIN v2
+// lib/premium-3-0/index.ts
+// Orquestrador principal da análise de BIN v2 — Motor Canônico
 
 import type { BinApiData, FullBinAnalysis } from "./types"
 import { analyzeThreeDS } from "./analyzeThreeDS"

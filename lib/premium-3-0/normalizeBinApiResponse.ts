@@ -1,4 +1,4 @@
-// lib/bin/normalizeBinApiResponse.ts
+// lib/premium-3-0/normalizeBinApiResponse.ts
 // Normaliza resposta de qualquer API para BinApiData padrão
 
 import type { BinApiData } from "./types"

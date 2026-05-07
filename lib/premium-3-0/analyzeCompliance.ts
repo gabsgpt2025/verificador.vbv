@@ -1,12 +1,12 @@
-// lib/bin/analyzeCompliance.ts
+// lib/premium-3-0/analyzeCompliance.ts
 // Análise de compliance e mandatos regulatórios 3DS por região
 
-import type { BinApiData, ComplianceAnalysis } from "./types"
+import type { BinApiData, BinComplianceAnalysis } from "./types"
 import { getCountryMaturity } from "./country3dsMaturity"
 
 const PSD2_COUNTRIES = new Set(["GB", "DE", "FR", "ES", "IT", "NL", "BE", "PT", "SE", "NO", "DK", "FI", "AT", "CH", "IE", "LU"])
 
-export function analyzeCompliance(binData: BinApiData): ComplianceAnalysis {
+export function analyzeCompliance(binData: BinApiData): BinComplianceAnalysis {
   const countryCode = binData.countryCode?.toUpperCase()
   const maturity = getCountryMaturity(countryCode)
 

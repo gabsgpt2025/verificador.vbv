@@ -1,4 +1,4 @@
-import type { FullBinAnalysis, RiskFactor } from "@/lib/bin/types"
+import type { FullBinAnalysis, BinRiskFactor } from "./types"
 
 export type RiskSegment = {
   label: string
@@ -121,7 +121,7 @@ export function buildWhyThisScore(analysis: FullBinAnalysis): string {
   return `Demos nota ${analysis.riskAnalysis.score}/100 (risco ${segment.severityLabel}) porque o BIN ${analysis.bin} é de um cartão ${cardType} ${brand} emitido em ${country}, com nível regulatório ${compliance}.${highlightsText}`
 }
 
-export function groupRiskFactors(factors: RiskFactor[]): { favorable: RiskFactor[]; attention: RiskFactor[] } {
+export function groupRiskFactors(factors: BinRiskFactor[]): { favorable: BinRiskFactor[]; attention: BinRiskFactor[] } {
   return {
     favorable: factors.filter((factor) => factor.impact < 0),
     attention: factors.filter((factor) => factor.impact >= 0),

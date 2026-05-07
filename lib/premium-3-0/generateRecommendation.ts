@@ -1,4 +1,4 @@
-// lib/bin/generateRecommendation.ts
+// lib/premium-3-0/generateRecommendation.ts
 // Gera recomendação final baseada na análise completa
 
 import type { FullBinAnalysis } from "./types"
