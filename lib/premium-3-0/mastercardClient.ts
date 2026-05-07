@@ -10,6 +10,7 @@ import path from 'path';
 
 interface MastercardConfig {
   consumerKey: string;
+  sandboxClientId: string;
   keyAlias: string;
   keyPassword: string;
   p12Path: string;
@@ -52,6 +53,7 @@ export class MastercardClient {
   constructor(config: Partial<MastercardConfig> = {}) {
     this.config = {
       consumerKey: config.consumerKey || process.env.MASTERCARD_CONSUMER_KEY || '',
+      sandboxClientId: config.sandboxClientId || process.env.MASTERCARD_SANDBOX_CLIENT_ID || '',
       keyAlias: config.keyAlias || process.env.MASTERCARD_KEY_ALIAS || 'verifibin',
       keyPassword: config.keyPassword || process.env.MASTERCARD_KEY_PASSWORD || '',
       p12Path: config.p12Path || process.env.MASTERCARD_P12_PATH || '',
@@ -61,9 +63,15 @@ export class MastercardClient {
     this.consumerKey = this.config.consumerKey;
     this.keyAlias = this.config.keyAlias;
     this.keyPassword = this.config.keyPassword;
-    this.baseUrl = this.config.sandboxMode
-      ? 'https://sandbox.api.mastercard.com'
-      : 'https://api.mastercard.com';
+    
+    // Usar Sandbox client ID se disponível
+    if (this.config.sandboxClientId && this.config.sandboxMode) {
+      this.baseUrl = `https://sandbox.api.mastercard.com?client_id=${this.config.sandboxClientId}`;
+    } else {
+      this.baseUrl = this.config.sandboxMode
+        ? 'https://sandbox.api.mastercard.com'
+        : 'https://api.mastercard.com';
+    }
 
     // Carregar arquivo .p12
     this.p12Buffer = this.loadP12();
