@@ -1,17 +1,37 @@
 {
-  "env": {
-    "NEUTRINO_USER_ID": "@neutrino_user_id",
-    "NEUTRINO_API_KEY": "@neutrino_api_key",
-    "MASTERCARD_SANDBOX_CLIENT_ID": "@mastercard_sandbox_client_id",
-    "MASTERCARD_CONSUMER_KEY": "@mastercard_consumer_key",
-    "MASTERCARD_P12_CERT": "@mastercard_p12_cert",
-    "MASTERCARD_KEY_PASSWORD": "@mastercard_key_password",
-    "MASTERCARD_KEY_ALIAS": "verifibin",
-    "MASTERCARD_SANDBOX_MODE": "true",
-    "MAXMIND_ACCOUNT_ID": "@maxmind_account_id",
-    "MAXMIND_LICENSE_KEY": "@maxmind_license_key"
-  },
   "buildCommand": "npm run build",
   "outputDirectory": ".next",
-  "framework": "nextjs"
+  "framework": "nextjs",
+  "env": {
+    "NEUTRINO_USER_ID": {
+      "value": "@neutrino_user_id"
+    },
+    "NEUTRINO_API_KEY": {
+      "value": "@neutrino_api_key"
+    },
+    "MASTERCARD_SANDBOX_CLIENT_ID": {
+      "value": "@mastercard_sandbox_client_id"
+    },
+    "MASTERCARD_CONSUMER_KEY": {
+      "value": "@mastercard_consumer_key"
+    },
+    "MASTERCARD_P12_CERT": {
+      "value": "@mastercard_p12_cert"
+    },
+    "MASTERCARD_KEY_PASSWORD": {
+      "value": "@mastercard_key_password"
+    },
+    "MASTERCARD_KEY_ALIAS": {
+      "value": "verifibin"
+    },
+    "MASTERCARD_SANDBOX_MODE": {
+      "value": "true"
+    },
+    "MAXMIND_ACCOUNT_ID": {
+      "value": "@maxmind_account_id"
+    },
+    "MAXMIND_LICENSE_KEY": {
+      "value": "@maxmind_license_key"
+    }
+  }
 }
