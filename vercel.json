@@ -9,28 +9,12 @@
       "value": "@neutrino_api_key"
     },
     {
-      "key": "MASTERCARD_SANDBOX_CLIENT_ID",
-      "value": "@mastercard_sandbox_client_id"
-    },
-    {
       "key": "MASTERCARD_CONSUMER_KEY",
       "value": "@mastercard_consumer_key"
     },
     {
       "key": "MASTERCARD_P12_CERT",
       "value": "@mastercard_p12_cert"
-    },
-    {
-      "key": "MASTERCARD_KEY_PASSWORD",
-      "value": "@mastercard_key_password"
-    },
-    {
-      "key": "MASTERCARD_KEY_ALIAS",
-      "value": "verifibin"
-    },
-    {
-      "key": "MASTERCARD_SANDBOX_MODE",
-      "value": "true"
     },
     {
       "key": "MAXMIND_ACCOUNT_ID",
