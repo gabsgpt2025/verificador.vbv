@@ -162,4 +162,3 @@ Esta plataforma usa exclusivamente linguagem de compliance e prevenção de frau
 | "Aprovação garantida" | "Dados indicam baixo risco" |
 | "Sem risco" | "Revisão recomendada" |
 | "3DS ativo" (certeza) | "3DS provavelmente ativo (inferido)" |
-# Build Status: Fixed and Cleaned

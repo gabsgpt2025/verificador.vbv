@@ -157,10 +157,10 @@ export function VeriFiBINInterface({ userId: _userId }: VeriFiBINInterfaceProps)
         <CardHeader>
           <CardTitle className="flex items-center space-x-2 font-mono text-primary neon-glow">
             <Shield className="h-5 w-5" />
-            <span>VeriFiBIN 2.0 — ANÁLISE ANTIFRAUDE DE BIN</span>
+            <span>VeriFiBIN 3.0 — ANÁLISE ANTIFRAUDE PREMIUM</span>
           </CardTitle>
           <CardDescription className="font-mono text-muted-foreground">
-            Classificação de risco, inferência de autenticação e compliance regulatório
+            Motor Anti-Fraude v3.0 com análise holística, inferência 3DS/VBV e integração Mastercard
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
