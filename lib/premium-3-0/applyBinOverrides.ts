@@ -29,8 +29,11 @@ export async function applyBinOverrides(
     if (field === "bin" || field === "source" || field === "raw" || field === "binLength") continue
 
     // Apply the correction
-    ;(result as Record<string, unknown>)[field] = override.correctedValue
-    overridesApplied.push(`${field}: "${override.oldValue}" → "${override.correctedValue}" (${override.reason})`)
+    const correctedValue = override.corrected_value ?? override.correctedValue
+    const oldValue = override.old_value ?? override.oldValue
+
+    ;(result as Record<string, unknown>)[field] = correctedValue
+    overridesApplied.push(`${field}: "${oldValue}" → "${correctedValue}" (${override.reason})`)
   }
 
   return { data: result, overridesApplied }

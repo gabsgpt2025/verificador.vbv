@@ -29,7 +29,7 @@ export async function POST(request: NextRequest) {
 
     // Check and deduct credits only when a real user is present
     if (user) {
-      const creditResult = await subtractCredits(user.id, 3, "VeriFiBIN 2.0 — Análise Antifraude", `BIN: ${bin}`)
+      const creditResult = await subtractCredits(user.id, 3, `VeriFiBIN 2.0 — Análise Antifraude (BIN: ${bin})`)
       if (!creditResult.success) {
         return NextResponse.json({ error: creditResult.message }, { status: 400 })
       }
@@ -153,4 +153,3 @@ async function saveAnalysisLog(userId: string, result: BINAnalysisV2Result) {
     console.error("[VeriFiBIN] Failed to save analysis log:", err)
   }
 }
-

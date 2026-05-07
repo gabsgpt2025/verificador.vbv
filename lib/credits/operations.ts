@@ -10,6 +10,13 @@ export interface CreditOperationResult {
   transactionId?: string
 }
 
+interface CreditRpcResponseRow {
+  success: boolean
+  message: string
+  new_balance: number | null
+  transaction_id: string | null
+}
+
 export async function getUserCredits(userId: string): Promise<number | null> {
   const supabase = await createClient()
 
@@ -32,41 +39,25 @@ export async function addCredits(
   const supabase = await createClient()
 
   try {
-    // Get current credits
-    const currentCredits = await getUserCredits(userId)
-    if (currentCredits === null) {
-      return { success: false, message: "User not found" }
-    }
-
-    const newBalance = currentCredits + amount
-
-    // Update user credits
-    const { error: updateError } = await supabase
-      .from("users")
-      .update({
-        credits: newBalance,
-        updated_at: new Date().toISOString(),
-      })
-      .eq("id", userId)
-
-    if (updateError) throw updateError
-
-    // Log the operation
-    const { error: logError } = await supabase.from("user_credits_log").insert({
-      user_id: userId,
-      credits_before: currentCredits,
-      credits_after: newBalance,
-      credits_used: amount,
-      operation_type: operationType,
-      description,
+    const { data, error } = await supabase.rpc("process_credit_operation", {
+      p_user_id: userId,
+      p_operation: "add",
+      p_amount: amount,
+      p_description: description,
+      p_operation_type: operationType,
     })
 
-    if (logError) throw logError
+    if (error) throw error
+
+    const rpcResult = (data as CreditRpcResponseRow[] | null)?.[0]
+    if (!rpcResult?.success) {
+      return { success: false, message: rpcResult?.message || "Failed to add credits" }
+    }
 
     return {
       success: true,
-      message: `Successfully added ${amount} credits`,
-      newBalance,
+      message: rpcResult.message,
+      newBalance: rpcResult.new_balance ?? undefined,
     }
   } catch (error) {
     console.error("[v0] Error adding credits:", error)
@@ -83,45 +74,25 @@ export async function subtractCredits(
   const supabase = await createClient()
 
   try {
-    // Get current credits
-    const currentCredits = await getUserCredits(userId)
-    if (currentCredits === null) {
-      return { success: false, message: "User not found" }
-    }
-
-    if (currentCredits < amount) {
-      return { success: false, message: "Insufficient credits" }
-    }
-
-    const newBalance = currentCredits - amount
-
-    // Update user credits
-    const { error: updateError } = await supabase
-      .from("users")
-      .update({
-        credits: newBalance,
-        updated_at: new Date().toISOString(),
-      })
-      .eq("id", userId)
-
-    if (updateError) throw updateError
-
-    // Log the operation
-    const { error: logError } = await supabase.from("user_credits_log").insert({
-      user_id: userId,
-      credits_before: currentCredits,
-      credits_after: newBalance,
-      credits_used: -amount, // Negative for subtraction
-      operation_type: operationType,
-      description,
+    const { data, error } = await supabase.rpc("process_credit_operation", {
+      p_user_id: userId,
+      p_operation: "subtract",
+      p_amount: amount,
+      p_description: description,
+      p_operation_type: operationType,
     })
 
-    if (logError) throw logError
+    if (error) throw error
+
+    const rpcResult = (data as CreditRpcResponseRow[] | null)?.[0]
+    if (!rpcResult?.success) {
+      return { success: false, message: rpcResult?.message || "Failed to use credits" }
+    }
 
     return {
       success: true,
-      message: `Successfully used ${amount} credits`,
-      newBalance,
+      message: rpcResult.message,
+      newBalance: rpcResult.new_balance ?? undefined,
     }
   } catch (error) {
     console.error("[v0] Error subtracting credits:", error)
@@ -137,39 +108,25 @@ export async function resetCredits(
   const supabase = await createClient()
 
   try {
-    // Get current credits
-    const currentCredits = await getUserCredits(userId)
-    if (currentCredits === null) {
-      return { success: false, message: "User not found" }
-    }
-
-    // Update user credits
-    const { error: updateError } = await supabase
-      .from("users")
-      .update({
-        credits: newAmount,
-        updated_at: new Date().toISOString(),
-      })
-      .eq("id", userId)
-
-    if (updateError) throw updateError
-
-    // Log the operation
-    const { error: logError } = await supabase.from("user_credits_log").insert({
-      user_id: userId,
-      credits_before: currentCredits,
-      credits_after: newAmount,
-      credits_used: newAmount - currentCredits,
-      operation_type: "bonus",
-      description,
+    const { data, error } = await supabase.rpc("process_credit_operation", {
+      p_user_id: userId,
+      p_operation: "reset",
+      p_amount: newAmount,
+      p_description: description,
+      p_operation_type: "bonus",
     })
 
-    if (logError) throw logError
+    if (error) throw error
+
+    const rpcResult = (data as CreditRpcResponseRow[] | null)?.[0]
+    if (!rpcResult?.success) {
+      return { success: false, message: rpcResult?.message || "Failed to reset credits" }
+    }
 
     return {
       success: true,
-      message: `Credits reset to ${newAmount}`,
-      newBalance: newAmount,
+      message: rpcResult.message,
+      newBalance: rpcResult.new_balance ?? undefined,
     }
   } catch (error) {
     console.error("[v0] Error resetting credits:", error)
@@ -187,35 +144,30 @@ export async function purchaseCredits(
   const supabase = await createClient()
 
   try {
-    // Create transaction record
-    const { data: transaction, error: transactionError } = await supabase
-      .from("transactions")
-      .insert({
-        user_id: userId,
-        transaction_type: "credit_purchase",
-        amount: paymentAmount,
-        credits: creditAmount,
-        status: "completed",
-        payment_method: paymentMethod,
-        payment_reference: paymentReference,
-        completed_at: new Date().toISOString(),
-      })
-      .select()
-      .single()
+    const { data, error } = await supabase.rpc("process_credit_operation", {
+      p_user_id: userId,
+      p_operation: "purchase",
+      p_amount: creditAmount,
+      p_description: `Purchased ${creditAmount} credits`,
+      p_operation_type: "purchase",
+      p_payment_amount: paymentAmount,
+      p_payment_method: paymentMethod,
+      p_payment_reference: paymentReference,
+    })
 
-    if (transactionError) throw transactionError
+    if (error) throw error
 
-    // Add credits to user account
-    const result = await addCredits(userId, creditAmount, `Purchased ${creditAmount} credits`, "purchase")
-
-    if (result.success) {
-      return {
-        ...result,
-        transactionId: transaction.id,
-      }
+    const rpcResult = (data as CreditRpcResponseRow[] | null)?.[0]
+    if (!rpcResult?.success) {
+      return { success: false, message: rpcResult?.message || "Failed to purchase credits" }
     }
 
-    return result
+    return {
+      success: true,
+      message: rpcResult.message,
+      newBalance: rpcResult.new_balance ?? undefined,
+      transactionId: rpcResult.transaction_id ?? undefined,
+    }
   } catch (error) {
     console.error("[v0] Error purchasing credits:", error)
     return { success: false, message: "Failed to purchase credits" }
