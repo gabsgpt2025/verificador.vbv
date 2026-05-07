@@ -5,6 +5,7 @@ import { normalizeBinApiResponse } from "@/lib/bin/normalizeBinApiResponse"
 import { applyBinOverrides } from "@/lib/bin/applyBinOverrides"
 import { runFullBinAnalysis } from "@/lib/bin"
 import { saveBinAnalysisLog } from "@/lib/bin/saveBinAnalysisLog"
+import { callNeutrinoApi, convertNeutrinoResponse } from "@/lib/bin/neutrino-api"
 import type { BinAnalysisV2Request, FullBinAnalysis } from "@/lib/bin/types"
 
 // Open-access mode: when NEXT_PUBLIC_REQUIRE_AUTH !== "true", allow unauthenticated BIN analysis
@@ -39,10 +40,18 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // Em produção: chamar API real de BIN (Neutrino, Binlist, etc.)
-    // Por ora, usa normalização interna com dados simulados (substituir por chamada real)
-    const rawApiResponse = await simulateBinApiCall(cleanBin)
-    const binData = normalizeBinApiResponse("INTERNAL", rawApiResponse, cleanBin)
+    // Chama API real da Neutrino para análise de BIN
+    let binData: Record<string, unknown>
+    try {
+      const neutrinoResponse = await callNeutrinoApi(cleanBin)
+      const convertedData = convertNeutrinoResponse(neutrinoResponse)
+      binData = normalizeBinApiResponse("NEUTRINO", convertedData, cleanBin)
+    } catch (error) {
+      console.error("[bin-analysis-v2] Neutrino API error:", error)
+      // Fallback para dados simulados em caso de erro
+      const rawApiResponse = await simulateBinApiCall(cleanBin)
+      binData = normalizeBinApiResponse("INTERNAL", rawApiResponse, cleanBin)
+    }
 
     // Aplica overrides internos antes da análise (requer supabase — skip for guest)
     const binDataWithOverrides = user
