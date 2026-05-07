@@ -19,30 +19,30 @@ export default async function BinProPage() {
               <Shield className="h-6 w-6 text-primary" />
             </div>
             <CyberHeading level={2} className="mb-0">
-              VeriFiBIN 2.0
+              VeriFiBIN 3.0 - Premium
             </CyberHeading>
           </div>
           <CyberText color="muted" className="text-lg">
-            Plataforma profissional de inteligência antifraude e análise de BIN
+            Plataforma profissional com inteligência artificial anti-fraude, análise holística completa e integração Mastercard
           </CyberText>
 
           <div className="flex items-center space-x-6 mt-4">
             <div className="flex items-center space-x-2">
               <Shield className="h-4 w-4 text-secondary" />
               <CyberText variant="caption" color="secondary">
-                Score Explicável
+                Motor Anti-Fraude v3.0
               </CyberText>
             </div>
             <div className="flex items-center space-x-2">
               <BarChart2 className="h-4 w-4 text-accent" />
               <CyberText variant="caption" color="accent">
-                Análise 3DS/VBV Inferida
+                Análise Holística Mastercard
               </CyberText>
             </div>
             <div className="flex items-center space-x-2">
               <Globe className="h-4 w-4 text-primary" />
               <CyberText variant="caption" color="primary">
-                Compliance Regulatório
+                Integração APIs Completa
               </CyberText>
             </div>
           </div>
