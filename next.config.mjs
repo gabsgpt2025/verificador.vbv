@@ -7,7 +7,7 @@ const nextConfig = {
     if (!dev) {
       config.infrastructureLogging = {
         ...(config.infrastructureLogging ?? {}),
-        level: "error",
+        level: config.infrastructureLogging?.level ?? "error",
       }
     }
 
