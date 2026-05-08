@@ -23,7 +23,24 @@ const LANGUAGE_MODES: Record<string, LanguageMode> = {
 };
 
 type ApiErrorPayload = {
+  ok?: boolean
   error?: string | { code?: string; message?: string; requestId?: string }
+}
+
+function extractApiErrorMessage(payload: ApiErrorPayload | null, status: number) {
+  if (!payload) {
+    return `Falha temporária na consulta do BIN (HTTP ${status}).`
+  }
+
+  if (typeof payload.error === 'string') {
+    return payload.error
+  }
+
+  if (payload.error?.message) {
+    return payload.error.message
+  }
+
+  return `Falha temporária na consulta do BIN (HTTP ${status}).`
 }
 
 // Função auxiliar para converter likelihood em porcentagem
@@ -50,7 +67,7 @@ function likelihoodToText(likelihood: string): string {
   return map[likelihood] || 'Desconhecida';
 }
 
-export function Premium3DAnalyzer({ userId }: { userId?: string } = {}) {
+export function Premium3DAnalyzer() {
   const [languageMode, setLanguageMode] = useState<'TECHNICAL' | 'POPULAR'>('TECHNICAL');
   const [cardNumber, setCardNumber] = useState('');
   const [analysis, setAnalysis] = useState<AnalysisResponse | null>(null);
@@ -59,7 +76,9 @@ export function Premium3DAnalyzer({ userId }: { userId?: string } = {}) {
   const [showDetails, setShowDetails] = useState(true);
 
   const handleAnalyze = useCallback(async () => {
-    if (!cardNumber || cardNumber.length < 6) {
+    const cleanBin = cardNumber.replace(/\D/g, '').slice(0, 8);
+
+    if (!cleanBin || cleanBin.length < 6) {
       setError('Por favor, insira pelo menos os 6 primeiros dígitos do cartão');
       return;
     }
@@ -72,20 +91,12 @@ export function Premium3DAnalyzer({ userId }: { userId?: string } = {}) {
       const res = await fetch('/api/bin-analysis-v2', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ bin: cardNumber.substring(0, 6) }),
+        body: JSON.stringify({ bin: cleanBin }),
       });
 
       if (!res.ok) {
         const payload = (await res.json().catch(() => null)) as ApiErrorPayload | null;
-
-        const errorMessage =
-          payload && typeof payload === 'object' && 'error' in payload
-            ? typeof payload.error === 'string'
-              ? payload.error
-              : payload.error?.message
-            : 'Falha temporária na consulta do BIN. Tente novamente.';
-
-        throw new Error(errorMessage || `HTTP ${res.status}`);
+        throw new Error(extractApiErrorMessage(payload, res.status));
       }
 
       const apiData: FullBinAnalysis = await res.json();
@@ -203,14 +214,14 @@ export function Premium3DAnalyzer({ userId }: { userId?: string } = {}) {
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="flex gap-3">
-              <Input
-                type="text"
-                placeholder="Insira o BIN (ex: 627961)"
-                value={cardNumber}
-                onChange={(e) => setCardNumber(e.target.value.replace(/\D/g, '').slice(0, 6))}
-                maxLength={6}
-                className="flex-1 bg-slate-800 border-slate-600 text-white placeholder:text-slate-500 text-lg font-mono"
-              />
+                <Input
+                  type="text"
+                  placeholder="Insira o BIN (6 a 8 dígitos, ex: 62796100)"
+                  value={cardNumber}
+                  onChange={(e) => setCardNumber(e.target.value.replace(/\D/g, '').slice(0, 8))}
+                  maxLength={8}
+                  className="flex-1 bg-slate-800 border-slate-600 text-white placeholder:text-slate-500 text-lg font-mono"
+                />
               <Button
                 onClick={handleAnalyze}
                 disabled={loading}

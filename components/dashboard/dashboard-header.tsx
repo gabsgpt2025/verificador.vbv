@@ -11,10 +11,8 @@ import { Avatar, AvatarFallback } from "@/components/ui/avatar"
 import { Shield, User, Settings, CreditCard, AlertTriangle } from "lucide-react"
 import { LogoutButton } from "@/components/auth/logout-button"
 import { CyberNavigation } from "@/components/cyberpunk/cyber-navigation"
+import { OPEN_ACCESS_MODE } from "@/lib/open-access-mode"
 import Link from "next/link"
-
-// Open-access mode flag (auth disabled when NEXT_PUBLIC_REQUIRE_AUTH !== "true")
-const OPEN_ACCESS_MODE = process.env.NEXT_PUBLIC_REQUIRE_AUTH !== "true"
 
 interface DashboardHeaderProps {
   user: any

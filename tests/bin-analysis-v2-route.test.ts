@@ -154,4 +154,22 @@ describe("/api/bin-analysis-v2 route", () => {
     expect(typeof payload.error.requestId).toBe("string")
     expect(subtractCreditsMock).not.toHaveBeenCalled()
   })
+
+  it("retorna 500 estruturado e não debita quando falha ao salvar o histórico", async () => {
+    saveBinAnalysisLogMock.mockRejectedValue(new Error("insert failed"))
+
+    const request = new Request("http://localhost/api/bin-analysis-v2", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ bin: "411111" }),
+    }) as NextRequest
+
+    const response = await POST(request)
+    const payload = await response.json()
+
+    expect(response.status).toBe(500)
+    expect(payload.ok).toBe(false)
+    expect(payload.error.code).toBe("BIN_ANALYSIS_LOG_INSERT_FAILED")
+    expect(subtractCreditsMock).not.toHaveBeenCalled()
+  })
 })

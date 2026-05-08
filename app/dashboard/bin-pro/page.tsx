@@ -1,4 +1,5 @@
 import { requireAuth, getUserProfile } from "@/lib/auth"
+import { BinProHistory } from "@/components/bin-pro/bin-pro-history"
 import { DashboardHeader } from "@/components/dashboard/dashboard-header"
 import { Premium3DAnalyzer } from "@/components/premium-3-0/Premium3DAnalyzer"
 import { CyberHeading, CyberText } from "@/components/cyberpunk/cyber-typography"
@@ -48,7 +49,10 @@ export default async function BinProPage() {
           </div>
         </div>
 
-        <Premium3DAnalyzer userId={user.id} />
+        <div className="space-y-8">
+          <Premium3DAnalyzer />
+          <BinProHistory userId={user.id} />
+        </div>
       </main>
     </div>
   )
