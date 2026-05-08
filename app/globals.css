@@ -42,6 +42,107 @@
   --sidebar-accent-foreground: #0a0a0a;
   --sidebar-border: hsl(217, 91%, 30%);
   --sidebar-ring: hsl(217, 91%, 60%);
+
+  /* ============================================================
+     DESIGN SYSTEM — FASE 1 — TOKENS SEMÂNTICOS
+     Três camadas: Primitives → Semantics → (Components em Fase 2)
+     ============================================================ */
+
+  /* === PRIMITIVES === */
+  --neutral-0: oklch(1 0 0);
+  --neutral-50: oklch(0.985 0 0);
+  --neutral-100: oklch(0.96 0 0);
+  --neutral-200: oklch(0.92 0 0);
+  --neutral-300: oklch(0.84 0 0);
+  --neutral-400: oklch(0.66 0 0);
+  --neutral-500: oklch(0.52 0 0);
+  --neutral-600: oklch(0.40 0 0);
+  --neutral-700: oklch(0.30 0.005 250);
+  --neutral-800: oklch(0.22 0.008 250);
+  --neutral-850: oklch(0.18 0.01 250);
+  --neutral-900: oklch(0.14 0.012 250);
+  --neutral-950: oklch(0.10 0.014 250);
+
+  --blue-400: oklch(0.74 0.13 240);
+  --blue-500: oklch(0.62 0.17 245);
+  --blue-600: oklch(0.54 0.18 250);
+  --blue-700: oklch(0.46 0.16 252);
+
+  --green-500: oklch(0.70 0.16 150);
+  --amber-500: oklch(0.78 0.16 80);
+  --orange-600: oklch(0.68 0.18 45);
+  --red-600: oklch(0.60 0.22 25);
+
+  /* === SEMANTIC — BACKGROUND === */
+  --bg-app: var(--neutral-950);
+  --bg-surface: var(--neutral-900);
+  --bg-surface-elevated: var(--neutral-850);
+  --bg-surface-hover: var(--neutral-800);
+
+  /* === SEMANTIC — TEXT === */
+  --text-primary: var(--neutral-50);
+  --text-secondary: var(--neutral-300);
+  --text-muted: var(--neutral-400);
+  --text-disabled: var(--neutral-600);
+  --text-on-accent: var(--neutral-0);
+
+  /* === SEMANTIC — BORDER === */
+  --border-subtle: var(--neutral-800);
+  --border-default: var(--neutral-700);
+  --border-strong: var(--neutral-600);
+
+  /* === SEMANTIC — ACCENT (blue, not orange) === */
+  --ds-accent: var(--blue-500);
+  --ds-accent-hover: var(--blue-400);
+  --ds-accent-active: var(--blue-600);
+  --focus-ring: var(--blue-400);
+
+  /* === SEMANTIC — RISK (antifraude domain) === */
+  --risk-low: var(--green-500);
+  --risk-medium: var(--amber-500);
+  --risk-high: var(--orange-600);
+  --risk-critical: var(--red-600);
+
+  /* === SEMANTIC — STATUS === */
+  --status-success: var(--green-500);
+  --status-warning: var(--amber-500);
+  --status-danger: var(--red-600);
+  --status-info: var(--blue-500);
+
+  /* === SHADOWS (subtle, no neon glow) === */
+  --ds-shadow-xs: 0 1px 2px 0 rgb(0 0 0 / 0.25);
+  --ds-shadow-sm: 0 2px 4px -1px rgb(0 0 0 / 0.30), 0 1px 2px -1px rgb(0 0 0 / 0.25);
+  --ds-shadow-md: 0 4px 8px -2px rgb(0 0 0 / 0.35), 0 2px 4px -2px rgb(0 0 0 / 0.25);
+  --ds-shadow-lg: 0 12px 24px -4px rgb(0 0 0 / 0.40), 0 4px 8px -4px rgb(0 0 0 / 0.30);
+  --ds-shadow-focus: 0 0 0 3px color-mix(in oklch, var(--focus-ring) 40%, transparent);
+
+  /* === MOTION === */
+  --ease-out: cubic-bezier(0.2, 0.8, 0.2, 1);
+  --ease-in-out: cubic-bezier(0.4, 0, 0.2, 1);
+  --duration-fast: 120ms;
+  --duration-base: 200ms;
+  --duration-slow: 320ms;
+
+  /* === TYPOGRAPHY === */
+  --font-size-xs: 0.75rem;
+  --font-size-sm: 0.8125rem;
+  --font-size-base: 0.875rem;
+  --font-size-md: 1rem;
+  --font-size-lg: 1.125rem;
+  --font-size-xl: 1.375rem;
+  --font-size-2xl: 1.75rem;
+  --font-size-3xl: 2.25rem;
+  --line-height-tight: 1.2;
+  --line-height-base: 1.5;
+  --line-height-relaxed: 1.65;
+
+  /* === Z-INDEX === */
+  --z-dropdown: 1000;
+  --z-sticky: 1020;
+  --z-overlay: 1040;
+  --z-modal: 1050;
+  --z-toast: 1080;
+  --z-tooltip: 1090;
 }
 
 .dark {
@@ -106,10 +207,10 @@
   --color-chart-3: var(--chart-3);
   --color-chart-4: var(--chart-4);
   --color-chart-5: var(--chart-5);
-  --radius-sm: calc(var(--radius) - 4px);
-  --radius-md: calc(var(--radius) - 2px);
-  --radius-lg: var(--radius);
-  --radius-xl: calc(var(--radius) + 4px);
+  --radius-sm: 6px;
+  --radius-md: 10px;
+  --radius-lg: 14px;
+  --radius-xl: 20px;
   --color-sidebar: var(--sidebar);
   --color-sidebar-foreground: var(--sidebar-foreground);
   --color-sidebar-primary: var(--sidebar-primary);
@@ -118,6 +219,49 @@
   --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
   --color-sidebar-border: var(--sidebar-border);
   --color-sidebar-ring: var(--sidebar-ring);
+
+  /* === DESIGN SYSTEM — Tailwind v4 color utilities === */
+  /* Background tokens → bg-bg-app, bg-bg-surface, etc. */
+  --color-bg-app: var(--bg-app);
+  --color-bg-surface: var(--bg-surface);
+  --color-bg-surface-elevated: var(--bg-surface-elevated);
+  --color-bg-surface-hover: var(--bg-surface-hover);
+
+  /* Text tokens → text-fg, text-fg-secondary, text-fg-muted, etc. */
+  --color-fg: var(--text-primary);
+  --color-fg-secondary: var(--text-secondary);
+  --color-fg-muted: var(--text-muted);
+  --color-fg-disabled: var(--text-disabled);
+  --color-fg-on-accent: var(--text-on-accent);
+
+  /* Border tokens → border-border-subtle, border-border-default, border-border-strong */
+  --color-border-subtle: var(--border-subtle);
+  --color-border-default: var(--border-default);
+  --color-border-strong: var(--border-strong);
+
+  /* Accent tokens → text-ds-accent, bg-ds-accent, etc. */
+  --color-ds-accent: var(--ds-accent);
+  --color-ds-accent-hover: var(--ds-accent-hover);
+  --color-ds-accent-active: var(--ds-accent-active);
+
+  /* Risk tokens → text-risk-low, text-risk-medium, etc. */
+  --color-risk-low: var(--risk-low);
+  --color-risk-medium: var(--risk-medium);
+  --color-risk-high: var(--risk-high);
+  --color-risk-critical: var(--risk-critical);
+
+  /* Status tokens → text-status-success, text-status-warning, etc. */
+  --color-status-success: var(--status-success);
+  --color-status-warning: var(--status-warning);
+  --color-status-danger: var(--status-danger);
+  --color-status-info: var(--status-info);
+
+  /* Shadow tokens → shadow-xs, shadow-sm (override), shadow-md, shadow-lg, shadow-focus */
+  --shadow-xs: var(--ds-shadow-xs);
+  --shadow-sm: var(--ds-shadow-sm);
+  --shadow-md: var(--ds-shadow-md);
+  --shadow-lg: var(--ds-shadow-lg);
+  --shadow-focus: var(--ds-shadow-focus);
 }
 
 @layer base {
@@ -126,6 +270,22 @@
   }
   body {
     @apply bg-background text-foreground font-mono;
+  }
+
+  /* === DESIGN SYSTEM — Global base rules === */
+
+  html,
+  body {
+    background: var(--bg-app);
+    color: var(--text-primary);
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  :focus-visible {
+    outline: none;
+    box-shadow: var(--ds-shadow-focus);
+    border-radius: var(--radius-sm);
   }
 
   .neon-glow {
@@ -179,5 +339,17 @@
     background: linear-gradient(135deg, hsl(25 95% 53%) 0%, hsl(25 95% 43%) 100%);
     border: 1px solid hsl(25 95% 63%);
     box-shadow: 0 0 15px hsl(25 95% 53% / 0.4);
+  }
+}
+
+/* === DESIGN SYSTEM — Accessibility: prefers-reduced-motion === */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
   }
 }
