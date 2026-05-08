@@ -39,7 +39,7 @@ export function runFullBinAnalysis(binData: BinApiData, context?: Partial<Transa
   return { ...partialAnalysis, finalSummary }
 }
 
-export { analyzeThreeDS } from "./analyzeThreeDS"
+export { analyzeThreeDS, analyzeThreeDSExtended } from "./analyzeThreeDS"
 export { calculateRisk } from "./calculateRisk"
 export { calculateDataQuality } from "./calculateDataQuality"
 export { analyzeCompliance } from "./analyzeCompliance"
@@ -49,5 +49,7 @@ export { applyBinOverrides } from "./applyBinOverrides"
 export { saveBinAnalysisLog } from "./saveBinAnalysisLog"
 export { getCountryMaturity, COUNTRY_3DS_MATURITY } from "./country3dsMaturity"
 export { runHolisticAnalysis } from "./holisticEngine"
-export type { TransactionContext, HolisticScore } from "./holisticEngine"
+export { computePeerComparison } from "./peerComparison"
+export type { TransactionContext, HolisticScore, HolisticDimensionScore } from "./holisticEngine"
+export type { PeerComparison } from "./peerComparison"
 export type * from "./types"

@@ -49,8 +49,11 @@ type HistoryResponse = {
   history?: HistoryItem[]
 }
 
+import type { PeerComparison } from '@/lib/premium-3-0/peerComparison'
+
 type PremiumAnalysisResponse = FullBinAnalysis & {
   holistic: HolisticScore
+  peerComparison?: PeerComparison
   context: {
     amount?: number
     currency?: string
@@ -155,7 +158,8 @@ export function Premium3DAnalyzer() {
       const items = payload.history ?? []
       setHistory(items)
       setHistoryMessage(items.length === 0 ? 'Nenhuma análise recente disponível ainda.' : null)
-    } catch {
+    } catch (err) {
+      console.error('[Premium3DAnalyzer] Erro ao carregar histórico', err)
       setHistory([])
       setHistoryMessage('Não foi possível carregar o histórico agora.')
     } finally {
@@ -196,6 +200,7 @@ export function Premium3DAnalyzer() {
             currency,
             userAgent: navigator.userAgent,
             timestamp: Date.now(),
+            timezoneOffset: new Date().getTimezoneOffset(),
           },
         }),
       })
@@ -376,6 +381,9 @@ export function Premium3DAnalyzer() {
                 <CardContent className="grid gap-4 md:grid-cols-2">
                   {riskDimensions.map((dimension) => {
                     const Icon = dimension.icon
+                    const dimExplanation = dimension.value.explanation
+                      ? (languageMode === 'TECHNICAL' ? dimension.value.explanation.technical : dimension.value.explanation.popular)
+                      : null
                     return (
                       <details key={dimension.key} className="rounded-xl border border-slate-700 bg-slate-950/60 p-4">
                         <summary className="flex cursor-pointer list-none items-center justify-between gap-3">
@@ -389,6 +397,9 @@ export function Premium3DAnalyzer() {
                           <span className="text-lg font-semibold text-white">{dimension.value.score}/100</span>
                         </summary>
                         <div className="mt-4 space-y-3 border-t border-slate-800 pt-4">
+                          {dimExplanation ? (
+                            <p className="text-xs italic text-slate-400">{dimExplanation}</p>
+                          ) : null}
                           <Progress value={dimension.value.score} className="bg-slate-800" />
                           <ul className="space-y-2">
                             {dimension.value.factors.map((factor, index) => (

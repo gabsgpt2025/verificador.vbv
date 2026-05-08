@@ -4,6 +4,8 @@ import { calculateBankRisk } from "./enrichment/bankReputation"
 import { calculateCardLevelRisk } from "./enrichment/cardLevelRisk"
 import { enrichGeo, getCountryRiskTier } from "./enrichment/geoEnrichment"
 import { enrichTemporal } from "./enrichment/temporalEnrichment"
+import { enrichDevice } from "./enrichment/deviceEnrichment"
+import { enrichGateway } from "./enrichment/gatewayRisk"
 import type { BinApiData, BinRiskFactor } from "./types"
 
 export interface TransactionContext {
@@ -11,6 +13,7 @@ export interface TransactionContext {
   currency?: string
   merchantCountry?: string
   merchantCategoryCode?: string
+  mcc?: string
   timestamp: number
   userAgent?: string | null
   ipAddress?: string | null
@@ -20,7 +23,10 @@ export interface TransactionContext {
 
 export interface HolisticDimensionScore {
   score: number
+  weight: number
   factors: BinRiskFactor[]
+  explanation: { technical: string; popular: string }
+  dataAvailable: boolean
 }
 
 export interface HolisticScore {
@@ -32,6 +38,8 @@ export interface HolisticScore {
   gatewayRisk: HolisticDimensionScore
   overallScore: number
   riskLevel: "LOW" | "MEDIUM" | "HIGH" | "CRITICAL"
+  recommendation: "APPROVE" | "REVIEW" | "REQUIRE_3DS" | "BLOCK_PREVENTIVELY" | "INSUFFICIENT_DATA"
+  ensembleConfidence: number
   peerComparison: { percentile: number; description: string }
 }
 
@@ -44,26 +52,6 @@ const WEIGHTS = {
   gatewayRisk: 0.1,
 } as const
 
-const EUR_EXCHANGE_RATE: Record<string, number> = {
-  EUR: 1,
-  BRL: 0.18,
-  USD: 0.92,
-  GBP: 1.16,
-  CAD: 0.67,
-  AUD: 0.6,
-  MXN: 0.05,
-}
-
-const BRL_EXCHANGE_RATE: Record<string, number> = {
-  BRL: 1,
-  EUR: 6,
-  USD: 5.45,
-  GBP: 6.9,
-  CAD: 4.0,
-  AUD: 3.6,
-  MXN: 0.29,
-}
-
 function clamp(value: number, min: number, max: number) {
   return Math.min(Math.max(Math.round(value), min), max)
 }
@@ -72,19 +60,7 @@ function normalizeScore(value: number, min = 0) {
   return clamp(value, min, 100)
 }
 
-function convertAmountToEur(amountInCents?: number, currency?: string) {
-  if (typeof amountInCents !== "number") return null
-  const rate = EUR_EXCHANGE_RATE[(currency ?? "EUR").toUpperCase()] ?? 1
-  return (amountInCents / 100) * rate
-}
-
-function convertAmountToBrl(amountInCents?: number, currency?: string) {
-  if (typeof amountInCents !== "number") return null
-  const rate = BRL_EXCHANGE_RATE[(currency ?? "BRL").toUpperCase()] ?? 1
-  return (amountInCents / 100) * rate
-}
-
-function buildBehavioralRisk(context: Partial<TransactionContext>): HolisticDimensionScore {
+function buildBehavioralRisk(context: Partial<TransactionContext>): Omit<HolisticDimensionScore, "weight" | "explanation" | "dataAvailable"> {
   if (context.isFirstTransaction !== false) {
     return {
       score: 40,
@@ -108,87 +84,6 @@ function buildBehavioralRisk(context: Partial<TransactionContext>): HolisticDime
       },
     ],
   }
-}
-
-function buildDeviceRisk(userAgent?: string | null): HolisticDimensionScore {
-  const factors: BinRiskFactor[] = []
-  let score = 15
-  const normalizedUserAgent = (userAgent ?? "").toLowerCase()
-
-  if (!normalizedUserAgent) {
-    score += 20
-    factors.push({
-      label: "User-Agent ausente",
-      impact: 20,
-      reason: "Sem identificação de dispositivo, o motor assume maior incerteza operacional.",
-    })
-  } else if (/(curl|python|axios|headless|phantom|playwright|puppeteer|selenium)/i.test(normalizedUserAgent)) {
-    score += 50
-    factors.push({
-      label: "Padrão de bot/headless detectado",
-      impact: 50,
-      reason: "O user-agent indica automação ou browser headless, elevando o risco de dispositivo.",
-    })
-  } else if (/(iphone|android|mobile|ipad)/i.test(normalizedUserAgent)) {
-    score -= 5
-    factors.push({
-      label: "Dispositivo móvel comum",
-      impact: -5,
-      reason: "Fluxos mobile modernos tendem a ter telemetria e biometria mais consistentes.",
-    })
-  } else {
-    factors.push({
-      label: "Desktop/browser tradicional",
-      impact: 0,
-      reason: "User-agent de desktop identificado sem sinais claros de automação.",
-    })
-  }
-
-  return { score: normalizeScore(score), factors }
-}
-
-function buildGatewayRisk(context: Partial<TransactionContext>): HolisticDimensionScore {
-  const factors: BinRiskFactor[] = []
-
-  if (typeof context.amount !== "number") {
-    factors.push({
-      label: "Valor da transação ausente",
-      impact: 20,
-      reason: "Sem valor da compra, o motor usa score 20 por falta de contexto do gateway.",
-    })
-
-    return { score: 20, factors }
-  }
-
-  let score = 30
-  const amountInBrl = convertAmountToBrl(context.amount, context.currency)
-  const amountInEur = convertAmountToEur(context.amount, context.currency)
-
-  factors.push({
-    label: "Valor da transação informado",
-    impact: 10,
-    reason: "Com valor disponível, o motor consegue estimar pressão de risco do gateway e de possíveis isenções.",
-  })
-
-  if (amountInBrl !== null && amountInBrl > 5000) {
-    score += 20
-    factors.push({
-      label: "Valor alto para o gateway",
-      impact: 20,
-      reason: `O valor equivalente em BRL é ${amountInBrl.toFixed(2)}, acima da faixa de R$ 5.000.`,
-    })
-  }
-
-  if (amountInEur !== null && amountInEur < 30) {
-    score -= 5
-    factors.push({
-      label: "Faixa elegível para isenção de baixo valor",
-      impact: -5,
-      reason: `O valor equivalente em EUR é ${amountInEur.toFixed(2)}, permitindo leitura de low-value exemption/SCA.`,
-    })
-  }
-
-  return { score: normalizeScore(score), factors }
 }
 
 function buildPeerComparison(
@@ -227,7 +122,24 @@ function getOverallRiskLevel(score: number): HolisticScore["riskLevel"] {
   return "LOW"
 }
 
-function buildBinRisk(binData: BinApiData, context: Partial<TransactionContext>): HolisticDimensionScore {
+function getRecommendation(
+  level: HolisticScore["riskLevel"],
+  ensembleConfidence: number,
+): HolisticScore["recommendation"] {
+  if (ensembleConfidence < 34) return "INSUFFICIENT_DATA"
+  switch (level) {
+    case "LOW":
+      return "APPROVE"
+    case "MEDIUM":
+      return "REVIEW"
+    case "HIGH":
+      return "REQUIRE_3DS"
+    case "CRITICAL":
+      return "BLOCK_PREVENTIVELY"
+  }
+}
+
+function buildBinRisk(binData: BinApiData, context: Partial<TransactionContext>): Omit<HolisticDimensionScore, "weight" | "explanation" | "dataAvailable"> {
   const threeDSAnalysis = analyzeThreeDS(binData, context)
   const baseRisk = calculateRisk(binData, threeDSAnalysis)
   const bankRisk = calculateBankRisk(binData.issuer ?? null)
@@ -255,34 +167,117 @@ export function runHolisticAnalysis(binData: BinApiData, context: Partial<Transa
   }
 
   const binRisk = buildBinRisk(binData, normalizedContext)
-  const temporalRisk = enrichTemporal(normalizedContext.timestamp ?? 0)
+  const temporalRiskRaw = enrichTemporal(normalizedContext.timestamp ?? 0)
   const behavioralRisk = buildBehavioralRisk(normalizedContext)
   const geographicRisk = enrichGeo(
     binData.countryCode ?? "",
     normalizedContext.ipAddress ?? null,
     normalizedContext.ipCountryCode ?? null,
   )
-  const deviceRisk = buildDeviceRisk(normalizedContext.userAgent)
-  const gatewayRisk = buildGatewayRisk(normalizedContext)
+  const deviceRiskRaw = enrichDevice(normalizedContext.userAgent)
+  const gatewayRiskRaw = enrichGateway({
+    amount: normalizedContext.amount,
+    currency: normalizedContext.currency,
+    mcc: normalizedContext.mcc ?? normalizedContext.merchantCategoryCode,
+  })
+
+  const binDataAvailable = Boolean(binData.brand || binData.countryCode || binData.issuer)
+  const temporalDataAvailable = (normalizedContext.timestamp ?? 0) > 0
+  const behavioralDataAvailable = typeof normalizedContext.isFirstTransaction === "boolean"
+  const geoDataAvailable = Boolean(binData.countryCode || normalizedContext.ipCountryCode)
+  const deviceDataAvailable = Boolean(normalizedContext.userAgent)
+  const gatewayDataAvailable = gatewayRiskRaw.dataAvailable
+
+  const dimensionsWithData = [
+    binDataAvailable,
+    temporalDataAvailable,
+    behavioralDataAvailable,
+    geoDataAvailable,
+    deviceDataAvailable,
+    gatewayDataAvailable,
+  ].filter(Boolean).length
+
+  const ensembleConfidence = Math.round((dimensionsWithData / 6) * 100)
 
   const overallScore = normalizeScore(
     binRisk.score * WEIGHTS.binRisk +
       geographicRisk.score * WEIGHTS.geographicRisk +
       behavioralRisk.score * WEIGHTS.behavioralRisk +
-      temporalRisk.score * WEIGHTS.temporalRisk +
-      deviceRisk.score * WEIGHTS.deviceRisk +
-      gatewayRisk.score * WEIGHTS.gatewayRisk,
+      temporalRiskRaw.score * WEIGHTS.temporalRisk +
+      deviceRiskRaw.score * WEIGHTS.deviceRisk +
+      gatewayRiskRaw.score * WEIGHTS.gatewayRisk,
   )
 
+  const riskLevel = getOverallRiskLevel(overallScore)
+  const recommendation = getRecommendation(riskLevel, ensembleConfidence)
+
   return {
-    binRisk: { score: binRisk.score, factors: binRisk.factors },
-    temporalRisk: { score: temporalRisk.score, factors: temporalRisk.factors },
-    behavioralRisk: { score: behavioralRisk.score, factors: behavioralRisk.factors },
-    geographicRisk: { score: geographicRisk.score, factors: geographicRisk.factors },
-    deviceRisk,
-    gatewayRisk,
+    binRisk: {
+      score: binRisk.score,
+      weight: WEIGHTS.binRisk,
+      factors: binRisk.factors,
+      explanation: {
+        technical: "Score de risco do BIN baseado em análise 3DS inferida, reputação do emissor e nível do cartão.",
+        popular: "Avalia o cartão: tipo, emissor e histórico de aprovação.",
+      },
+      dataAvailable: binDataAvailable,
+    },
+    temporalRisk: {
+      score: temporalRiskRaw.score,
+      weight: WEIGHTS.temporalRisk,
+      factors: temporalRiskRaw.factors,
+      explanation: {
+        technical: `Risco temporal: hora ${temporalRiskRaw.hour}h, ${temporalRiskRaw.isWeekend ? "fim de semana" : "dia útil"}, ${temporalRiskRaw.isNightTime ? "período noturno" : "período diurno"}.`,
+        popular: "Quando a compra aconteceu: madrugada e fim de semana aumentam o risco.",
+      },
+      dataAvailable: temporalDataAvailable,
+    },
+    behavioralRisk: {
+      score: behavioralRisk.score,
+      weight: WEIGHTS.behavioralRisk,
+      factors: behavioralRisk.factors,
+      explanation: {
+        technical: behavioralDataAvailable
+          ? `Análise comportamental com isFirstTransaction=${String(normalizedContext.isFirstTransaction)}.`
+          : "Sem sinal comportamental disponível; score conservador aplicado.",
+        popular: "Histórico de uso do cartão: primeira vez ou já conhecido.",
+      },
+      dataAvailable: behavioralDataAvailable,
+    },
+    geographicRisk: {
+      score: geographicRisk.score,
+      weight: WEIGHTS.geographicRisk,
+      factors: geographicRisk.factors,
+      explanation: {
+        technical: `País do BIN ${binData.countryCode ?? "N/A"} (tier: ${geographicRisk.countryRiskTier}), IP country: ${geographicRisk.ipCountryCode ?? "N/A"}.`,
+        popular: "De onde o cartão é e de onde parece estar sendo usado agora.",
+      },
+      dataAvailable: geoDataAvailable,
+    },
+    deviceRisk: {
+      score: deviceRiskRaw.score,
+      weight: WEIGHTS.deviceRisk,
+      factors: deviceRiskRaw.factors,
+      explanation: {
+        technical: `Dispositivo detectado: ${deviceRiskRaw.deviceType}. UA presente: ${deviceDataAvailable}.`,
+        popular: "Tipo de dispositivo: mobile, desktop, ou comportamento suspeito de bot.",
+      },
+      dataAvailable: deviceDataAvailable,
+    },
+    gatewayRisk: {
+      score: gatewayRiskRaw.score,
+      weight: WEIGHTS.gatewayRisk,
+      factors: gatewayRiskRaw.factors,
+      explanation: {
+        technical: `Gateway: valor=${normalizedContext.amount ?? "N/A"} ${normalizedContext.currency ?? ""}, MCC=${normalizedContext.mcc ?? normalizedContext.merchantCategoryCode ?? "N/A"}.`,
+        popular: "Valor da compra e tipo de estabelecimento influenciam o risco.",
+      },
+      dataAvailable: gatewayDataAvailable,
+    },
     overallScore,
-    riskLevel: getOverallRiskLevel(overallScore),
+    riskLevel,
+    recommendation,
+    ensembleConfidence,
     peerComparison: buildPeerComparison(binData, binRisk.score, geographicRisk.score, geographicRisk.countryRiskTier),
   }
 }

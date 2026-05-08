@@ -7,6 +7,7 @@ import { applyBinOverrides } from "@/lib/premium-3-0/applyBinOverrides"
 import { runFullBinAnalysis, runHolisticAnalysis } from "@/lib/premium-3-0"
 import { saveBinAnalysisLog } from "@/lib/premium-3-0/saveBinAnalysisLog"
 import { callNeutrinoApi } from "@/lib/premium-3-0/neutrino-api"
+import { computePeerComparison } from "@/lib/premium-3-0/peerComparison"
 import type { BinApiData, FullBinAnalysis } from "@/lib/premium-3-0/types"
 import type { AnalysisRequest, ValidationResult } from "@/lib/premium-3-0/holisticTypes"
 import type { TransactionContext } from "@/lib/premium-3-0/holisticEngine"
@@ -26,6 +27,7 @@ const analysisRequestSchema = z.object({
       currency: z.string().optional(),
       merchantCountry: z.string().optional(),
       merchantCategoryCode: z.string().optional(),
+      mcc: z.string().optional(),
       timestamp: z.number().optional(),
       userAgent: z.string().nullable().optional(),
       ipAddress: z.string().nullable().optional(),
@@ -39,6 +41,7 @@ const analysisRequestSchema = z.object({
     .optional(),
   transactionCurrency: z.string().optional(),
   merchantCountry: z.string().optional(),
+  mcc: z.string().optional(),
   isFirstTransaction: z.boolean().optional(),
 })
 
@@ -112,11 +115,16 @@ function resolveTransactionContext(request: NextRequest, payload: AnalysisReques
   const userAgent = request.headers.get("user-agent") ?? null
   const context = payload.context ?? {}
 
+  // Accept mcc from context.merchantCategoryCode or top-level mcc (schema accepts both)
+  const rawBody = payload as unknown as Record<string, unknown>
+  const mcc = (context.merchantCategoryCode) ?? (rawBody.mcc as string | undefined) ?? ((context as Record<string, unknown>).mcc as string | undefined)
+
   return {
     amount: context.amount ?? payload.transactionAmount,
     currency: context.currency ?? payload.transactionCurrency ?? "BRL",
     merchantCountry: context.merchantCountry ?? payload.merchantCountry,
     merchantCategoryCode: context.merchantCategoryCode,
+    mcc,
     timestamp: context.timestamp ?? Date.now(),
     userAgent: context.userAgent ?? userAgent,
     ipAddress: context.ipAddress ?? forwardedFor,
@@ -201,6 +209,7 @@ export async function POST(request: NextRequest) {
     // Executa análise completa
     const analysis: FullBinAnalysis = runFullBinAnalysis(binDataWithOverrides, resolvedContext)
     const holistic = runHolisticAnalysis(binDataWithOverrides, resolvedContext)
+    const peerComparison = computePeerComparison(binDataWithOverrides)
 
     // Salva log interno (somente para usuários autenticados)
     if (user) {
@@ -232,6 +241,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({
       ...analysis,
       holistic,
+      peerComparison,
       context: buildSafeContextEcho(resolvedContext),
     })
   } catch (error) {

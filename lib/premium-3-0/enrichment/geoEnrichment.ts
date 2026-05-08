@@ -49,7 +49,7 @@ const TIER2_COUNTRIES = new Set([
   "IN",
 ])
 
-const CRITICAL_COUNTRIES = new Set(["NG", "VE", "PK", "BD", "KE", "GH", "CM", "RO", "UA", "BY", "RU"])
+const CRITICAL_COUNTRIES = new Set(["NG", "VE", "PK", "BD", "KE", "GH", "CM", "RO", "UA", "BY", "RU", "IR", "KP"])
 
 const BASE_SCORE_BY_TIER: Record<CountryRiskTier, number> = {
   TIER1: 15,

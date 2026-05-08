@@ -78,6 +78,25 @@ function buildExplanation(
   )
 }
 
+export interface ThreeDSExtendedResult {
+  frictionlessProbability: number
+  bypassProbability: number
+  bypassMechanisms: BinThreeDSResult["applicableBypassMechanisms"]
+}
+
+/**
+ * Lightweight extended 3DS analysis returning only the key probabilities
+ * and applicable bypass mechanisms. Does not replace `analyzeThreeDS`.
+ */
+export function analyzeThreeDSExtended(binData: BinApiData, context?: ThreeDSContextInput): ThreeDSExtendedResult {
+  const result = analyzeThreeDS(binData, context)
+  return {
+    frictionlessProbability: result.frictionlessProbability,
+    bypassProbability: result.bypassProbability,
+    bypassMechanisms: result.applicableBypassMechanisms,
+  }
+}
+
 export function analyzeThreeDS(binData: BinApiData, context?: ThreeDSContextInput): BinThreeDSResult {
   const normalizedIssuer = normalizeIssuerName(binData.issuer)
   const issuerAdoption = THREE_DS_BY_BANK.get(normalizedIssuer)
