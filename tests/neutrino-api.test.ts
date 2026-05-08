@@ -1,6 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest"
-import { callNeutrinoApi as callLegacyNeutrinoApi } from "../lib/bin/neutrino-api"
-import { callNeutrinoApi as callPremiumNeutrinoApi } from "../lib/premium-3-0/neutrino-api"
+import { callNeutrinoApi } from "../lib/premium-3-0/neutrino-api"
 
 describe("Neutrino API integration", () => {
   afterEach(() => {
@@ -9,10 +8,7 @@ describe("Neutrino API integration", () => {
     delete process.env.NEUTRINO_USER_ID
   })
 
-  it.each([
-    ["premium", callPremiumNeutrinoApi],
-    ["legacy", callLegacyNeutrinoApi],
-  ])("%s client posts to the official endpoint with bin-number", async (_, callNeutrinoApi) => {
+  it("posts to the official endpoint with bin-number", async () => {
     process.env.NEUTRINO_API_KEY = "test-api-key"
     process.env.NEUTRINO_USER_ID = "test-user-id"
 
@@ -39,10 +35,7 @@ describe("Neutrino API integration", () => {
     expect(options.body).toBe("bin-number=40570812")
   })
 
-  it.each([
-    ["premium", callPremiumNeutrinoApi],
-    ["legacy", callLegacyNeutrinoApi],
-  ])("%s client includes the response body in thrown API errors", async (_, callNeutrinoApi) => {
+  it("includes the response body in thrown API errors", async () => {
     process.env.NEUTRINO_API_KEY = "test-api-key"
     process.env.NEUTRINO_USER_ID = "test-user-id"
     vi.spyOn(console, "error").mockImplementation(() => {})
@@ -62,7 +55,7 @@ describe("Neutrino API integration", () => {
     )
   })
 
-  it("premium client retries transient API errors with backoff", async () => {
+  it("retries transient API errors with backoff", async () => {
     process.env.NEUTRINO_API_KEY = "test-api-key"
     process.env.NEUTRINO_USER_ID = "test-user-id"
     vi.spyOn(console, "error").mockImplementation(() => {})
@@ -80,7 +73,7 @@ describe("Neutrino API integration", () => {
 
     vi.stubGlobal("fetch", fetchMock)
 
-    const response = await callPremiumNeutrinoApi("405708")
+    const response = await callNeutrinoApi("405708")
 
     expect(response.valid).toBe(true)
     expect(fetchMock).toHaveBeenCalledTimes(3)
