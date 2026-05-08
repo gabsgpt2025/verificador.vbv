@@ -136,3 +136,10 @@ pnpm test       # vitest run
 ## CI
 
 O workflow `.github/workflows/ci.yml` roda `lint → typecheck → build` em todo PR e push para `main`.
+
+## Documentação Técnica
+
+| Documento | Descrição |
+|---|---|
+| [`docs/VERIFIBIN-3.0-RELATORIO-TECNICO.md`](docs/VERIFIBIN-3.0-RELATORIO-TECNICO.md) | Relatório técnico completo (v3.0.1) — alinhado ao código real |
+| [`docs/CONFORMIDADE-AUDITORIA.md`](docs/CONFORMIDADE-AUDITORIA.md) | Auditoria de conformidade: doc original vs. código real (✅/⚠️/❌/➕) |
