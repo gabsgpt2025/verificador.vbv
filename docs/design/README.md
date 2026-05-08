@@ -13,7 +13,9 @@
 | **1** | Design Tokens (fundação) | ✅ Completo | `app/globals.css`, `docs/design/01-tokens.md` |
 | **2** | Componentes Base | ✅ Completo | `components/ui/*`, `docs/design/02-components.md` |
 | **3** | Layout Shell & Navegação | ✅ Completo | `components/shell/*`, `app/dashboard/layout.tsx`, `docs/design/03-shell.md` |
-| **4** | Migração de Páginas | 🔜 Futuro | BIN Pro, Credits, History, Admin |
+| **4.1** | Migração de Páginas — BIN Pro | ✅ Completo | `/dashboard/bin-pro`, `Premium3DAnalyzer`, `docs/design/04-migration-log.md` |
+| **4.2** | Migração de Páginas — Dashboard secundário | 🔜 Próximo PR | Credits, History, Currency, ML, Profile, Settings |
+| **4.3** | Migração final + legado | 🔜 Próximo PR | Landing/Auth + remoção de `Cyber*` e `.neon-glow`/`.cyber-*` |
 | **5** | Acessibilidade & QA | 🔜 Contínuo | axe-core CI, NVDA/VoiceOver |
 | **6** | Governança & Documentação | 🔜 Futuro | Storybook, Chromatic, ADRs |
 
@@ -27,7 +29,8 @@ docs/design/
 ├── 00-audit-metrics.md    ← Fase 0: inventário real de código
 ├── 01-tokens.md           ← Fase 1: catálogo de design tokens
 ├── 02-components.md       ← Fase 2: componentes base + domínio
-└── 03-shell.md            ← Fase 3: AppShell unificado
+├── 03-shell.md            ← Fase 3: AppShell unificado
+└── 04-migration-log.md    ← Fase 4: log de migração por página
 ```
 
 ---

@@ -2,7 +2,7 @@
 
 import { useState } from 'react'
 import * as Collapsible from '@radix-ui/react-collapsible'
-import { ChevronDown, Info } from 'lucide-react'
+import { ChevronDown, Info, Wrench } from 'lucide-react'
 
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -65,7 +65,10 @@ export function TransactionContextForm({ value, onChange }: TransactionContextFo
   return (
     <Collapsible.Root open={open} onOpenChange={setOpen} className="rounded-lg border border-border bg-card/50 p-4">
       <Collapsible.Trigger className="flex w-full items-center justify-between gap-3 text-left text-sm font-medium text-foreground">
-        <span><span aria-hidden="true">⚙️ </span>Contexto avançado da transação (opcional — melhora a precisão da análise)</span>
+        <span className="flex items-center gap-2">
+          <Wrench className="h-4 w-4 text-ds-accent" aria-hidden="true" />
+          Contexto avançado da transação (opcional — melhora a precisão da análise)
+        </span>
         <ChevronDown className={cn('h-4 w-4 text-muted-foreground transition-transform', open && 'rotate-180')} />
       </Collapsible.Trigger>
 
