@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest"
+import { NextRequest } from "next/server"
 
 const {
   mockGetUser,
@@ -74,13 +75,13 @@ describe("/api/bin-analysis route", () => {
   })
 
   it("uses canonical runFullBinAnalysis flow for guest requests", async () => {
-    const req = new Request("http://localhost/api/bin-analysis", {
+    const req = new NextRequest("http://localhost/api/bin-analysis", {
       method: "POST",
       body: JSON.stringify({ bin: "405708" }),
       headers: { "content-type": "application/json" },
     })
 
-    const res = await POST(req as any)
+    const res = await POST(req)
     const body = await res.json()
 
     expect(res.status).toBe(200)
@@ -96,13 +97,13 @@ describe("/api/bin-analysis route", () => {
     mockApplyBinOverrides.mockResolvedValueOnce({ data: { bin: "40570812", source: "BINLIST", binLength: 8 } })
     mockRunFullBinAnalysis.mockReturnValueOnce({ bin: "40570812", riskAnalysis: { score: 20 } })
 
-    const req = new Request("http://localhost/api/bin-analysis", {
+    const req = new NextRequest("http://localhost/api/bin-analysis", {
       method: "POST",
       body: JSON.stringify({ bin: "4057081234" }),
       headers: { "content-type": "application/json" },
     })
 
-    const res = await POST(req as any)
+    const res = await POST(req)
     const body = await res.json()
 
     expect(res.status).toBe(200)

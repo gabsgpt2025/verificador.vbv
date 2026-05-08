@@ -38,7 +38,7 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    const cleanBin = bin.replace(/\s/g, "").substring(0, 8)
+    const cleanBin = bin.replace(/\D/g, "").substring(0, 8)
     const rawApiResponse = await fetchBINFromAPI(cleanBin)
     const binData = normalizeBinApiResponse("BINLIST", rawApiResponse, cleanBin)
     const binDataWithOverrides = user ? (await applyBinOverrides(supabase, binData)).data : binData
@@ -63,13 +63,12 @@ export async function POST(request: NextRequest) {
 async function fetchBINFromAPI(bin: string): Promise<Record<string, unknown>> {
   try {
     // Strictly validate: only digits, length 6–8 (prevent SSRF via path traversal)
-    const cleanBin = bin.replace(/\D/g, "").substring(0, 8)
-    if (!/^\d{6,8}$/.test(cleanBin)) {
+    if (!/^\d{6,8}$/.test(bin)) {
       return buildFallbackResponse(bin)
     }
 
-    // Safe: cleanBin is now guaranteed to be 6–8 ASCII digits only
-    const url = new URL(`https://lookup.binlist.net/${cleanBin}`)
+    // Safe: bin is now guaranteed to be 6–8 ASCII digits only
+    const url = new URL(`https://lookup.binlist.net/${bin}`)
     const response = await fetch(url.toString(), {
       headers: {
         "Accept-Version": "3",
