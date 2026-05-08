@@ -40,8 +40,8 @@ function isTimeoutError(error: unknown): boolean {
     return false
   }
 
-  const loweredMessage = error.message.toLowerCase()
-  return error.name === "TimeoutError" || error.name === "AbortError" || loweredMessage.includes("timeout")
+  const errorMessageLowerCase = error.message.toLowerCase()
+  return error.name === "TimeoutError" || error.name === "AbortError" || errorMessageLowerCase.includes("timeout")
 }
 
 function isRateLimited(key: string): boolean {
@@ -115,14 +115,6 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Deduz créditos somente quando há um usuário autenticado e após sucesso real da integração
-    if (user) {
-      const creditResult = await subtractCredits(user.id, BIN_ANALYSIS_CREDIT_COST, `VeriFiBIN 2.0 — BIN: ${cleanBin}`)
-      if (!creditResult.success) {
-        return NextResponse.json({ error: creditResult.message }, { status: 400 })
-      }
-    }
-
     // Aplica overrides internos antes da análise (requer supabase — skip for guest)
     const binDataWithOverrides = user
       ? (await applyBinOverrides(supabase, binData)).data
@@ -133,7 +125,23 @@ export async function POST(request: NextRequest) {
 
     // Salva log interno (somente para usuários autenticados)
     if (user) {
-      await saveBinAnalysisLog(supabase, user.id, analysis)
+      try {
+        await saveBinAnalysisLog(supabase, user.id, analysis)
+      } catch (logError) {
+        console.error("[bin-analysis-v2] Failed to save analysis log", {
+          requestId,
+          bin: cleanBin,
+          error: logError instanceof Error ? logError.message : logError,
+        })
+      }
+    }
+
+    // Deduz créditos somente quando há um usuário autenticado e após sucesso completo da análise
+    if (user) {
+      const creditResult = await subtractCredits(user.id, BIN_ANALYSIS_CREDIT_COST, `VeriFiBIN 2.0 — BIN: ${cleanBin}`)
+      if (!creditResult.success) {
+        return NextResponse.json({ error: creditResult.message }, { status: 400 })
+      }
     }
 
     return NextResponse.json(analysis)

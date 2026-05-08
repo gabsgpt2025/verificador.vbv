@@ -22,6 +22,10 @@ const LANGUAGE_MODES: Record<string, LanguageMode> = {
   },
 };
 
+type ApiErrorPayload = {
+  error?: string | { code?: string; message?: string; requestId?: string }
+}
+
 // Função auxiliar para converter likelihood em porcentagem
 function likelihoodToPercentage(likelihood: string): number {
   const map: Record<string, number> = {
@@ -72,9 +76,7 @@ export function Premium3DAnalyzer({ userId }: { userId?: string } = {}) {
       });
 
       if (!res.ok) {
-        const payload = await res.json().catch(() => null) as
-          | { error?: string | { code?: string; message?: string; requestId?: string } }
-          | null;
+        const payload = (await res.json().catch(() => null)) as ApiErrorPayload | null;
 
         const errorMessage =
           payload && typeof payload === 'object' && 'error' in payload
