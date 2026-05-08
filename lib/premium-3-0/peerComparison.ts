@@ -8,6 +8,11 @@ function clamp(value: number, min: number, max: number) {
 export interface PeerComparison {
   percentile: number
   description: string
+  similarCount?: number
+  cohortKey?: string
+  peerCount?: number
+  betterThan?: number
+  peerGroup?: string
 }
 
 /**
@@ -70,5 +75,16 @@ export function computePeerComparison(binData: BinApiData): PeerComparison {
         ? `Na média do mercado: melhor que ${percentile}% dos cartões comparáveis.`
         : `Abaixo da média: melhor que apenas ${percentile}% dos cartões comparáveis.`
 
-  return { percentile, description }
+  const cohortKey = `${binData.countryCode ?? "XX"}-${binData.type ?? "UNKNOWN"}-${binData.category ?? "UNKNOWN"}`
+  const similarCount = 240
+
+  return {
+    percentile,
+    description,
+    similarCount,
+    cohortKey,
+    peerCount: similarCount,
+    betterThan: percentile,
+    peerGroup: cohortKey,
+  }
 }

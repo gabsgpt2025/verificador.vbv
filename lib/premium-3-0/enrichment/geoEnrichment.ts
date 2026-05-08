@@ -2,6 +2,13 @@ import type { BinRiskFactor } from "../types"
 
 export type CountryRiskTier = "TIER1" | "TIER2" | "TIER3" | "CRITICAL"
 
+type LegacyGeoLookup = {
+  ipCountry?: string | null
+  ipCity?: string | null
+  ipLatitude?: string | null
+  ipLongitude?: string | null
+}
+
 const TIER1_COUNTRIES = new Set([
   "US",
   "GB",
@@ -68,6 +75,16 @@ function normalizeCountryCode(countryCode?: string | null) {
   return normalized.length >= 2 ? normalized.slice(0, 2) : null
 }
 
+function getLegacyIpCountryTier(countryCode?: string | null): "tier1" | "tier2" | "tier3" | "critical" {
+  const normalized = normalizeCountryCode(countryCode)
+  if (!normalized) return "tier3"
+  if (CRITICAL_COUNTRIES.has(normalized)) return "critical"
+  if (normalized === "BR") return "tier2"
+  if (TIER1_COUNTRIES.has(normalized)) return "tier1"
+  if (TIER2_COUNTRIES.has(normalized)) return "tier2"
+  return "tier3"
+}
+
 function isKnownMaskedIp(ip?: string | null) {
   if (!ip) return true
 
@@ -108,9 +125,38 @@ export function getCountryRiskTier(countryCode?: string | null): CountryRiskTier
   return "TIER3"
 }
 
-export function enrichGeo(binCountryCode: string, requestIp: string | null, requestCountryHeader: string | null) {
+export function enrichGeo(binCountryCode: string, requestIp: string | null, requestCountryHeader: string | null): {
+  ipCountry: string | null
+  ipCity: string | null
+  ipCountryCode: string | null
+  ipCountryMatch: boolean
+  ipCountryTier: "tier1" | "tier2" | "tier3" | "critical"
+  countryRiskTier: CountryRiskTier
+  distanceKm: number | null
+  score: number
+  factors: BinRiskFactor[]
+}
+export function enrichGeo(binCountryCode: string, lookup?: LegacyGeoLookup | null): {
+  ipCountry: string | null
+  ipCity: string | null
+  ipCountryCode: string | null
+  ipCountryMatch: boolean
+  ipCountryTier: "tier1" | "tier2" | "tier3" | "critical"
+  countryRiskTier: CountryRiskTier
+  distanceKm: number | null
+  score: number
+  factors: BinRiskFactor[]
+}
+export function enrichGeo(
+  binCountryCode: string,
+  requestIpOrLookup: string | LegacyGeoLookup | null = null,
+  requestCountryHeader: string | null = null,
+) {
+  const legacyLookup =
+    requestIpOrLookup && typeof requestIpOrLookup === "object" ? requestIpOrLookup : null
+  const requestIp = typeof requestIpOrLookup === "string" ? requestIpOrLookup : null
   const normalizedBinCountry = normalizeCountryCode(binCountryCode)
-  const ipCountryCode = normalizeCountryCode(requestCountryHeader)
+  const ipCountryCode = normalizeCountryCode(requestCountryHeader ?? legacyLookup?.ipCountry ?? null)
   const countryRiskTier = getCountryRiskTier(normalizedBinCountry)
   const factors: BinRiskFactor[] = []
   let score = normalizedBinCountry ? BASE_SCORE_BY_TIER[countryRiskTier] : 50
@@ -160,9 +206,13 @@ export function enrichGeo(binCountryCode: string, requestIp: string | null, requ
   }
 
   return {
+    ipCountry: ipCountryCode,
+    ipCity: legacyLookup?.ipCity ?? null,
     ipCountryCode,
     ipCountryMatch: Boolean(normalizedBinCountry && ipCountryCode && normalizedBinCountry === ipCountryCode),
+    ipCountryTier: getLegacyIpCountryTier(ipCountryCode),
     countryRiskTier,
+    distanceKm: null,
     score: clamp(score, 0, 100),
     factors,
   }

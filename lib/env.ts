@@ -17,9 +17,12 @@ const envSchema = z
     UPSTASH_REDIS_REST_TOKEN: z.string().min(1).optional(),
 
     MASTERCARD_CONSUMER_KEY: z.string().min(1).optional(),
-    MASTERCARD_SANDBOX_CLIENT_ID: z.string().min(1).optional(),
+    MASTERCARD_PRIVATE_KEY: z.string().min(1).optional(),
     MASTERCARD_KEY_ALIAS: z.string().min(1).optional(),
     MASTERCARD_KEY_PASSWORD: z.string().min(1).optional(),
+    MASTERCARD_API_BASE: z.string().url().optional(),
+
+    MASTERCARD_SANDBOX_CLIENT_ID: z.string().min(1).optional(),
     MASTERCARD_P12_PATH: z.string().min(1).optional(),
     MASTERCARD_P12_CERT: z.string().min(1).optional(),
     MASTERCARD_SANDBOX_MODE: z.enum(["true", "false"]).default("true"),

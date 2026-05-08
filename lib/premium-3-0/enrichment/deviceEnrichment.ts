@@ -32,11 +32,11 @@ export function enrichDevice(userAgent?: string | null) {
       reason: "Sem identificação de dispositivo, o motor assume maior incerteza operacional.",
     })
   } else if (deviceType === "bot") {
-    score += 50
+    score += 65
     const redacted = redactUserAgent(userAgent ?? "")
     factors.push({
       label: "Padrão de bot/headless detectado",
-      impact: 50,
+      impact: 65,
       reason: `O user-agent indica automação ou browser headless. UA: ${redacted}${(userAgent ?? "").length > 30 ? "…" : ""}`,
     })
   } else if (deviceType === "mobile") {

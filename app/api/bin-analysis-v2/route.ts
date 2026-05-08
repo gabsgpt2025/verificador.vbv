@@ -2,14 +2,14 @@ import { type NextRequest, NextResponse } from "next/server"
 import { z } from "zod"
 import { createClient } from "@/lib/supabase/server"
 import { subtractCredits } from "@/lib/credits/operations"
-import { normalizeNeutrinoBinResponse } from "@/lib/premium-3-0/normalizeBinApiResponse"
 import { applyBinOverrides } from "@/lib/premium-3-0/applyBinOverrides"
 import { runFullBinAnalysis, runHolisticAnalysis } from "@/lib/premium-3-0"
 import { saveBinAnalysisLog } from "@/lib/premium-3-0/saveBinAnalysisLog"
-import { callNeutrinoApi } from "@/lib/premium-3-0/neutrino-api"
 import { computePeerComparison } from "@/lib/premium-3-0/peerComparison"
+import { lookupBinMultiSource } from "@/lib/premium-3-0/multiSourceLookup"
 import type { BinApiData, FullBinAnalysis } from "@/lib/premium-3-0/types"
-import type { AnalysisRequest, ValidationResult } from "@/lib/premium-3-0/holisticTypes"
+import type { AnalysisRequest, AnalysisSourceSummary, MultiSourceConsensus, ValidationResult } from "@/lib/premium-3-0/holisticTypes"
+import type { MastercardBinResult } from "@/lib/integrations/mastercard"
 import type { TransactionContext } from "@/lib/premium-3-0/holisticEngine"
 import { OPEN_ACCESS_MODE } from "@/lib/open-access-mode"
 
@@ -111,13 +111,10 @@ function isRateLimited(key: string): boolean {
 
 function resolveMcc(payload: AnalysisRequest): string | undefined {
   const context = payload.context ?? {}
-  // Prefer context.merchantCategoryCode (canonical field), then context.mcc (alias), then top-level mcc
-  const contextObj = context as Record<string, unknown>
-  const payloadObj = payload as unknown as Record<string, unknown>
   const mccFromContext =
-    (context.merchantCategoryCode as string | undefined) ??
-    (contextObj.mcc as string | undefined)
-  return mccFromContext ?? (payloadObj.mcc as string | undefined)
+    context.merchantCategoryCode ??
+    context.mcc
+  return mccFromContext ?? payload.mcc
 }
 
 function resolveTransactionContext(request: NextRequest, payload: AnalysisRequest): TransactionContext {
@@ -150,6 +147,37 @@ function buildSafeContextEcho(context: TransactionContext) {
     ipCountryCode: context.ipCountryCode ?? null,
     isFirstTransaction: context.isFirstTransaction ?? null,
     userAgentPresent: Boolean(context.userAgent),
+  }
+}
+
+function maskBin(bin: string) {
+  const sanitized = bin.replace(/\D/g, "")
+  if (sanitized.length <= 2) {
+    return `${sanitized.slice(0, 1)}**`
+  }
+
+  return `${sanitized.slice(0, Math.min(4, sanitized.length))}**`
+}
+
+function buildNeutrinoSourceSummary(source: BinApiData | null): AnalysisSourceSummary<BinApiData> {
+  return {
+    available: Boolean(source),
+    country: source?.countryCode ?? null,
+    brand: source?.brand ?? null,
+    type: source?.type ?? null,
+    issuer: source?.issuer ?? null,
+    data: source,
+  }
+}
+
+function buildMastercardSourceSummary(source: MastercardBinResult | null): AnalysisSourceSummary<MastercardBinResult> {
+  return {
+    available: Boolean(source),
+    country: source?.countryCode ?? null,
+    brand: source?.brand ?? null,
+    type: source?.cardType ?? null,
+    issuer: source?.issuerName ?? null,
+    data: source,
   }
 }
 
@@ -186,23 +214,41 @@ export async function POST(request: NextRequest) {
       return buildErrorResponse(401, "UNAUTHORIZED", "Não autorizado", requestId)
     }
 
-    // Chama API real da Neutrino para análise de BIN
+    // Chama lookup multi-fonte (Neutrino + Mastercard em paralelo)
     let binData: BinApiData
+    let sourceSummaries: {
+      neutrino: AnalysisSourceSummary<BinApiData>
+      mastercard: AnalysisSourceSummary<MastercardBinResult>
+    }
+    let consensus: MultiSourceConsensus
     try {
-      const neutrinoResponse = await callNeutrinoApi(cleanBin)
-      binData = normalizeNeutrinoBinResponse(neutrinoResponse, cleanBin)
+      const multiSource = await lookupBinMultiSource(cleanBin)
+      binData = multiSource.primary
+      sourceSummaries = {
+        neutrino: buildNeutrinoSourceSummary(multiSource.sources.neutrino),
+        mastercard: buildMastercardSourceSummary(multiSource.sources.mastercard),
+      }
+      consensus = multiSource.consensus
+
+      if (consensus.discrepancies.length > 0) {
+        console.info("[bin-analysis-v2] Multi-source discrepancies detected", {
+          requestId,
+          bin: maskBin(cleanBin),
+          discrepancies: consensus.discrepancies,
+        })
+      }
     } catch (error) {
       const status = isTimeoutError(error) ? 504 : 502
-      console.error("[bin-analysis-v2] Neutrino upstream failure", {
+      console.error("[bin-analysis-v2] BIN lookup upstream failure", {
         requestId,
-        bin: cleanBin,
+        bin: maskBin(cleanBin),
         status,
         error: error instanceof Error ? error.message : error,
       })
 
       return buildErrorResponse(
         status,
-        "UPSTREAM_NEUTRINO_FAILURE",
+        "UPSTREAM_BIN_LOOKUP_FAILURE",
         "Falha temporária na consulta do BIN. Tente novamente.",
         requestId,
       )
@@ -225,7 +271,7 @@ export async function POST(request: NextRequest) {
       } catch (logError) {
         console.error("[bin-analysis-v2] Failed to save analysis log", {
           requestId,
-          bin: cleanBin,
+          bin: maskBin(cleanBin),
           error: logError instanceof Error ? logError.message : logError,
         })
         return buildErrorResponse(
@@ -250,6 +296,8 @@ export async function POST(request: NextRequest) {
       holistic,
       peerComparison,
       context: buildSafeContextEcho(resolvedContext),
+      sources: sourceSummaries,
+      consensus,
     })
   } catch (error) {
     console.error("[bin-analysis-v2] Unexpected error", {

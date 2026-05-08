@@ -6,7 +6,7 @@ import { enrichGeo, getCountryRiskTier } from "./enrichment/geoEnrichment"
 import { enrichTemporal } from "./enrichment/temporalEnrichment"
 import { enrichDevice } from "./enrichment/deviceEnrichment"
 import { enrichGateway } from "./enrichment/gatewayRisk"
-import type { BinApiData, BinRiskFactor } from "./types"
+import type { BinApiData, BinRiskFactor, RiskContext } from "./types"
 
 export interface TransactionContext {
   amount?: number
@@ -19,6 +19,7 @@ export interface TransactionContext {
   ipAddress?: string | null
   ipCountryCode?: string | null
   isFirstTransaction?: boolean
+  history?: Array<{ bin: string; timestamp: number; countryCode?: string | null }>
 }
 
 export interface HolisticDimensionScore {
@@ -61,6 +62,36 @@ function normalizeScore(value: number, min = 0) {
 }
 
 function buildBehavioralRisk(context: Partial<TransactionContext>): Omit<HolisticDimensionScore, "weight" | "explanation" | "dataAvailable"> {
+  const recentHistory = (context.history ?? []).filter((entry) => {
+    const referenceTimestamp = typeof context.timestamp === "number" ? context.timestamp : Date.now()
+    return Math.abs(referenceTimestamp - entry.timestamp) <= 60 * 60 * 1000
+  })
+  const hasGeoDivergence = recentHistory.some(
+    (entry) => entry.countryCode && context.ipCountryCode && entry.countryCode !== context.ipCountryCode,
+  )
+
+  if (recentHistory.length >= 4) {
+    return {
+      score: hasGeoDivergence ? 80 : 70,
+      factors: [
+        {
+          label: "Alta velocidade transacional recente",
+          impact: 35,
+          reason: "Quatro ou mais eventos recentes no histórico elevam o risco comportamental.",
+        },
+        ...(hasGeoDivergence
+          ? [
+              {
+                label: "Mudança geográfica recente no histórico",
+                impact: 10,
+                reason: "O histórico recente mostra países divergentes em intervalo curto.",
+              },
+            ]
+          : []),
+      ],
+    }
+  }
+
   if (context.isFirstTransaction !== false) {
     return {
       score: 40,
@@ -158,6 +189,33 @@ function buildBinRisk(binData: BinApiData, context: Partial<TransactionContext>)
   }
 
   return { score: normalizeScore(score, 5), factors }
+}
+
+export function calculateHolisticRisk(context: RiskContext) {
+  const behavioralRisk = buildBehavioralRisk({
+    timestamp: context.history?.[0]?.timestamp ?? Date.now(),
+    history: context.history,
+    ipCountryCode: context.geo.ipCountryCode,
+    isFirstTransaction: context.history && context.history.length > 0 ? false : true,
+  })
+  const deviceRisk = enrichDevice(context.userAgent)
+  const gatewayRisk = enrichGateway({
+    amount: context.amount,
+    currency: context.currency,
+  })
+  const binRisk = buildBinRisk(context.binData, {
+    amount: context.amount,
+    currency: context.currency,
+  })
+
+  return {
+    binRisk: binRisk.score,
+    temporalRisk: context.temporal.score,
+    behavioralRisk: behavioralRisk.score,
+    geographicRisk: context.geo.score,
+    deviceRisk: deviceRisk.score,
+    gatewayRisk: gatewayRisk.score,
+  }
 }
 
 export function runHolisticAnalysis(binData: BinApiData, context: Partial<TransactionContext>): HolisticScore {
