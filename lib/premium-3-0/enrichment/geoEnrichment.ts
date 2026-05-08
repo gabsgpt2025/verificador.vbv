@@ -1,60 +1,53 @@
 import type { BinRiskFactor } from "../types"
 
-export type CountryRiskTier = "TIER1" | "TIER2" | "TIER3" | "CRITICAL"
+export type CountryRiskTier = "LOW" | "MEDIUM" | "HIGH" | "CRITICAL"
 
-const TIER1_COUNTRIES = new Set([
-  "US",
-  "GB",
-  "CA",
-  "AU",
-  "DE",
-  "FR",
-  "JP",
-  "NL",
-  "SE",
-  "NO",
-  "FI",
-  "DK",
-  "CH",
-  "SG",
-  "BR",
-  "MX",
-  "ES",
-  "IT",
-])
-
-const TIER2_COUNTRIES = new Set([
-  "AT",
-  "BE",
-  "CL",
-  "CO",
-  "CR",
-  "CZ",
-  "EE",
-  "GR",
-  "HU",
-  "IE",
-  "IL",
-  "IS",
-  "KR",
-  "LT",
-  "LU",
-  "NZ",
-  "PL",
-  "PT",
-  "SI",
-  "SK",
-  "TR",
-  "CN",
-  "IN",
-])
-
-const CRITICAL_COUNTRIES = new Set(["NG", "VE", "PK", "BD", "KE", "GH", "CM", "RO", "UA", "BY", "RU"])
+export const COUNTRY_RISK_TIER: Record<string, CountryRiskTier> = {
+  US: "LOW",
+  BR: "LOW",
+  GB: "LOW",
+  DE: "LOW",
+  FR: "LOW",
+  ES: "LOW",
+  IT: "LOW",
+  NL: "LOW",
+  JP: "LOW",
+  AU: "LOW",
+  CA: "LOW",
+  MX: "LOW",
+  PT: "LOW",
+  SE: "LOW",
+  NO: "LOW",
+  FI: "LOW",
+  DK: "LOW",
+  CH: "LOW",
+  SG: "LOW",
+  IE: "LOW",
+  AR: "MEDIUM",
+  BO: "MEDIUM",
+  ZW: "MEDIUM",
+  CN: "MEDIUM",
+  IN: "MEDIUM",
+  TR: "MEDIUM",
+  ZA: "MEDIUM",
+  EG: "MEDIUM",
+  NG: "HIGH",
+  VE: "HIGH",
+  PK: "HIGH",
+  BD: "HIGH",
+  KE: "HIGH",
+  GH: "HIGH",
+  RU: "CRITICAL",
+  IR: "CRITICAL",
+  KP: "CRITICAL",
+  BY: "CRITICAL",
+  UA: "CRITICAL",
+}
 
 const BASE_SCORE_BY_TIER: Record<CountryRiskTier, number> = {
-  TIER1: 15,
-  TIER2: 35,
-  TIER3: 55,
+  LOW: 15,
+  MEDIUM: 35,
+  HIGH: 55,
   CRITICAL: 80,
 }
 
@@ -68,100 +61,92 @@ function normalizeCountryCode(countryCode?: string | null) {
   return normalized.length >= 2 ? normalized.slice(0, 2) : null
 }
 
-function isKnownMaskedIp(ip?: string | null) {
-  if (!ip) return true
+function getHeaderValue(headers: Headers | Record<string, string | null | undefined>, key: string) {
+  if (headers instanceof Headers) {
+    return headers.get(key)
+  }
 
-  return (
-    ip === "::1" ||
-    ip.startsWith("127.") ||
-    ip.startsWith("10.") ||
-    ip.startsWith("192.168.") ||
-    ip.startsWith("172.16.") ||
-    ip.startsWith("172.17.") ||
-    ip.startsWith("172.18.") ||
-    ip.startsWith("172.19.") ||
-    ip.startsWith("172.2") ||
-    ip.startsWith("fd") ||
-    ip.startsWith("fc")
-  )
+  const exact = headers[key]
+  if (typeof exact === "string") return exact
+
+  const lower = headers[key.toLowerCase()]
+  return typeof lower === "string" ? lower : null
+}
+
+export function extractGeoFromHeaders(headers: Headers | Record<string, string | null | undefined>) {
+  const forwardedFor = getHeaderValue(headers, "x-forwarded-for")
+  const ipAddress = forwardedFor?.split(",")[0]?.trim() ?? null
+  const ipCountry =
+    normalizeCountryCode(getHeaderValue(headers, "x-vercel-ip-country")) ??
+    normalizeCountryCode(getHeaderValue(headers, "cf-ipcountry"))
+  const ipRegion = getHeaderValue(headers, "x-vercel-ip-country-region")?.trim() ?? null
+
+  return {
+    ipAddress,
+    ipCountry,
+    ipRegion,
+  }
 }
 
 export function getCountryRiskTier(countryCode?: string | null): CountryRiskTier {
   const normalized = normalizeCountryCode(countryCode)
-
-  if (!normalized) {
-    return "TIER3"
-  }
-
-  if (CRITICAL_COUNTRIES.has(normalized)) {
-    return "CRITICAL"
-  }
-
-  if (TIER1_COUNTRIES.has(normalized)) {
-    return "TIER1"
-  }
-
-  if (TIER2_COUNTRIES.has(normalized)) {
-    return "TIER2"
-  }
-
-  return "TIER3"
+  if (!normalized) return "MEDIUM"
+  return COUNTRY_RISK_TIER[normalized] ?? "MEDIUM"
 }
 
-export function enrichGeo(binCountryCode: string, requestIp: string | null, requestCountryHeader: string | null) {
-  const normalizedBinCountry = normalizeCountryCode(binCountryCode)
-  const ipCountryCode = normalizeCountryCode(requestCountryHeader)
-  const countryRiskTier = getCountryRiskTier(normalizedBinCountry)
+export function enrichGeo(
+  binCountryCode?: string | null,
+  ipAddress?: string | null,
+  ipCountryCode?: string | null,
+) {
+  const binCountry = normalizeCountryCode(binCountryCode)
+  const ipCountry = normalizeCountryCode(ipCountryCode)
+  const countryRiskTier = getCountryRiskTier(binCountry)
   const factors: BinRiskFactor[] = []
-  let score = normalizedBinCountry ? BASE_SCORE_BY_TIER[countryRiskTier] : 50
+  let score = binCountry ? BASE_SCORE_BY_TIER[countryRiskTier] : 30
 
-  if (normalizedBinCountry) {
+  if (binCountry) {
     factors.push({
-      label: `País emissor classificado como ${countryRiskTier}`,
+      label: `Tier geográfico do BIN: ${countryRiskTier}`,
       impact: BASE_SCORE_BY_TIER[countryRiskTier] - 20,
-      reason: `O país ${normalizedBinCountry} foi classificado na faixa ${countryRiskTier} para risco geográfico.`,
+      reason: `País emissor ${binCountry} classificado como ${countryRiskTier}.`,
     })
   } else {
     factors.push({
       label: "País emissor indisponível",
-      impact: 20,
-      reason: "Sem país de emissão, o risco geográfico fica em faixa conservadora por falta de contexto.",
+      impact: 0,
+      reason: "Sem país do BIN, a dimensão geográfica opera em baseline neutro.",
     })
   }
 
-  if (normalizedBinCountry && ipCountryCode && normalizedBinCountry === ipCountryCode) {
+  const ipCountryMatch = Boolean(binCountry && ipCountry && binCountry === ipCountry)
+
+  if (binCountry && ipCountry && !ipCountryMatch) {
+    score += 25
+    factors.push({
+      label: "Divergência BIN vs IP",
+      impact: 25,
+      reason: `BIN em ${binCountry}, IP em ${ipCountry} (${ipAddress ?? "IP não informado"}).`,
+    })
+  } else if (ipCountryMatch) {
     score -= 10
     factors.push({
-      label: "BIN e país do IP estão alinhados",
+      label: "BIN e IP alinhados",
       impact: -10,
-      reason: `O BIN aponta para ${normalizedBinCountry} e o cabeçalho do IP também indica ${ipCountryCode}.`,
+      reason: `BIN e IP apontam para ${binCountry}.`,
     })
-  } else if (normalizedBinCountry && ipCountryCode && normalizedBinCountry !== ipCountryCode) {
-    if (!isKnownMaskedIp(requestIp)) {
-      score += 25
-      factors.push({
-        label: "País do BIN difere do país do IP",
-        impact: 25,
-        reason: `O BIN está em ${normalizedBinCountry}, mas o IP aparenta estar em ${ipCountryCode} sem mascaramento conhecido.`,
-      })
-    } else {
-      factors.push({
-        label: "Diferença geográfica com IP mascarado ou privado",
-        impact: 0,
-        reason: `Há divergência entre BIN (${normalizedBinCountry}) e IP (${ipCountryCode}), mas o IP parece mascarado/privado.`,
-      })
-    }
   } else {
     factors.push({
-      label: "Geolocalização do IP indisponível",
+      label: "Geolocalização IP parcial/ausente",
       impact: 0,
-      reason: "Sem país do IP confirmado, a análise geográfica usa apenas o país emissor do BIN.",
+      reason: "Sem país do IP confirmado para comparar com o BIN.",
     })
   }
 
   return {
-    ipCountryCode,
-    ipCountryMatch: Boolean(normalizedBinCountry && ipCountryCode && normalizedBinCountry === ipCountryCode),
+    ipCountry,
+    binCountry,
+    ipCountryMatch,
     countryRiskTier,
     score: clamp(score, 0, 100),
     factors,

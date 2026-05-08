@@ -15,7 +15,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
-import type { HolisticScore } from '@/lib/premium-3-0'
+import type { HolisticRiskAnalysis } from '@/lib/premium-3-0'
+import type { PeerComparison } from '@/lib/premium-3-0/peerComparison'
 import type { BinRiskFactor, FullBinAnalysis } from '@/lib/premium-3-0/types'
 
 const LANGUAGE_MODES = {
@@ -50,17 +51,24 @@ type HistoryResponse = {
 }
 
 type PremiumAnalysisResponse = FullBinAnalysis & {
-  holistic: HolisticScore
+  holistic: HolisticRiskAnalysis
+  peerComparison: PeerComparison
   context: {
     amount?: number
     currency?: string
     merchantCountry?: string
-    merchantCategoryCode?: string
+    mcc?: string
     timestamp: number
     ipCountryCode?: string | null
     isFirstTransaction?: boolean | null
     userAgentPresent: boolean
   }
+}
+
+function deriveDeviceType(userAgent: string) {
+  if (/ipad|tablet|kindle/i.test(userAgent)) return 'TABLET'
+  if (/android|iphone|mobile/i.test(userAgent)) return 'MOBILE'
+  return 'DESKTOP'
 }
 
 function extractApiErrorMessage(payload: ApiErrorPayload | null, status: number) {
@@ -137,10 +145,12 @@ export function Premium3DAnalyzer() {
   const [history, setHistory] = useState<HistoryItem[]>([])
   const [historyLoading, setHistoryLoading] = useState(true)
   const [historyMessage, setHistoryMessage] = useState<string | null>(null)
+  const [historyError, setHistoryError] = useState<string | null>(null)
 
   const fetchHistory = useCallback(async () => {
     setHistoryLoading(true)
     setHistoryMessage(null)
+    setHistoryError(null)
 
     try {
       const response = await fetch('/api/history?limit=10')
@@ -155,8 +165,11 @@ export function Premium3DAnalyzer() {
       const items = payload.history ?? []
       setHistory(items)
       setHistoryMessage(items.length === 0 ? 'Nenhuma análise recente disponível ainda.' : null)
-    } catch {
+    } catch (err) {
+      console.error('[premium-3-0] history fetch failed', err)
       setHistory([])
+      const message = err instanceof Error ? err.message : 'Erro desconhecido'
+      setHistoryError(`Falha ao carregar histórico: ${message}`)
       setHistoryMessage('Não foi possível carregar o histórico agora.')
     } finally {
       setHistoryLoading(false)
@@ -194,9 +207,11 @@ export function Premium3DAnalyzer() {
           context: {
             amount: parsedAmount !== null ? Math.round(parsedAmount * 100) : undefined,
             currency,
+            mcc: undefined,
             userAgent: navigator.userAgent,
             timestamp: Date.now(),
           },
+          deviceType: deriveDeviceType(navigator.userAgent),
         }),
       })
 
@@ -219,12 +234,12 @@ export function Premium3DAnalyzer() {
     if (!analysis) return []
 
     return [
-      { key: 'binRisk', label: 'Risco de BIN', icon: Shield, value: analysis.holistic.binRisk },
-      { key: 'temporalRisk', label: 'Risco Temporal', icon: Clock3, value: analysis.holistic.temporalRisk },
-      { key: 'behavioralRisk', label: 'Risco Comportamental', icon: Target, value: analysis.holistic.behavioralRisk },
-      { key: 'geographicRisk', label: 'Risco Geográfico', icon: MapPinned, value: analysis.holistic.geographicRisk },
-      { key: 'deviceRisk', label: 'Risco de Dispositivo', icon: Cpu, value: analysis.holistic.deviceRisk },
-      { key: 'gatewayRisk', label: 'Risco de Gateway', icon: Wallet, value: analysis.holistic.gatewayRisk },
+      { key: 'binRisk', label: 'Risco de BIN', icon: Shield, value: analysis.holistic.dimensions.binRisk },
+      { key: 'temporalRisk', label: 'Risco Temporal', icon: Clock3, value: analysis.holistic.dimensions.temporalRisk },
+      { key: 'behavioralRisk', label: 'Risco Comportamental', icon: Target, value: analysis.holistic.dimensions.behavioralRisk },
+      { key: 'geographicRisk', label: 'Risco Geográfico', icon: MapPinned, value: analysis.holistic.dimensions.geographicRisk },
+      { key: 'deviceRisk', label: 'Risco de Dispositivo', icon: Cpu, value: analysis.holistic.dimensions.deviceRisk },
+      { key: 'gatewayRisk', label: 'Risco de Gateway', icon: Wallet, value: analysis.holistic.dimensions.gatewayRisk },
     ] as const
   }, [analysis])
 
@@ -319,13 +334,13 @@ export function Premium3DAnalyzer() {
         {analysis ? (
           <>
             <div className="grid gap-4 lg:grid-cols-4">
-              <Card className={`border ${getRiskColor(analysis.holistic.riskLevel)}`}>
+              <Card className={`border ${getRiskColor(analysis.holistic.level)}`}>
                 <CardHeader>
                   <CardDescription className="text-slate-300">Score geral</CardDescription>
                   <CardTitle className="text-4xl text-white">{analysis.holistic.overallScore}/100</CardTitle>
                 </CardHeader>
                 <CardContent>
-                  <Badge className="bg-white/10 text-white">{analysis.holistic.riskLevel}</Badge>
+                  <Badge className="bg-white/10 text-white">{analysis.holistic.level}</Badge>
                 </CardContent>
               </Card>
               <Card className="border-slate-700 bg-slate-900/70">
@@ -390,6 +405,14 @@ export function Premium3DAnalyzer() {
                         </summary>
                         <div className="mt-4 space-y-3 border-t border-slate-800 pt-4">
                           <Progress value={dimension.value.score} className="bg-slate-800" />
+                          <div className="rounded-lg border border-slate-800 bg-slate-900/70 p-3 text-xs text-slate-300">
+                            {languageMode === 'TECHNICAL'
+                              ? dimension.value.explanation.technical
+                              : dimension.value.explanation.popular}
+                          </div>
+                          {!dimension.value.dataAvailable ? (
+                            <p className="text-xs text-amber-300">Dados insuficientes nesta dimensão (baseline neutro).</p>
+                          ) : null}
                           <ul className="space-y-2">
                             {dimension.value.factors.map((factor, index) => (
                               <li key={`${dimension.key}-${index}`} className="rounded-lg border border-slate-800 bg-slate-900/80 p-3">
@@ -422,12 +445,15 @@ export function Premium3DAnalyzer() {
                     <div className="flex items-end justify-between gap-4">
                       <div>
                         <p className="text-sm text-slate-400">Percentil</p>
-                        <p className="text-4xl font-bold text-white">{analysis.holistic.peerComparison.percentile}</p>
+                        <p className="text-4xl font-bold text-white">{analysis.peerComparison.percentile}</p>
                       </div>
                       <CheckCircle2 className="h-8 w-8 text-emerald-300" />
                     </div>
-                    <Progress value={analysis.holistic.peerComparison.percentile} className="bg-slate-800" />
-                    <p className="text-sm text-slate-300">{analysis.holistic.peerComparison.description}</p>
+                    <Progress value={analysis.peerComparison.percentile} className="bg-slate-800" />
+                    <p className="text-sm text-slate-300">{analysis.peerComparison.description}</p>
+                    <p className="text-xs text-slate-500">
+                      Cohort {analysis.peerComparison.cohortKey} · {analysis.peerComparison.similarCount} similares
+                    </p>
                   </CardContent>
                 </Card>
 
@@ -456,11 +482,11 @@ export function Premium3DAnalyzer() {
                     </div>
                     <div className="rounded-lg border border-slate-800 bg-slate-950/60 p-3">
                       <p className="text-xs text-slate-500">Contexto resolvido</p>
-                      <p>
-                        {analysis.context.amount ? `${(analysis.context.amount / 100).toFixed(2)} ${analysis.context.currency}` : 'Sem valor informado'} ·{' '}
-                        {analysis.context.ipCountryCode ?? 'IP country indisponível'} · UA presente:{' '}
-                        {analysis.context.userAgentPresent ? 'sim' : 'não'}
-                      </p>
+                        <p>
+                          {analysis.context.amount ? `${(analysis.context.amount / 100).toFixed(2)} ${analysis.context.currency}` : 'Sem valor informado'} ·{' '}
+                          {analysis.context.ipCountryCode ?? 'IP country indisponível'} · UA presente:{' '}
+                          {analysis.context.userAgentPresent ? 'sim' : 'não'}
+                        </p>
                     </div>
                     <div className="rounded-lg border border-slate-800 bg-slate-950/60 p-3">
                       <p className="text-xs text-slate-500">Explicação 3DS</p>
@@ -482,6 +508,12 @@ export function Premium3DAnalyzer() {
             <CardDescription className="text-slate-400">Últimas 10 análises carregadas do endpoint real.</CardDescription>
           </CardHeader>
           <CardContent>
+            {historyError ? (
+              <div className="mb-3 flex items-start gap-2 rounded-md border border-rose-500/40 bg-rose-950/40 p-3 text-xs text-rose-200">
+                <AlertCircle className="mt-0.5 h-4 w-4" />
+                <span>{historyError}</span>
+              </div>
+            ) : null}
             {historyLoading ? (
               <p className="text-sm text-slate-400">Carregando histórico...</p>
             ) : history.length === 0 ? (

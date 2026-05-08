@@ -10,6 +10,7 @@ const {
   applyBinOverridesMock,
   runFullBinAnalysisMock,
   runHolisticAnalysisMock,
+  comparePeerMock,
   saveBinAnalysisLogMock,
 } = vi.hoisted(() => ({
   createClientMock: vi.fn(),
@@ -19,6 +20,7 @@ const {
   applyBinOverridesMock: vi.fn(),
   runFullBinAnalysisMock: vi.fn(),
   runHolisticAnalysisMock: vi.fn(),
+  comparePeerMock: vi.fn(),
   saveBinAnalysisLogMock: vi.fn(),
 }))
 
@@ -45,6 +47,7 @@ vi.mock("@/lib/premium-3-0/applyBinOverrides", () => ({
 vi.mock("@/lib/premium-3-0", () => ({
   runFullBinAnalysis: runFullBinAnalysisMock,
   runHolisticAnalysis: runHolisticAnalysisMock,
+  comparePeer: comparePeerMock,
 }))
 
 vi.mock("@/lib/premium-3-0/saveBinAnalysisLog", () => ({
@@ -115,6 +118,26 @@ describe("/api/bin-analysis-v2 route", () => {
         message: "ok",
         action: "ok",
       },
+      holistic: {
+        overallScore: 15,
+        level: "LOW",
+        recommendation: "APPROVE",
+        ensembleConfidence: 80,
+        dimensions: {
+          binRisk: { score: 10, weight: 30, factors: [], explanation: { technical: "t", popular: "p" }, dataAvailable: true },
+          temporalRisk: { score: 10, weight: 10, factors: [], explanation: { technical: "t", popular: "p" }, dataAvailable: true },
+          behavioralRisk: { score: 40, weight: 15, factors: [], explanation: { technical: "t", popular: "p" }, dataAvailable: true },
+          geographicRisk: { score: 5, weight: 20, factors: [], explanation: { technical: "t", popular: "p" }, dataAvailable: true },
+          deviceRisk: { score: 15, weight: 10, factors: [], explanation: { technical: "t", popular: "p" }, dataAvailable: true },
+          gatewayRisk: { score: 20, weight: 15, factors: [], explanation: { technical: "t", popular: "p" }, dataAvailable: true },
+        },
+      },
+      peerComparison: {
+        percentile: 90,
+        description: "abaixo de 90% dos cartões similares",
+        similarCount: 250,
+        cohortKey: "US-CREDIT-UNKNOWN",
+      },
     }
 
     callNeutrinoApiMock.mockResolvedValue({ card_brand: "VISA" })
@@ -122,16 +145,20 @@ describe("/api/bin-analysis-v2 route", () => {
     applyBinOverridesMock.mockResolvedValue({ data: normalizedBinData })
     runFullBinAnalysisMock.mockReturnValue(fullAnalysis)
     runHolisticAnalysisMock.mockReturnValue({
-      binRisk: { score: 10, factors: [] },
-      temporalRisk: { score: 10, factors: [] },
-      behavioralRisk: { score: 40, factors: [] },
-      geographicRisk: { score: 5, factors: [] },
-      deviceRisk: { score: 15, factors: [] },
-      gatewayRisk: { score: 20, factors: [] },
       overallScore: 15,
-      riskLevel: "LOW",
-      peerComparison: { percentile: 90, description: "Melhor que 90%." },
+      level: "LOW",
+      recommendation: "APPROVE",
+      ensembleConfidence: 80,
+      dimensions: {
+        binRisk: { score: 10, weight: 30, factors: [], explanation: { technical: "t", popular: "p" }, dataAvailable: true },
+        temporalRisk: { score: 10, weight: 10, factors: [], explanation: { technical: "t", popular: "p" }, dataAvailable: true },
+        behavioralRisk: { score: 40, weight: 15, factors: [], explanation: { technical: "t", popular: "p" }, dataAvailable: true },
+        geographicRisk: { score: 5, weight: 20, factors: [], explanation: { technical: "t", popular: "p" }, dataAvailable: true },
+        deviceRisk: { score: 15, weight: 10, factors: [], explanation: { technical: "t", popular: "p" }, dataAvailable: true },
+        gatewayRisk: { score: 20, weight: 15, factors: [], explanation: { technical: "t", popular: "p" }, dataAvailable: true },
+      },
     })
+    comparePeerMock.mockReturnValue({ percentile: 90, description: "abaixo de 90% dos cartões similares", similarCount: 250, cohortKey: "US-CREDIT-UNKNOWN" })
     saveBinAnalysisLogMock.mockResolvedValue(undefined)
     subtractCreditsMock.mockResolvedValue({ success: true, message: "ok", newBalance: 7 })
   })

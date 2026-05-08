@@ -66,6 +66,26 @@ describe("saveBinAnalysisLog", () => {
         message: "ok",
         action: "ok",
       },
+      holistic: {
+        overallScore: 18,
+        level: "LOW",
+        recommendation: "APPROVE",
+        ensembleConfidence: 80,
+        dimensions: {
+          binRisk: { score: 20, weight: 30, factors: [], explanation: { technical: "t", popular: "p" }, dataAvailable: true },
+          temporalRisk: { score: 10, weight: 10, factors: [], explanation: { technical: "t", popular: "p" }, dataAvailable: true },
+          behavioralRisk: { score: 15, weight: 15, factors: [], explanation: { technical: "t", popular: "p" }, dataAvailable: true },
+          geographicRisk: { score: 15, weight: 20, factors: [], explanation: { technical: "t", popular: "p" }, dataAvailable: true },
+          deviceRisk: { score: 10, weight: 10, factors: [], explanation: { technical: "t", popular: "p" }, dataAvailable: true },
+          gatewayRisk: { score: 10, weight: 15, factors: [], explanation: { technical: "t", popular: "p" }, dataAvailable: true },
+        },
+      },
+      peerComparison: {
+        percentile: 86,
+        description: "abaixo de 86% dos cartões similares",
+        similarCount: 280,
+        cohortKey: "BR-CREDIT-PLATINUM",
+      },
     }
 
     await saveBinAnalysisLog(supabase, "user-1", analysis)

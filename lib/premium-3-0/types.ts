@@ -34,6 +34,9 @@ export type {
   DashboardMetrics,
   HistoryEntry,
 } from "./holisticTypes"
+import type { BypassMechanism, RiskLevel } from "./holisticTypes"
+import type { HolisticContext, HolisticRiskAnalysis } from "./holisticEngine"
+import type { PeerComparison } from "./peerComparison"
 
 // ============================================================================
 // TIPOS DE CONTEXTO INTERNO (não fazem parte do contrato público)
@@ -120,6 +123,7 @@ export type BinThreeDSResult = {
   applicableBypassMechanisms: Array<
     "SCA_EXEMPTION_LOW_VALUE" | "TRA" | "RECURRING" | "MIT" | "FRICTIONLESS_3DS2"
   >
+  bypassMechanisms?: BypassMechanism[]
 }
 
 export type BinRiskFactor = {
@@ -130,7 +134,7 @@ export type BinRiskFactor = {
 
 export type BinRiskAnalysis = {
   score: number
-  level: "LOW" | "MEDIUM" | "HIGH" | "CRITICAL"
+  level: RiskLevel
   recommendation:
     | "ALLOW_WITH_MONITORING"
     | "REVIEW"
@@ -178,10 +182,20 @@ export type FullBinAnalysis = {
     message: string
     action: string
   }
+  holistic: HolisticRiskAnalysis
+  peerComparison: PeerComparison
 }
 
 export type BinAnalysisV2Request = {
   bin: string
+  amount?: number
+  currency?: string
+  mcc?: string
+  userAgent?: string | null
+  ipAddress?: string | null
+  merchantCountry?: string
+  isFirstTransaction?: boolean
+  context?: HolisticContext
 }
 
 export type BinOverride = {

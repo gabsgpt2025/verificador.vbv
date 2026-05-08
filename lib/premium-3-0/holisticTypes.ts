@@ -198,13 +198,18 @@ export interface AnalysisRequest {
     amount?: number
     currency?: string
     merchantCountry?: string
-    merchantCategoryCode?: string
+    mcc?: string
     timestamp?: number
     userAgent?: string | null
     ipAddress?: string | null
     ipCountryCode?: string | null
     isFirstTransaction?: boolean
   }
+  amount?: number
+  currency?: string
+  mcc?: string
+  userAgent?: string | null
+  ipAddress?: string | null
   transactionAmount?: number
   transactionCurrency?: string
   merchantCountry?: string

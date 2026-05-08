@@ -4,54 +4,46 @@ function clamp(value: number, min: number, max: number) {
   return Math.min(Math.max(Math.round(value), min), max)
 }
 
-function toLocalDate(timestamp: number, timezoneOffset?: number) {
+export function enrichTemporal(timestamp: number) {
   const safeTimestamp = Number.isFinite(timestamp) ? timestamp : 0
-  const offsetMinutes = typeof timezoneOffset === "number" ? timezoneOffset : 0
-  return new Date(safeTimestamp - offsetMinutes * 60_000)
-}
-
-export function enrichTemporal(timestamp: number, timezoneOffset?: number) {
-  const date = toLocalDate(timestamp, timezoneOffset)
+  const date = new Date(safeTimestamp)
   const hour = date.getUTCHours()
   const dayOfWeek = date.getUTCDay()
   const isWeekend = dayOfWeek === 0 || dayOfWeek === 6
-  const isNightTime = hour >= 22 || hour <= 6
-  const isDawn = hour >= 2 && hour <= 5
+  const isNightTime = hour >= 0 && hour <= 6
   const isBusinessHour = !isWeekend && hour >= 9 && hour <= 18
+  const isFridayOrSaturdayNight = (dayOfWeek === 5 || dayOfWeek === 6) && hour >= 18
   const factors: BinRiskFactor[] = []
-  let score = 15
+  let score = 30
+  let label = "NEUTRAL"
 
-  if (isDawn) {
-    score += 30
+  if (hour >= 0 && hour <= 5) {
+    score += 25
+    label = "LATE_NIGHT"
     factors.push({
-      label: "Transação em madrugada profunda",
-      impact: 30,
-      reason: "Operações entre 2h e 5h tendem a concentrar mais tentativas suspeitas.",
-    })
-  } else if (hour >= 22 || hour <= 1) {
-    score += 15
-    factors.push({
-      label: "Transação em horário noturno",
-      impact: 15,
-      reason: "Operações entre 22h e 1h costumam exigir monitoramento adicional.",
+      label: "Madrugada (00h–05h)",
+      impact: 25,
+      reason: "Transações de madrugada têm maior incidência histórica de tentativas suspeitas.",
     })
   }
 
-  if (isWeekend) {
-    score += 10
+  if (isFridayOrSaturdayNight) {
+    score += 15
+    label = "WEEKEND_NIGHT"
     factors.push({
-      label: "Fim de semana",
-      impact: 10,
-      reason: "Finais de semana têm padrão operacional menos previsível para este tipo de análise.",
+      label: "Noite de sexta/sábado",
+      impact: 15,
+      reason: "Sexta e sábado à noite elevam volatilidade de risco transacional.",
     })
   }
 
   if (isBusinessHour) {
-    score -= 5
+    score = 10
+    label = "BUSINESS_HOURS"
     factors.push({
-      label: "Horário comercial em dia útil",
-      impact: -5,
-      reason: "Operações em horário comercial e dia útil tendem a seguir padrões mais esperados.",
+      label: "Dia útil em horário comercial",
+      impact: -20,
+      reason: "Horário comercial em dia útil usa baseline de risco temporal reduzido.",
     })
   }
 
@@ -68,6 +60,7 @@ export function enrichTemporal(timestamp: number, timezoneOffset?: number) {
     dayOfWeek,
     isWeekend,
     isNightTime,
+    label,
     score: clamp(score, 0, 100),
     factors,
   }

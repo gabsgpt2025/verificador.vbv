@@ -158,12 +158,12 @@ export function mapFullBinAnalysisToResponse(apiData: FullBinAnalysis): Analysis
       overallRiskScore: apiData?.riskAnalysis?.score ?? 0,
       riskLevel: apiData?.riskAnalysis?.level ?? "MEDIUM",
       riskFactors: {
-        binRisk: apiData?.riskAnalysis?.score ?? 0,
-        temporalRisk: 0,
-        behavioralRisk: 0,
-        geographicRisk: 0,
-        deviceRisk: 0,
-        gatewayRisk: 0,
+        binRisk: apiData?.holistic?.dimensions.binRisk.score ?? apiData?.riskAnalysis?.score ?? 0,
+        temporalRisk: apiData?.holistic?.dimensions.temporalRisk.score ?? 0,
+        behavioralRisk: apiData?.holistic?.dimensions.behavioralRisk.score ?? 0,
+        geographicRisk: apiData?.holistic?.dimensions.geographicRisk.score ?? 0,
+        deviceRisk: apiData?.holistic?.dimensions.deviceRisk.score ?? 0,
+        gatewayRisk: apiData?.holistic?.dimensions.gatewayRisk.score ?? 0,
       },
       alerts: [],
       recommendations: {

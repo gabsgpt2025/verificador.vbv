@@ -60,6 +60,26 @@ function makeAnalysis(overrides: Partial<FullBinAnalysis> = {}): FullBinAnalysis
       message: "Mensagem",
       action: "Ação",
     },
+    holistic: {
+      overallScore: 35,
+      level: "MEDIUM",
+      recommendation: "REVIEW",
+      ensembleConfidence: 82,
+      dimensions: {
+        binRisk: { score: 40, weight: 30, factors: [], explanation: { technical: "t", popular: "p" }, dataAvailable: true },
+        temporalRisk: { score: 30, weight: 10, factors: [], explanation: { technical: "t", popular: "p" }, dataAvailable: true },
+        behavioralRisk: { score: 35, weight: 15, factors: [], explanation: { technical: "t", popular: "p" }, dataAvailable: true },
+        geographicRisk: { score: 30, weight: 20, factors: [], explanation: { technical: "t", popular: "p" }, dataAvailable: true },
+        deviceRisk: { score: 30, weight: 10, factors: [], explanation: { technical: "t", popular: "p" }, dataAvailable: true },
+        gatewayRisk: { score: 30, weight: 15, factors: [], explanation: { technical: "t", popular: "p" }, dataAvailable: true },
+      },
+    },
+    peerComparison: {
+      percentile: 65,
+      description: "abaixo de 65% dos cartões similares",
+      similarCount: 240,
+      cohortKey: "BR-CREDIT-GOLD",
+    },
     ...overrides,
   }
 }
@@ -102,12 +122,12 @@ describe("mapFullBinAnalysisToResponse", () => {
     )
 
     expect(result.riskAnalysis.riskFactors).toEqual({
-      binRisk: 42,
-      temporalRisk: 0,
-      behavioralRisk: 0,
-      geographicRisk: 0,
-      deviceRisk: 0,
-      gatewayRisk: 0,
+      binRisk: 40,
+      temporalRisk: 30,
+      behavioralRisk: 35,
+      geographicRisk: 30,
+      deviceRisk: 30,
+      gatewayRisk: 30,
     })
     expect(result.riskAnalysis.alerts).toEqual([])
     expect(result.binAnalysis.binData.issuerName).toBe("Emissor não informado")

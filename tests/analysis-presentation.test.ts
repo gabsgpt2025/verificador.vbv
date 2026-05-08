@@ -64,6 +64,26 @@ const sampleAnalysis: FullBinAnalysis = {
     message: "Risco baixo com PSD2/SCA",
     action: "Aprovar",
   },
+  holistic: {
+    overallScore: 12,
+    level: "LOW",
+    recommendation: "APPROVE",
+    ensembleConfidence: 90,
+    dimensions: {
+      binRisk: { score: 10, weight: 30, factors: [], explanation: { technical: "t", popular: "p" }, dataAvailable: true },
+      temporalRisk: { score: 10, weight: 10, factors: [], explanation: { technical: "t", popular: "p" }, dataAvailable: true },
+      behavioralRisk: { score: 10, weight: 15, factors: [], explanation: { technical: "t", popular: "p" }, dataAvailable: true },
+      geographicRisk: { score: 15, weight: 20, factors: [], explanation: { technical: "t", popular: "p" }, dataAvailable: true },
+      deviceRisk: { score: 10, weight: 10, factors: [], explanation: { technical: "t", popular: "p" }, dataAvailable: true },
+      gatewayRisk: { score: 10, weight: 15, factors: [], explanation: { technical: "t", popular: "p" }, dataAvailable: true },
+    },
+  },
+  peerComparison: {
+    percentile: 88,
+    description: "abaixo de 88% dos cartões similares",
+    similarCount: 300,
+    cohortKey: "GB-CREDIT-BUSINESS",
+  },
 }
 
 describe("analysis glossary + presentation helpers", () => {

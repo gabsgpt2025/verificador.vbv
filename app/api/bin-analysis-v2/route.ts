@@ -4,12 +4,13 @@ import { createClient } from "@/lib/supabase/server"
 import { subtractCredits } from "@/lib/credits/operations"
 import { normalizeNeutrinoBinResponse } from "@/lib/premium-3-0/normalizeBinApiResponse"
 import { applyBinOverrides } from "@/lib/premium-3-0/applyBinOverrides"
-import { runFullBinAnalysis, runHolisticAnalysis } from "@/lib/premium-3-0"
+import { comparePeer, runFullBinAnalysis, runHolisticAnalysis } from "@/lib/premium-3-0"
 import { saveBinAnalysisLog } from "@/lib/premium-3-0/saveBinAnalysisLog"
 import { callNeutrinoApi } from "@/lib/premium-3-0/neutrino-api"
 import type { BinApiData, FullBinAnalysis } from "@/lib/premium-3-0/types"
+import { extractGeoFromHeaders } from "@/lib/premium-3-0/enrichment/geoEnrichment"
 import type { AnalysisRequest, ValidationResult } from "@/lib/premium-3-0/holisticTypes"
-import type { TransactionContext } from "@/lib/premium-3-0/holisticEngine"
+import type { HolisticContext } from "@/lib/premium-3-0/holisticEngine"
 import { OPEN_ACCESS_MODE } from "@/lib/open-access-mode"
 
 // ============================================================================
@@ -25,7 +26,7 @@ const analysisRequestSchema = z.object({
       amount: z.number().min(0).optional(),
       currency: z.string().optional(),
       merchantCountry: z.string().optional(),
-      merchantCategoryCode: z.string().optional(),
+      mcc: z.string().optional(),
       timestamp: z.number().optional(),
       userAgent: z.string().nullable().optional(),
       ipAddress: z.string().nullable().optional(),
@@ -38,6 +39,11 @@ const analysisRequestSchema = z.object({
     .min(0, "transactionAmount deve ser ≥ 0")
     .optional(),
   transactionCurrency: z.string().optional(),
+  amount: z.number().min(0).optional(),
+  currency: z.string().optional(),
+  mcc: z.string().optional(),
+  userAgent: z.string().nullable().optional(),
+  ipAddress: z.string().nullable().optional(),
   merchantCountry: z.string().optional(),
   isFirstTransaction: z.boolean().optional(),
 })
@@ -106,31 +112,31 @@ function isRateLimited(key: string): boolean {
   return false
 }
 
-function resolveTransactionContext(request: NextRequest, payload: AnalysisRequest): TransactionContext {
-  const forwardedFor = request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ?? null
-  const headerCountry = request.headers.get("x-vercel-ip-country") ?? null
+function resolveTransactionContext(request: NextRequest, payload: AnalysisRequest): HolisticContext {
+  const geo = extractGeoFromHeaders(request.headers)
+  const fallbackCountry = request.headers.get("cf-ipcountry") ?? null
   const userAgent = request.headers.get("user-agent") ?? null
   const context = payload.context ?? {}
 
   return {
-    amount: context.amount ?? payload.transactionAmount,
-    currency: context.currency ?? payload.transactionCurrency ?? "BRL",
+    amount: context.amount ?? payload.amount ?? payload.transactionAmount,
+    currency: context.currency ?? payload.currency ?? payload.transactionCurrency ?? "BRL",
     merchantCountry: context.merchantCountry ?? payload.merchantCountry,
-    merchantCategoryCode: context.merchantCategoryCode,
+    mcc: context.mcc ?? payload.mcc,
     timestamp: context.timestamp ?? Date.now(),
-    userAgent: context.userAgent ?? userAgent,
-    ipAddress: context.ipAddress ?? forwardedFor,
-    ipCountryCode: context.ipCountryCode ?? headerCountry,
+    userAgent: context.userAgent ?? payload.userAgent ?? userAgent,
+    ipAddress: context.ipAddress ?? payload.ipAddress ?? geo.ipAddress,
+    ipCountryCode: context.ipCountryCode ?? geo.ipCountry ?? fallbackCountry,
     isFirstTransaction: context.isFirstTransaction ?? payload.isFirstTransaction,
   }
 }
 
-function buildSafeContextEcho(context: TransactionContext) {
+function buildSafeContextEcho(context: HolisticContext) {
   return {
     amount: context.amount,
     currency: context.currency,
     merchantCountry: context.merchantCountry,
-    merchantCategoryCode: context.merchantCategoryCode,
+    mcc: context.mcc,
     timestamp: context.timestamp,
     ipCountryCode: context.ipCountryCode ?? null,
     isFirstTransaction: context.isFirstTransaction ?? null,
@@ -201,6 +207,7 @@ export async function POST(request: NextRequest) {
     // Executa análise completa
     const analysis: FullBinAnalysis = runFullBinAnalysis(binDataWithOverrides, resolvedContext)
     const holistic = runHolisticAnalysis(binDataWithOverrides, resolvedContext)
+    const peerComparison = comparePeer(binDataWithOverrides, holistic.overallScore)
 
     // Salva log interno (somente para usuários autenticados)
     if (user) {
@@ -232,6 +239,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({
       ...analysis,
       holistic,
+      peerComparison,
       context: buildSafeContextEcho(resolvedContext),
     })
   } catch (error) {

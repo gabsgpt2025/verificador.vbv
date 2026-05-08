@@ -2,6 +2,7 @@ import threeDsByBank from "./data/threeDsByBank.json"
 import { getCountryMaturity } from "./country3dsMaturity"
 import { normalizeIssuerName } from "./enrichment/bankReputation"
 import { getCountryRiskTier } from "./enrichment/geoEnrichment"
+import type { BypassMechanism } from "./holisticTypes"
 import type { BinApiData, BinThreeDSResult } from "./types"
 
 type ThreeDSContextInput = {
@@ -90,12 +91,12 @@ export function analyzeThreeDS(binData: BinApiData, context?: ThreeDSContextInpu
     frictionlessProbability += 20
   }
 
-  if (countryRiskTier === "TIER1") {
+  if (countryRiskTier === "LOW") {
     frictionlessProbability += 10
-  } else if (countryRiskTier === "TIER2") {
+  } else if (countryRiskTier === "MEDIUM") {
     frictionlessProbability += 5
-  } else if (countryRiskTier === "TIER3") {
-    frictionlessProbability -= 10
+  } else if (countryRiskTier === "HIGH") {
+    frictionlessProbability -= 20
   } else {
     frictionlessProbability -= 20
   }
@@ -117,7 +118,7 @@ export function analyzeThreeDS(binData: BinApiData, context?: ThreeDSContextInpu
     applicableBypassMechanisms.push("SCA_EXEMPTION_LOW_VALUE")
   }
 
-  if (!binData.isPrepaid && (countryRiskTier === "TIER1" || countryRiskTier === "TIER2") && frictionlessProbability >= 65) {
+  if (!binData.isPrepaid && (countryRiskTier === "LOW" || countryRiskTier === "MEDIUM") && frictionlessProbability >= 65) {
     applicableBypassMechanisms.push("TRA")
   }
 
@@ -141,16 +142,22 @@ export function analyzeThreeDS(binData: BinApiData, context?: ThreeDSContextInpu
   )
 
   let status: BinThreeDSResult["status"]
-  if (frictionlessProbability >= 70) {
+  if (frictionlessProbability >= 60) {
     status = "LIKELY_ACTIVE"
-  } else if (frictionlessProbability >= 45) {
+  } else if (frictionlessProbability >= 40) {
     status = "UNKNOWN"
   } else {
     status = "LIKELY_INACTIVE"
   }
 
   const confidence: BinThreeDSResult["confidence"] =
-    typeof issuerAdoption === "number" ? "HIGH" : countryRiskTier === "TIER1" || countryRiskTier === "TIER2" ? "MEDIUM" : "LOW"
+    typeof issuerAdoption === "number"
+      ? "HIGH"
+      : countryRiskTier === "LOW" && frictionlessProbability >= 60
+        ? "HIGH"
+        : countryRiskTier === "LOW" || countryRiskTier === "MEDIUM"
+          ? "MEDIUM"
+          : "LOW"
 
   const challengeLikelihood: BinThreeDSResult["challengeLikelihood"] =
     challengeProbability >= 70 ? "HIGH" : challengeProbability >= 35 ? "MEDIUM" : frictionlessProbability >= 70 ? "LOW" : "UNKNOWN"
@@ -182,5 +189,36 @@ export function analyzeThreeDS(binData: BinApiData, context?: ThreeDSContextInpu
     challengeProbability,
     bypassProbability,
     applicableBypassMechanisms,
+  }
+}
+
+function mapMechanismsToBypass(
+  mechanisms: BinThreeDSResult["applicableBypassMechanisms"],
+  frictionlessProbability: number,
+): BypassMechanism[] {
+  if (mechanisms.includes("FRICTIONLESS_3DS2") || frictionlessProbability >= 70) {
+    return ["FRICTIONLESS_3DS2"]
+  }
+
+  if (mechanisms.some((mechanism) => mechanism === "SCA_EXEMPTION_LOW_VALUE" || mechanism === "TRA")) {
+    return ["SCA_EXEMPTION"]
+  }
+
+  if (mechanisms.some((mechanism) => mechanism === "MIT" || mechanism === "RECURRING")) {
+    return ["3DS_NOMINAL"]
+  }
+
+  return ["NONE"]
+}
+
+export function analyzeThreeDSExtended(binData: BinApiData, context?: ThreeDSContextInput) {
+  const base = analyzeThreeDS(binData, context)
+  const bypassMechanisms = mapMechanismsToBypass(base.applicableBypassMechanisms, base.frictionlessProbability)
+
+  return {
+    ...base,
+    frictionlessProbability: base.frictionlessProbability,
+    bypassProbability: base.bypassProbability,
+    bypassMechanisms,
   }
 }
