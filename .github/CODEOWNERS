@@ -1,0 +1,14 @@
+# Default owner
+*                                  @gabsgpt2025
+
+# CI / infra
+/.github/                          @gabsgpt2025
+/next.config.*                     @gabsgpt2025
+/package.json                      @gabsgpt2025
+/pnpm-lock.yaml                    @gabsgpt2025
+/tsconfig.json                     @gabsgpt2025
+
+# Domínio crítico (motor BIN/3DS e tipos públicos)
+/app/api/bin-analysis-v2/          @gabsgpt2025
+/lib/premium-3-0/                  @gabsgpt2025
+/lib/supabase/                     @gabsgpt2025
