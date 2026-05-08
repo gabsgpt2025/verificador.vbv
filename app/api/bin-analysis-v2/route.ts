@@ -4,34 +4,42 @@ import { createClient } from "@/lib/supabase/server"
 import { subtractCredits } from "@/lib/credits/operations"
 import { normalizeNeutrinoBinResponse } from "@/lib/premium-3-0/normalizeBinApiResponse"
 import { applyBinOverrides } from "@/lib/premium-3-0/applyBinOverrides"
-import { runFullBinAnalysis } from "@/lib/premium-3-0"
+import { runFullBinAnalysis, runHolisticAnalysis } from "@/lib/premium-3-0"
 import { saveBinAnalysisLog } from "@/lib/premium-3-0/saveBinAnalysisLog"
 import { callNeutrinoApi } from "@/lib/premium-3-0/neutrino-api"
 import type { BinApiData, FullBinAnalysis } from "@/lib/premium-3-0/types"
 import type { AnalysisRequest, ValidationResult } from "@/lib/premium-3-0/holisticTypes"
+import type { TransactionContext } from "@/lib/premium-3-0/holisticEngine"
 import { OPEN_ACCESS_MODE } from "@/lib/open-access-mode"
 
 // ============================================================================
 // Validação de request (AnalysisRequest)
 // ============================================================================
 
-const DEVICE_TYPE_VALUES = ["MOBILE", "DESKTOP", "TABLET", "UNKNOWN"] as const
-
 const analysisRequestSchema = z.object({
   bin: z
     .string()
     .regex(/^\d{6,8}$/, "bin deve conter entre 6 e 8 dígitos numéricos"),
+  context: z
+    .object({
+      amount: z.number().min(0).optional(),
+      currency: z.string().optional(),
+      merchantCountry: z.string().optional(),
+      merchantCategoryCode: z.string().optional(),
+      timestamp: z.number().optional(),
+      userAgent: z.string().nullable().optional(),
+      ipAddress: z.string().nullable().optional(),
+      ipCountryCode: z.string().nullable().optional(),
+      isFirstTransaction: z.boolean().optional(),
+    })
+    .optional(),
   transactionAmount: z
     .number()
     .min(0, "transactionAmount deve ser ≥ 0")
     .optional(),
   transactionCurrency: z.string().optional(),
   merchantCountry: z.string().optional(),
-  cardholderCountry: z.string().optional(),
-  deviceType: z.enum(DEVICE_TYPE_VALUES).optional(),
-  isNewCard: z.boolean().optional(),
   isFirstTransaction: z.boolean().optional(),
-  additionalContext: z.record(z.unknown()).optional(),
 })
 
 /**
@@ -98,6 +106,38 @@ function isRateLimited(key: string): boolean {
   return false
 }
 
+function resolveTransactionContext(request: NextRequest, payload: AnalysisRequest): TransactionContext {
+  const forwardedFor = request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ?? null
+  const headerCountry = request.headers.get("x-vercel-ip-country") ?? null
+  const userAgent = request.headers.get("user-agent") ?? null
+  const context = payload.context ?? {}
+
+  return {
+    amount: context.amount ?? payload.transactionAmount,
+    currency: context.currency ?? payload.transactionCurrency ?? "BRL",
+    merchantCountry: context.merchantCountry ?? payload.merchantCountry,
+    merchantCategoryCode: context.merchantCategoryCode,
+    timestamp: context.timestamp ?? Date.now(),
+    userAgent: context.userAgent ?? userAgent,
+    ipAddress: context.ipAddress ?? forwardedFor,
+    ipCountryCode: context.ipCountryCode ?? headerCountry,
+    isFirstTransaction: context.isFirstTransaction ?? payload.isFirstTransaction,
+  }
+}
+
+function buildSafeContextEcho(context: TransactionContext) {
+  return {
+    amount: context.amount,
+    currency: context.currency,
+    merchantCountry: context.merchantCountry,
+    merchantCategoryCode: context.merchantCategoryCode,
+    timestamp: context.timestamp,
+    ipCountryCode: context.ipCountryCode ?? null,
+    isFirstTransaction: context.isFirstTransaction ?? null,
+    userAgentPresent: Boolean(context.userAgent),
+  }
+}
+
 export async function POST(request: NextRequest) {
   const requestId = getRequestId(request)
 
@@ -117,6 +157,7 @@ export async function POST(request: NextRequest) {
       return buildErrorResponse(400, "INVALID_REQUEST", validation.error, requestId)
     }
     const { bin } = validation.data
+    const resolvedContext = resolveTransactionContext(request, validation.data)
 
     const cleanBin = bin.substring(0, 8)
 
@@ -158,7 +199,8 @@ export async function POST(request: NextRequest) {
       : binData
 
     // Executa análise completa
-    const analysis: FullBinAnalysis = runFullBinAnalysis(binDataWithOverrides)
+    const analysis: FullBinAnalysis = runFullBinAnalysis(binDataWithOverrides, resolvedContext)
+    const holistic = runHolisticAnalysis(binDataWithOverrides, resolvedContext)
 
     // Salva log interno (somente para usuários autenticados)
     if (user) {
@@ -187,7 +229,11 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    return NextResponse.json(analysis)
+    return NextResponse.json({
+      ...analysis,
+      holistic,
+      context: buildSafeContextEcho(resolvedContext),
+    })
   } catch (error) {
     console.error("[bin-analysis-v2] Unexpected error", {
       requestId,

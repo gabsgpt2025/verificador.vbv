@@ -114,6 +114,12 @@ export type BinThreeDSResult = {
   authMethodsLikely: string[]
   explanation: string
   inferred: boolean
+  frictionlessProbability: number
+  challengeProbability: number
+  bypassProbability: number
+  applicableBypassMechanisms: Array<
+    "SCA_EXEMPTION_LOW_VALUE" | "TRA" | "RECURRING" | "MIT" | "FRICTIONLESS_3DS2"
+  >
 }
 
 export type BinRiskFactor = {

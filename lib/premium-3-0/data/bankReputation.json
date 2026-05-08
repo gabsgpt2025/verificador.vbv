@@ -1,0 +1,302 @@
+{
+  "BANCO DO BRASIL S.A.": {
+    "approvalRate": 0.93,
+    "fraudRate": 0.007,
+    "threeDsAdoption": 0.96,
+    "tier": "TIER1"
+  },
+  "BRADESCO": {
+    "approvalRate": 0.92,
+    "fraudRate": 0.008,
+    "threeDsAdoption": 0.95,
+    "tier": "TIER1"
+  },
+  "ITAU UNIBANCO": {
+    "approvalRate": 0.94,
+    "fraudRate": 0.007,
+    "threeDsAdoption": 0.96,
+    "tier": "TIER1"
+  },
+  "NUBANK": {
+    "approvalRate": 0.91,
+    "fraudRate": 0.01,
+    "threeDsAdoption": 0.94,
+    "tier": "TIER1"
+  },
+  "CAIXA ECONOMICA FEDERAL": {
+    "approvalRate": 0.9,
+    "fraudRate": 0.011,
+    "threeDsAdoption": 0.92,
+    "tier": "TIER1"
+  },
+  "SANTANDER BRASIL": {
+    "approvalRate": 0.91,
+    "fraudRate": 0.009,
+    "threeDsAdoption": 0.94,
+    "tier": "TIER1"
+  },
+  "BTG PACTUAL": {
+    "approvalRate": 0.9,
+    "fraudRate": 0.01,
+    "threeDsAdoption": 0.9,
+    "tier": "TIER2"
+  },
+  "BANRISUL": {
+    "approvalRate": 0.89,
+    "fraudRate": 0.011,
+    "threeDsAdoption": 0.9,
+    "tier": "TIER2"
+  },
+  "SICOOB": {
+    "approvalRate": 0.9,
+    "fraudRate": 0.01,
+    "threeDsAdoption": 0.91,
+    "tier": "TIER2"
+  },
+  "SICREDI": {
+    "approvalRate": 0.9,
+    "fraudRate": 0.01,
+    "threeDsAdoption": 0.91,
+    "tier": "TIER2"
+  },
+  "CHASE BANK USA, N.A.": {
+    "approvalRate": 0.95,
+    "fraudRate": 0.006,
+    "threeDsAdoption": 0.93,
+    "tier": "TIER1"
+  },
+  "BANK OF AMERICA, N.A.": {
+    "approvalRate": 0.94,
+    "fraudRate": 0.007,
+    "threeDsAdoption": 0.92,
+    "tier": "TIER1"
+  },
+  "WELLS FARGO BANK, N.A.": {
+    "approvalRate": 0.93,
+    "fraudRate": 0.008,
+    "threeDsAdoption": 0.91,
+    "tier": "TIER1"
+  },
+  "CITIBANK, N.A.": {
+    "approvalRate": 0.92,
+    "fraudRate": 0.009,
+    "threeDsAdoption": 0.91,
+    "tier": "TIER1"
+  },
+  "CAPITAL ONE, N.A.": {
+    "approvalRate": 0.92,
+    "fraudRate": 0.01,
+    "threeDsAdoption": 0.9,
+    "tier": "TIER1"
+  },
+  "PNC BANK, N.A.": {
+    "approvalRate": 0.91,
+    "fraudRate": 0.009,
+    "threeDsAdoption": 0.89,
+    "tier": "TIER2"
+  },
+  "U.S. BANK, N.A.": {
+    "approvalRate": 0.91,
+    "fraudRate": 0.009,
+    "threeDsAdoption": 0.89,
+    "tier": "TIER2"
+  },
+  "AMERICAN EXPRESS NATIONAL BANK": {
+    "approvalRate": 0.95,
+    "fraudRate": 0.006,
+    "threeDsAdoption": 0.95,
+    "tier": "TIER1"
+  },
+  "DISCOVER BANK": {
+    "approvalRate": 0.92,
+    "fraudRate": 0.009,
+    "threeDsAdoption": 0.89,
+    "tier": "TIER2"
+  },
+  "SYNCHRONY BANK": {
+    "approvalRate": 0.88,
+    "fraudRate": 0.014,
+    "threeDsAdoption": 0.85,
+    "tier": "TIER2"
+  },
+  "BARCLAYS BANK PLC": {
+    "approvalRate": 0.94,
+    "fraudRate": 0.007,
+    "threeDsAdoption": 0.96,
+    "tier": "TIER1"
+  },
+  "HSBC UK BANK PLC": {
+    "approvalRate": 0.93,
+    "fraudRate": 0.008,
+    "threeDsAdoption": 0.96,
+    "tier": "TIER1"
+  },
+  "LLOYDS BANK PLC": {
+    "approvalRate": 0.93,
+    "fraudRate": 0.008,
+    "threeDsAdoption": 0.95,
+    "tier": "TIER1"
+  },
+  "NATWEST": {
+    "approvalRate": 0.92,
+    "fraudRate": 0.009,
+    "threeDsAdoption": 0.95,
+    "tier": "TIER1"
+  },
+  "SANTANDER UK PLC": {
+    "approvalRate": 0.92,
+    "fraudRate": 0.009,
+    "threeDsAdoption": 0.94,
+    "tier": "TIER1"
+  },
+  "DEUTSCHE BANK AG": {
+    "approvalRate": 0.92,
+    "fraudRate": 0.009,
+    "threeDsAdoption": 0.95,
+    "tier": "TIER1"
+  },
+  "COMMERZBANK AG": {
+    "approvalRate": 0.91,
+    "fraudRate": 0.01,
+    "threeDsAdoption": 0.94,
+    "tier": "TIER1"
+  },
+  "BNP PARIBAS": {
+    "approvalRate": 0.93,
+    "fraudRate": 0.008,
+    "threeDsAdoption": 0.96,
+    "tier": "TIER1"
+  },
+  "SOCIETE GENERALE": {
+    "approvalRate": 0.92,
+    "fraudRate": 0.009,
+    "threeDsAdoption": 0.95,
+    "tier": "TIER1"
+  },
+  "CREDIT AGRICOLE": {
+    "approvalRate": 0.92,
+    "fraudRate": 0.008,
+    "threeDsAdoption": 0.95,
+    "tier": "TIER1"
+  },
+  "ING BANK N.V.": {
+    "approvalRate": 0.93,
+    "fraudRate": 0.008,
+    "threeDsAdoption": 0.96,
+    "tier": "TIER1"
+  },
+  "ABN AMRO BANK N.V.": {
+    "approvalRate": 0.92,
+    "fraudRate": 0.008,
+    "threeDsAdoption": 0.95,
+    "tier": "TIER1"
+  },
+  "RABOBANK": {
+    "approvalRate": 0.92,
+    "fraudRate": 0.008,
+    "threeDsAdoption": 0.95,
+    "tier": "TIER1"
+  },
+  "UNICREDIT S.P.A.": {
+    "approvalRate": 0.91,
+    "fraudRate": 0.009,
+    "threeDsAdoption": 0.94,
+    "tier": "TIER1"
+  },
+  "INTESA SANPAOLO": {
+    "approvalRate": 0.92,
+    "fraudRate": 0.009,
+    "threeDsAdoption": 0.94,
+    "tier": "TIER1"
+  },
+  "BBVA": {
+    "approvalRate": 0.91,
+    "fraudRate": 0.01,
+    "threeDsAdoption": 0.94,
+    "tier": "TIER1"
+  },
+  "CAIXABANK": {
+    "approvalRate": 0.92,
+    "fraudRate": 0.009,
+    "threeDsAdoption": 0.95,
+    "tier": "TIER1"
+  },
+  "BANCO SANTANDER, S.A.": {
+    "approvalRate": 0.92,
+    "fraudRate": 0.009,
+    "threeDsAdoption": 0.95,
+    "tier": "TIER1"
+  },
+  "BANKINTER": {
+    "approvalRate": 0.9,
+    "fraudRate": 0.01,
+    "threeDsAdoption": 0.93,
+    "tier": "TIER2"
+  },
+  "NORDEA BANK ABP": {
+    "approvalRate": 0.93,
+    "fraudRate": 0.007,
+    "threeDsAdoption": 0.96,
+    "tier": "TIER1"
+  },
+  "DANSKE BANK A/S": {
+    "approvalRate": 0.92,
+    "fraudRate": 0.008,
+    "threeDsAdoption": 0.95,
+    "tier": "TIER1"
+  },
+  "SVENSKA HANDELSBANKEN": {
+    "approvalRate": 0.92,
+    "fraudRate": 0.008,
+    "threeDsAdoption": 0.95,
+    "tier": "TIER1"
+  },
+  "SEB": {
+    "approvalRate": 0.92,
+    "fraudRate": 0.008,
+    "threeDsAdoption": 0.95,
+    "tier": "TIER1"
+  },
+  "SWEDBANK": {
+    "approvalRate": 0.91,
+    "fraudRate": 0.009,
+    "threeDsAdoption": 0.94,
+    "tier": "TIER1"
+  },
+  "UBS AG": {
+    "approvalRate": 0.94,
+    "fraudRate": 0.007,
+    "threeDsAdoption": 0.95,
+    "tier": "TIER1"
+  },
+  "CREDIT SUISSE": {
+    "approvalRate": 0.91,
+    "fraudRate": 0.01,
+    "threeDsAdoption": 0.93,
+    "tier": "TIER2"
+  },
+  "POSTFINANCE": {
+    "approvalRate": 0.9,
+    "fraudRate": 0.009,
+    "threeDsAdoption": 0.92,
+    "tier": "TIER2"
+  },
+  "DBS BANK LTD": {
+    "approvalRate": 0.95,
+    "fraudRate": 0.006,
+    "threeDsAdoption": 0.97,
+    "tier": "TIER1"
+  },
+  "OCBC BANK": {
+    "approvalRate": 0.94,
+    "fraudRate": 0.007,
+    "threeDsAdoption": 0.96,
+    "tier": "TIER1"
+  },
+  "UOB": {
+    "approvalRate": 0.94,
+    "fraudRate": 0.007,
+    "threeDsAdoption": 0.96,
+    "tier": "TIER1"
+  }
+}

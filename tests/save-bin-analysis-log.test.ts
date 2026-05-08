@@ -37,6 +37,10 @@ describe("saveBinAnalysisLog", () => {
         authMethodsLikely: [],
         explanation: "ok",
         inferred: true,
+        frictionlessProbability: 88,
+        challengeProbability: 12,
+        bypassProbability: 72,
+        applicableBypassMechanisms: ["FRICTIONLESS_3DS2"],
       },
       riskAnalysis: {
         score: 18,

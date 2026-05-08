@@ -31,6 +31,10 @@ function makeAnalysis(overrides: Partial<FullBinAnalysis> = {}): FullBinAnalysis
       authMethodsLikely: ["OTP"],
       explanation: "Análise inferida",
       inferred: true,
+      frictionlessProbability: 82,
+      challengeProbability: 18,
+      bypassProbability: 64,
+      applicableBypassMechanisms: ["FRICTIONLESS_3DS2"],
     },
     riskAnalysis: {
       score: 42,
@@ -89,6 +93,10 @@ describe("mapFullBinAnalysisToResponse", () => {
           authMethodsLikely: [],
           explanation: "",
           inferred: true,
+          frictionlessProbability: 50,
+          challengeProbability: 50,
+          bypassProbability: 20,
+          applicableBypassMechanisms: [],
         },
       }),
     )
