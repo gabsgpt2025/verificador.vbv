@@ -348,6 +348,25 @@
 | Perfis de banco (Nubank, Inter, etc.) | ✅ Lookup de reputação do emissor consolidado no enrichment |
 | KPIs declarados no doc (tempo médio, taxa de bloqueio, cobertura por país) | ✅ Runtime metrics + fontes usadas em metadata para auditoria operacional |
 
+### Fase 5 — Antifraude Session ✅
+
+**Objetivo**: Página pública `/antifraude` com análise automática do visitante (sessão/dispositivo/rede), sem BIN.
+
+| Item | Status | Arquivo |
+|---|---|---|
+| Tipos `SessionRiskResponse`, `SessionRiskRecommendation`, `NetworkFlags`, `DeviceInfo` no SSOT | ✅ | `lib/premium-3-0/holisticTypes.ts` |
+| Motor `sessionRisk.ts` (orchestration Neutrino Tier 1, score 0–100, fallback gracioso) | ✅ | `lib/premium-3-0/sessionRisk.ts` |
+| Endpoint `POST /api/antifraud-session` (Zod validation, IP extraction, IP masking) | ✅ | `app/api/antifraud-session/route.ts` |
+| Página pública `GET /antifraude` (Server Component wrapper) | ✅ | `app/antifraude/page.tsx` |
+| Client Component `AntifraudSession.tsx` (fingerprint SHA-256, sem libs externas, UI neon) | ✅ | `components/antifraude/AntifraudSession.tsx` |
+| Testes Vitest `sessionRisk.test.ts` (score determinístico, 3 cenários + extras) | ✅ | `tests/antifraud/sessionRisk.test.ts` |
+| Testes Vitest `route.test.ts` (200 empty body, 400 invalid, IP masking, IP extraction) | ✅ | `tests/antifraud/route.test.ts` |
+| Documentação `ANTIFRAUDE-SESSION.md` (contrato, enrichments, score derivation) | ✅ | `docs/ANTIFRAUDE-SESSION.md` |
+| README atualizado com seção `/antifraude` | ✅ | `README.md` |
+| IP nunca exposto no cliente — apenas `ipMasked` | ✅ | `app/api/antifraud-session/route.ts#L91` |
+| Nenhuma dependência nova no `package.json` | ✅ | `crypto.subtle` nativo do browser |
+| Quota Neutrino: máx 4 créditos/req, todas as flags OFF por default | ✅ | `lib/env.ts` |
+
 ---
 
 _Auditoria executada em 2026-05-08. Branch: `copilot/phase-1-align-documentation`. Nenhum arquivo de código foi modificado nesta fase._

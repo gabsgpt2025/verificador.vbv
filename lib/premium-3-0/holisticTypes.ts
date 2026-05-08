@@ -269,3 +269,72 @@ export interface HistoryEntry {
   action: RecommendationAction
   mastercardVerified: boolean
 }
+
+// ============================================================================
+// FASE 5 — ANÁLISE ANTIFRAUDE DE SESSÃO
+// ============================================================================
+
+/** Ação recomendada para a sessão do visitante (antifraude session). */
+export type SessionRiskRecommendation = "ALLOW" | "REVIEW" | "CHALLENGE" | "BLOCK"
+
+/** Flags de rede derivadas de IP Blocklist + IP Info (Neutrino Tier 1). */
+export interface NetworkFlags {
+  isTor: boolean
+  isProxy: boolean
+  isVpn: boolean
+  isHijacked: boolean
+  isSpider: boolean
+  isMalware: boolean
+  isBot: boolean
+  isListed: boolean
+  blocklistCount: number
+}
+
+/** Informações de dispositivo derivadas de UA Lookup (Neutrino Tier 1). */
+export interface DeviceInfo {
+  browser: string | null
+  browserVersion: string | null
+  os: string | null
+  osVersion: string | null
+  deviceType: "MOBILE" | "DESKTOP" | "TABLET" | "BOT" | "UNKNOWN"
+  isMobile: boolean
+  isBot: boolean
+}
+
+/** Resposta do endpoint POST /api/antifraud-session. */
+export interface SessionRiskResponse {
+  /** IP real do visitante (never serialized to client — use ipMasked). */
+  ip: string | null
+  /** IP parcialmente mascarado para exibição segura (ex: "201.x.x.42"). */
+  ipMasked: string
+  geo: {
+    country: string | null
+    city: string | null
+    isp: string | null
+    asn: string | null
+    hostname: string | null
+  }
+  network: NetworkFlags
+  device: DeviceInfo
+  hostReputation: {
+    score: number | null
+    listed: boolean
+    categories: string[]
+  } | null
+  client: {
+    fingerprint: string | null
+    timezone: string | null
+    languages: string[]
+    screen: { w: number; h: number; colorDepth: number } | null
+  }
+  /** Score de risco da sessão (0–100). */
+  riskScore: number
+  riskLevel: RiskLevel
+  recommendation: SessionRiskRecommendation
+  /** Fatores que contribuíram para o score final. */
+  factors: Array<{ label: string; impact: number; reason: string }>
+  /** Fontes de dados usadas nesta análise (ex: "neutrino:ip-info"). */
+  sourcesUsed: string[]
+  /** Timestamp ISO 8601 de quando a análise foi gerada. */
+  generatedAt: string
+}
