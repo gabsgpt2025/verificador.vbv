@@ -75,6 +75,12 @@ const BANK_ENTRIES = Object.entries(BANK_REPUTATION).map(([issuerName, reputatio
   reputation,
 }))
 
+const BASE_APPROVAL_TARGET = 95
+const APPROVAL_WEIGHT = 0.8
+const FRAUD_WEIGHT = 2
+const BASE_3DS_TARGET = 90
+const ADOPTION_WEIGHT = 0.5
+
 export function lookupBank(issuerName: string): BankReputation | null {
   const normalized = normalizeIssuerName(issuerName)
   if (!normalized) return null
@@ -110,9 +116,9 @@ export function calculateBankRisk(issuerName: string | null) {
     return { score: 30, factors }
   }
 
-  const approvalAdjustment = Math.round((95 - bank.approvalRate) * 0.8)
-  const fraudAdjustment = Math.round(bank.fraudRate * 2)
-  const adoptionAdjustment = Math.round((90 - bank.threeDsAdoption) * 0.5)
+  const approvalAdjustment = Math.round((BASE_APPROVAL_TARGET - bank.approvalRate) * APPROVAL_WEIGHT)
+  const fraudAdjustment = Math.round(bank.fraudRate * FRAUD_WEIGHT)
+  const adoptionAdjustment = Math.round((BASE_3DS_TARGET - bank.threeDsAdoption) * ADOPTION_WEIGHT)
 
   const score = clamp(20 + approvalAdjustment + fraudAdjustment + adoptionAdjustment)
 

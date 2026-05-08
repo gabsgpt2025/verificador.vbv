@@ -290,7 +290,7 @@ function buildBinRisk(binData: BinApiData, context: Partial<TransactionContext>)
 
 export function calculateHolisticRisk(ctx: RiskContext) {
   return {
-    binRisk: buildBinRisk(ctx.binData, { amount: ctx.amount, currency: ctx.currency, timestamp: 0 }).score,
+    binRisk: buildBinRisk(ctx.binData, { amount: ctx.amount, currency: ctx.currency }).score,
     temporalRisk: buildTemporalRisk(ctx.temporal).score,
     behavioralRisk: buildBehavioralRisk(ctx.history).score,
     geographicRisk: buildGeographicRisk(ctx.geo, ctx.bank).score,

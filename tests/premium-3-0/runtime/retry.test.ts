@@ -52,7 +52,9 @@ describe("withRetry", () => {
     await Promise.resolve()
     expect(fn).toHaveBeenCalledTimes(1)
 
-    await vi.advanceTimersByTimeAsync(132)
+    const expectedDelayMs = 133 // baseDelayMs(100) + deterministic jitter floor(100 * (1 / 3))
+
+    await vi.advanceTimersByTimeAsync(expectedDelayMs - 1)
     expect(fn).toHaveBeenCalledTimes(1)
 
     await vi.advanceTimersByTimeAsync(1)
