@@ -112,11 +112,7 @@ export function enrichGateway({ amount, currency, mcc, merchantHost }: GatewayCo
   }
 
   if (merchantHost) {
-    factors.push({
-      label: "Host do merchant informado",
-      impact: 0,
-      reason: `Host ${merchantHost} recebido no contexto; heurística local aplicada sem consulta externa.`,
-    })
+    sourcesUsed.push("merchant_host")
   }
 
   return {

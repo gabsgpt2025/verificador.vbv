@@ -161,6 +161,10 @@ export function enrichGeo(
   const ipCountryCode = normalizeCountryCode(requestCountryHeader ?? legacyLookup?.ipCountry ?? null)
   const countryRiskTier = getCountryRiskTier(normalizedBinCountry)
   const factors: BinRiskFactor[] = []
+  const sourcesUsed = [
+    ...(normalizedBinCountry ? ["bin_country"] : []),
+    ...(ipCountryCode ? ["ip_country"] : []),
+  ]
   let score = normalizedBinCountry ? BASE_SCORE_BY_TIER[countryRiskTier] : 50
 
   if (normalizedBinCountry) {
@@ -217,6 +221,6 @@ export function enrichGeo(
     distanceKm: null,
     score: clamp(score, 0, 100),
     factors,
-    sourcesUsed: [],
+    sourcesUsed,
   }
 }

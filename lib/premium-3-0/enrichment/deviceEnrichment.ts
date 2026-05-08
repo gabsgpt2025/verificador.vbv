@@ -23,6 +23,7 @@ export function enrichDevice(userAgent?: string | null) {
   const factors: BinRiskFactor[] = []
   let score = 15
   const deviceType = parseDeviceType(userAgent)
+  const sourcesUsed = userAgent ? ["user_agent"] : []
 
   if (deviceType === "unknown") {
     score += 20
@@ -65,6 +66,6 @@ export function enrichDevice(userAgent?: string | null) {
     deviceType,
     factors,
     isBot: deviceType === "bot",
-    sourcesUsed: [] as string[],
+    sourcesUsed,
   }
 }
