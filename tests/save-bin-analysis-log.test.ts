@@ -82,7 +82,7 @@ describe("saveBinAnalysisLog", () => {
       },
       peerComparison: {
         percentile: 86,
-        description: "abaixo de 86% dos cartões similares",
+        description: "melhor que 86% dos cartões similares",
         similarCount: 280,
         cohortKey: "BR-CREDIT-PLATINUM",
       },

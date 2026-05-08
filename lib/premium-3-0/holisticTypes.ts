@@ -205,11 +205,6 @@ export interface AnalysisRequest {
     ipCountryCode?: string | null
     isFirstTransaction?: boolean
   }
-  amount?: number
-  currency?: string
-  mcc?: string
-  userAgent?: string | null
-  ipAddress?: string | null
   transactionAmount?: number
   transactionCurrency?: string
   merchantCountry?: string

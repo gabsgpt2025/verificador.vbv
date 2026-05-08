@@ -55,6 +55,7 @@ export const HOLISTIC_DIMENSION_WEIGHTS = {
   temporalRisk: 10,
   deviceRisk: 10,
 } as const
+const TOTAL_WEIGHT = Object.values(HOLISTIC_DIMENSION_WEIGHTS).reduce((sum, value) => sum + value, 0)
 
 function clamp(value: number, min: number, max: number) {
   return Math.min(Math.max(Math.round(value), min), max)
@@ -232,11 +233,10 @@ export function runHolisticAnalysis(binData: BinApiData, context: HolisticContex
     dimensions.deviceRisk.score * dimensions.deviceRisk.weight
 
   const overallScore = clamp(weightedScore / 100, 0, 100)
-  const totalWeight = Object.values(HOLISTIC_DIMENSION_WEIGHTS).reduce((sum, value) => sum + value, 0)
   const availableWeight = Object.values(dimensions)
     .filter((dimension) => dimension.dataAvailable)
     .reduce((sum, dimension) => sum + dimension.weight, 0)
-  const coverage = availableWeight / totalWeight
+  const coverage = availableWeight / TOTAL_WEIGHT
   const dispersion =
     (Math.abs(dimensions.binRisk.score - overallScore) +
       Math.abs(dimensions.geographicRisk.score - overallScore) +

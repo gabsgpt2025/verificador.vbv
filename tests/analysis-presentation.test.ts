@@ -80,7 +80,7 @@ const sampleAnalysis: FullBinAnalysis = {
   },
   peerComparison: {
     percentile: 88,
-    description: "abaixo de 88% dos cartões similares",
+    description: "melhor que 88% dos cartões similares",
     similarCount: 300,
     cohortKey: "GB-CREDIT-BUSINESS",
   },

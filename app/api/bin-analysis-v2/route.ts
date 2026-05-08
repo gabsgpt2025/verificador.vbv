@@ -39,11 +39,6 @@ const analysisRequestSchema = z.object({
     .min(0, "transactionAmount deve ser ≥ 0")
     .optional(),
   transactionCurrency: z.string().optional(),
-  amount: z.number().min(0).optional(),
-  currency: z.string().optional(),
-  mcc: z.string().optional(),
-  userAgent: z.string().nullable().optional(),
-  ipAddress: z.string().nullable().optional(),
   merchantCountry: z.string().optional(),
   isFirstTransaction: z.boolean().optional(),
 })
@@ -119,13 +114,13 @@ function resolveTransactionContext(request: NextRequest, payload: AnalysisReques
   const context = payload.context ?? {}
 
   return {
-    amount: context.amount ?? payload.amount ?? payload.transactionAmount,
-    currency: context.currency ?? payload.currency ?? payload.transactionCurrency ?? "BRL",
+    amount: context.amount ?? payload.transactionAmount,
+    currency: context.currency ?? payload.transactionCurrency ?? "BRL",
     merchantCountry: context.merchantCountry ?? payload.merchantCountry,
-    mcc: context.mcc ?? payload.mcc,
+    mcc: context.mcc,
     timestamp: context.timestamp ?? Date.now(),
-    userAgent: context.userAgent ?? payload.userAgent ?? userAgent,
-    ipAddress: context.ipAddress ?? payload.ipAddress ?? geo.ipAddress,
+    userAgent: context.userAgent ?? userAgent,
+    ipAddress: context.ipAddress ?? geo.ipAddress,
     ipCountryCode: context.ipCountryCode ?? geo.ipCountry ?? fallbackCountry,
     isFirstTransaction: context.isFirstTransaction ?? payload.isFirstTransaction,
   }

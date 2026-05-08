@@ -12,7 +12,9 @@ function sanitize(value: string) {
 
 export function redactUserAgent(userAgent?: string | null) {
   if (!userAgent) return "n/a"
-  return sanitize(userAgent).slice(0, 30)
+  return sanitize(userAgent)
+    .replace(/\d/g, "x")
+    .slice(0, 30)
 }
 
 function detectDeviceType(userAgent: string): DeviceType {

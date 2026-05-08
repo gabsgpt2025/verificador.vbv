@@ -26,7 +26,7 @@ describe("comparePeer", () => {
 
   it("retorna descrição textual no formato esperado", () => {
     const result = comparePeer(makeBin({ countryCode: "GB", type: "CREDIT", category: "PLATINUM" }), 55)
-    expect(result.description).toContain("abaixo de")
+    expect(result.description).toContain("melhor que")
     expect(result.description).toContain("% dos cartões similares")
   })
 

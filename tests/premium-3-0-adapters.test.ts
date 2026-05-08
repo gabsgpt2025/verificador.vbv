@@ -76,7 +76,7 @@ function makeAnalysis(overrides: Partial<FullBinAnalysis> = {}): FullBinAnalysis
     },
     peerComparison: {
       percentile: 65,
-      description: "abaixo de 65% dos cartões similares",
+      description: "melhor que 65% dos cartões similares",
       similarCount: 240,
       cohortKey: "BR-CREDIT-GOLD",
     },

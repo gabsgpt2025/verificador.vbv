@@ -134,7 +134,7 @@ describe("/api/bin-analysis-v2 route", () => {
       },
       peerComparison: {
         percentile: 90,
-        description: "abaixo de 90% dos cartões similares",
+        description: "melhor que 90% dos cartões similares",
         similarCount: 250,
         cohortKey: "US-CREDIT-UNKNOWN",
       },
@@ -158,7 +158,7 @@ describe("/api/bin-analysis-v2 route", () => {
         gatewayRisk: { score: 20, weight: 15, factors: [], explanation: { technical: "t", popular: "p" }, dataAvailable: true },
       },
     })
-    comparePeerMock.mockReturnValue({ percentile: 90, description: "abaixo de 90% dos cartões similares", similarCount: 250, cohortKey: "US-CREDIT-UNKNOWN" })
+    comparePeerMock.mockReturnValue({ percentile: 90, description: "melhor que 90% dos cartões similares", similarCount: 250, cohortKey: "US-CREDIT-UNKNOWN" })
     saveBinAnalysisLogMock.mockResolvedValue(undefined)
     subtractCreditsMock.mockResolvedValue({ success: true, message: "ok", newBalance: 7 })
   })

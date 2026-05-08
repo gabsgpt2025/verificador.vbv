@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest"
 
 import { enrichTemporal } from "@/lib/premium-3-0/enrichment/temporalEnrichment"
 
-describe("temporalEnrichment", () => {
+describe("enrichTemporal", () => {
   it("aplica +25 na madrugada (00-05h)", () => {
     const result = enrichTemporal(Date.UTC(2026, 4, 11, 3, 0, 0))
     expect(result.hour).toBe(3)

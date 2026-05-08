@@ -13,7 +13,12 @@ function clamp(value: number, min: number, max: number) {
 }
 
 function hashText(input: string) {
-  return input.split("").reduce((acc, char) => acc + char.charCodeAt(0), 0)
+  let hash = 2166136261
+  for (let index = 0; index < input.length; index += 1) {
+    hash ^= input.charCodeAt(index)
+    hash = Math.imul(hash, 16777619)
+  }
+  return Math.abs(hash >>> 0)
 }
 
 export function comparePeer(binData: BinApiData, overallScore: number): PeerComparison {
@@ -29,7 +34,7 @@ export function comparePeer(binData: BinApiData, overallScore: number): PeerComp
   const similarCount = 120 + (hashText(cohortKey + String(overallScore)) % 780)
 
   const tierLabel = COUNTRY_RISK_TIER[country] ?? "MEDIUM"
-  const description = `abaixo de ${percentile}% dos cartões similares (tier ${tierLabel})`
+  const description = `melhor que ${percentile}% dos cartões similares (tier ${tierLabel})`
 
   return {
     percentile,
