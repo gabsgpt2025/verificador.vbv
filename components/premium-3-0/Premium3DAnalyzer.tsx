@@ -1,5 +1,6 @@
 'use client'
 
+import { useRouter } from 'next/navigation'
 import React, { useCallback, useEffect, useMemo, useState } from 'react'
 import {
   AlertCircle,
@@ -185,8 +186,7 @@ function clampPercentile(value: number) {
   return Math.min(Math.max(value, 0), 100)
 }
 
-function toTitleCase(label: string) {
-  if (label !== label.toUpperCase()) return label
+function capitalizeWords(label: string) {
   return label
     .toLowerCase()
     .replace(/\b\w/g, (char) => char.toUpperCase())
@@ -244,6 +244,7 @@ export function buildAnalysisRequestBody(bin: string, contextValues: Transaction
 }
 
 export function Premium3DAnalyzer({ initialAnalysis = null, initialHistory = [] }: Premium3DAnalyzerProps) {
+  const router = useRouter()
   const [languageMode, setLanguageMode] = useState<LanguageModeKey>('popular')
   const [cardNumber, setCardNumber] = useState('')
   const [contextValues, setContextValues] = useState<TransactionContextFormValue>({
@@ -324,9 +325,7 @@ export function Premium3DAnalyzer({ initialAnalysis = null, initialHistory = [] 
           toast.warning('Crédito insuficiente', {
             action: {
               label: 'Ir para créditos',
-              onClick: () => {
-                window.location.href = '/dashboard/credits'
-              },
+              onClick: () => router.push('/dashboard/credits'),
             },
           })
         } else {
@@ -345,7 +344,7 @@ export function Premium3DAnalyzer({ initialAnalysis = null, initialHistory = [] 
     } finally {
       setLoading(false)
     }
-  }, [cardNumber, contextValues, fetchHistory])
+  }, [cardNumber, contextValues, fetchHistory, router])
 
   const riskDimensions = useMemo(() => {
     if (!analysis) return [] as RadarDimension[]
@@ -645,15 +644,13 @@ export function Premium3DAnalyzer({ initialAnalysis = null, initialHistory = [] 
                         <ul className="space-y-2">
                           {dimension.value.factors.map((factor, index) => (
                             <li key={`${dimension.key}-${index}`} className="rounded-md border border-border bg-background p-3">
-                              <div className="flex items-start justify-between gap-3">
-                                <div className="space-y-1">
-                                  {(() => {
-                                    const source = getFactorSource(factor)
-                                    return (
-                                  <div className="flex items-center gap-2">
-                                    {(() => {
-                                      const { Icon: FactorIcon, className, label } = getFactorIcon(factor.impact)
-                                      return (
+                              {(() => {
+                                const source = getFactorSource(factor)
+                                const { Icon: FactorIcon, className, label } = getFactorIcon(factor.impact)
+                                return (
+                                  <div className="flex items-start justify-between gap-3">
+                                    <div className="space-y-1">
+                                      <div className="flex items-center gap-2">
                                         <TooltipProvider>
                                           <Tooltip>
                                             <TooltipTrigger asChild>
@@ -664,19 +661,17 @@ export function Premium3DAnalyzer({ initialAnalysis = null, initialHistory = [] 
                                             <TooltipContent>{formatFactorText(factor, languageMode)}</TooltipContent>
                                           </Tooltip>
                                         </TooltipProvider>
-                                      )
-                                    })()}
-                                    <p className="text-sm font-medium">{toTitleCase(factor.label)}</p>
-                                    {source ? <Badge variant="info">{source}</Badge> : null}
-                                  </div>
-                                    )
-                                  })()}
+                                        <p className="text-sm font-medium">{capitalizeWords(factor.label)}</p>
+                                        {source ? <Badge variant="info">{source}</Badge> : null}
+                                      </div>
                                   <p className="text-xs text-fg-muted">{formatFactorText(factor, languageMode)}</p>
                                 </div>
                                 <span className={`text-sm font-semibold ${factor.impact > 0 ? 'text-destructive' : factor.impact < 0 ? 'text-primary' : 'text-muted-foreground'}`}>
                                   {formatImpact(factor.impact)}
                                 </span>
-                              </div>
+                                  </div>
+                                )
+                              })()}
                             </li>
                           ))}
                         </ul>
@@ -688,7 +683,7 @@ export function Premium3DAnalyzer({ initialAnalysis = null, initialHistory = [] 
             </CardContent>
           </Card>
 
-            <Card className="border-border bg-card">
+            <Card variant="surface">
               <CardHeader>
                 <CardTitle className="text-lg font-semibold">Resumo técnico do BIN</CardTitle>
               </CardHeader>
