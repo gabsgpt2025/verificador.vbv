@@ -1,8 +1,9 @@
+// [DESIGN-SYSTEM] Página-piloto refatorada para tokens semânticos (Fase 1).
+// Demais páginas serão migradas nas Fases 4.x conforme docs/design/README.md
 import { requireAuth, getUserProfile } from "@/lib/auth"
 import { createClient } from "@/lib/supabase/server"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { CyberStatsCard } from "@/components/cyberpunk/cyber-stats-card"
-import { CyberHeading, CyberText } from "@/components/cyberpunk/cyber-typography"
+import { StatsCard } from "./_components/stats-card"
 import { CreditCard, Activity, TrendingUp, Shield, Clock, CheckCircle } from "lucide-react"
 import { DashboardHeader } from "@/components/dashboard/dashboard-header"
 import { BinVerificationWidget } from "@/components/dashboard/bin-verification-widget"
@@ -31,60 +32,60 @@ export default async function DashboardPage() {
   const creditsUsed = verifications?.reduce((sum, v) => sum + v.credits_used, 0) || 0
 
   return (
-    <div className="min-h-screen bg-background">
+    <div className="min-h-screen bg-bg-app">
       <DashboardHeader user={user} profile={profile} />
 
       <main className="container mx-auto px-4 py-8">
         <div className="mb-8">
-          <CyberHeading level={2} className="mb-2">
-            WELCOME BACK, {profile?.full_name || user.email}
-          </CyberHeading>
-          <CyberText color="muted">Here's what's happening with your BIN verifications today.</CyberText>
+          <h2 className="text-2xl font-semibold text-fg tracking-wide mb-2">
+            Welcome back, {profile?.full_name || user.email}
+          </h2>
+          <p className="text-sm text-fg-muted">Here's what's happening with your BIN verifications today.</p>
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-          <CyberStatsCard
-            title="AVAILABLE CREDITS"
+          <StatsCard
+            title="Available Credits"
             value={profile?.credits || 0}
             change={`${creditsUsed} used this month`}
             changeType="neutral"
-            icon={<CreditCard className="h-5 w-5" />}
+            icon={<CreditCard className="h-5 w-5" aria-label="Credits icon" />}
           />
 
-          <CyberStatsCard
-            title="TOTAL VERIFICATIONS"
+          <StatsCard
+            title="Total Verifications"
             value={totalVerifications}
             change="All time verifications"
             changeType="positive"
-            icon={<Shield className="h-5 w-5" />}
+            icon={<Shield className="h-5 w-5" aria-label="Shield icon" />}
           />
 
-          <CyberStatsCard
-            title="SUCCESS RATE"
+          <StatsCard
+            title="Success Rate"
             value="99.2%"
             change="Last 30 days"
             changeType="positive"
-            icon={<TrendingUp className="h-5 w-5" />}
+            icon={<TrendingUp className="h-5 w-5" aria-label="Trending up icon" />}
           />
 
-          <CyberStatsCard
-            title="ACCOUNT STATUS"
-            value={profile?.is_active ? "ACTIVE" : "INACTIVE"}
+          <StatsCard
+            title="Account Status"
+            value={profile?.is_active ? "Active" : "Inactive"}
             change={profile?.role === "admin" ? "Administrator" : "Standard User"}
             changeType={profile?.is_active ? "positive" : "negative"}
-            icon={<CheckCircle className="h-5 w-5" />}
+            icon={<CheckCircle className="h-5 w-5" aria-label="Account status icon" />}
           />
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
           <div className="lg:col-span-2">
-            <Card>
+            <Card className="bg-bg-surface border border-border-subtle rounded-lg shadow-sm">
               <CardHeader>
-                <CardTitle className="flex items-center space-x-2 font-mono text-primary neon-glow">
-                  <Shield className="h-5 w-5 text-primary" />
-                  <span>BIN VERIFICATION</span>
+                <CardTitle className="flex items-center space-x-2 text-lg font-semibold text-fg">
+                  <Shield className="h-5 w-5 text-ds-accent" aria-hidden="true" />
+                  <span>BIN Verification</span>
                 </CardTitle>
-                <CardDescription className="font-mono">
+                <CardDescription className="text-fg-muted text-sm">
                   Enter a BIN number to get detailed card information
                 </CardDescription>
               </CardHeader>
@@ -95,33 +96,34 @@ export default async function DashboardPage() {
           </div>
 
           <div>
-            <Card>
+            <Card className="bg-bg-surface border border-border-subtle rounded-lg shadow-sm">
               <CardHeader>
-                <CardTitle className="flex items-center space-x-2 font-mono text-secondary neon-glow">
-                  <Activity className="h-5 w-5 text-secondary" />
-                  <span>RECENT ACTIVITY</span>
+                <CardTitle className="flex items-center space-x-2 text-lg font-semibold text-fg">
+                  <Activity className="h-5 w-5 text-ds-accent" aria-hidden="true" />
+                  <span>Recent Activity</span>
                 </CardTitle>
               </CardHeader>
               <CardContent>
-                <div className="space-y-4">
+                <div className="space-y-3">
                   {recentActivity && recentActivity.length > 0 ? (
                     recentActivity.map((activity) => (
-                      <div key={activity.id} className="flex items-start space-x-3 p-3 cyber-card">
-                        <div className="p-1 bg-primary/20 rounded-full border border-primary/30">
-                          <Clock className="h-3 w-3 text-primary" />
+                      <div
+                        key={activity.id}
+                        className="flex items-start space-x-3 p-3 bg-bg-surface-elevated border border-border-subtle rounded-lg"
+                      >
+                        <div className="p-1 bg-ds-accent/10 rounded-full border border-ds-accent/20 flex-shrink-0">
+                          <Clock className="h-3 w-3 text-ds-accent" aria-hidden="true" />
                         </div>
                         <div className="flex-1 min-w-0">
-                          <CyberText variant="caption" className="font-medium">
-                            {activity.activity_description}
-                          </CyberText>
-                          <CyberText variant="caption" color="muted">
+                          <p className="text-xs font-medium text-fg">{activity.activity_description}</p>
+                          <p className="text-xs text-fg-muted">
                             {new Date(activity.created_at).toLocaleDateString()}
-                          </CyberText>
+                          </p>
                         </div>
                       </div>
                     ))
                   ) : (
-                    <CyberText color="muted">No recent activity</CyberText>
+                    <p className="text-sm text-fg-muted">No recent activity</p>
                   )}
                 </div>
               </CardContent>
@@ -131,35 +133,36 @@ export default async function DashboardPage() {
 
         {verifications && verifications.length > 0 && (
           <div className="mt-8">
-            <Card>
+            <Card className="bg-bg-surface border border-border-subtle rounded-lg shadow-sm">
               <CardHeader>
-                <CardTitle className="font-mono text-accent neon-glow">RECENT VERIFICATIONS</CardTitle>
-                <CardDescription className="font-mono">Your latest BIN verification results</CardDescription>
+                <CardTitle className="text-lg font-semibold text-fg">Recent Verifications</CardTitle>
+                <CardDescription className="text-fg-muted text-sm">
+                  Your latest BIN verification results
+                </CardDescription>
               </CardHeader>
               <CardContent>
-                <div className="space-y-4">
+                <div className="space-y-3">
                   {verifications.map((verification) => (
-                    <div key={verification.id} className="flex items-center justify-between p-4 cyber-card">
+                    <div
+                      key={verification.id}
+                      className="flex items-center justify-between p-4 bg-bg-surface-elevated border border-border-subtle rounded-lg hover:bg-bg-surface-hover transition-colors"
+                    >
                       <div className="flex items-center space-x-4">
-                        <div className="p-2 bg-primary/20 rounded-lg border border-primary/30">
-                          <CreditCard className="h-4 w-4 text-primary" />
+                        <div className="p-2 bg-ds-accent/10 rounded-lg border border-ds-accent/20">
+                          <CreditCard className="h-4 w-4 text-ds-accent" aria-hidden="true" />
                         </div>
                         <div>
-                          <CyberText variant="body" className="font-medium">
-                            BIN: {verification.bin_number}
-                          </CyberText>
-                          <CyberText variant="caption" color="muted">
-                            {verification.card_brand} • {verification.card_type}
-                          </CyberText>
+                          <p className="text-sm font-medium text-fg">BIN: {verification.bin_number}</p>
+                          <p className="text-xs text-fg-muted">
+                          {verification.card_brand} {'•'} {verification.card_type}
+                          </p>
                         </div>
                       </div>
                       <div className="text-right">
-                        <CyberText variant="caption" className="font-medium">
-                          {verification.credits_used} credit
-                        </CyberText>
-                        <CyberText variant="caption" color="muted">
+                        <p className="text-xs font-medium text-fg">{verification.credits_used} credit</p>
+                        <p className="text-xs text-fg-muted">
                           {new Date(verification.created_at).toLocaleDateString()}
-                        </CyberText>
+                        </p>
                       </div>
                     </div>
                   ))}
