@@ -1,3 +1,5 @@
+import { getEnv } from "@/lib/env"
+import { fetchIpBlocklistDetailed, fetchIpInfoDetailed } from "@/lib/premium-3-0/neutrino"
 import type { BinRiskFactor } from "../types"
 
 export type CountryRiskTier = "TIER1" | "TIER2" | "TIER3" | "CRITICAL"
@@ -50,6 +52,12 @@ const TIER2_COUNTRIES = new Set([
 ])
 
 const CRITICAL_COUNTRIES = new Set(["NG", "VE", "PK", "BD", "KE", "GH", "CM", "RO", "UA", "BY", "RU", "IR", "KP"])
+
+export const COUNTRY_RISK_TIER = {
+  TIER1_COUNTRIES,
+  TIER2_COUNTRIES,
+  CRITICAL_COUNTRIES,
+}
 
 const BASE_SCORE_BY_TIER: Record<CountryRiskTier, number> = {
   TIER1: 15,
@@ -108,11 +116,45 @@ export function getCountryRiskTier(countryCode?: string | null): CountryRiskTier
   return "TIER3"
 }
 
-export function enrichGeo(binCountryCode: string, requestIp: string | null, requestCountryHeader: string | null) {
+type LegacyGeoInput = {
+  ipCountry?: string | null
+}
+
+function resolveGeoInputs(requestIpOrLegacy: string | LegacyGeoInput | null | undefined, requestCountryHeader?: string | null) {
+  if (requestIpOrLegacy && typeof requestIpOrLegacy === "object") {
+    return {
+      requestIp: null,
+      requestCountry: requestIpOrLegacy.ipCountry ?? null,
+    }
+  }
+
+  return {
+    requestIp: requestIpOrLegacy ?? null,
+    requestCountry: requestCountryHeader ?? null,
+  }
+}
+
+export async function enrichGeo(
+  binCountryCode: string,
+  requestIpOrLegacy?: string | LegacyGeoInput | null,
+  requestCountryHeader?: string | null,
+) {
+  const env = getEnv()
+  const { requestIp, requestCountry } = resolveGeoInputs(requestIpOrLegacy, requestCountryHeader)
+
   const normalizedBinCountry = normalizeCountryCode(binCountryCode)
-  const ipCountryCode = normalizeCountryCode(requestCountryHeader)
   const countryRiskTier = getCountryRiskTier(normalizedBinCountry)
   const factors: BinRiskFactor[] = []
+  const sourcesUsed: string[] = []
+  let ipCountryCode = normalizeCountryCode(requestCountry)
+  let ipCity: string | null = null
+  let ipRegion: string | null = null
+  let ipIsHosting: boolean | null = null
+  let ipIsVpn: boolean | null = null
+  let ipIsProxy: boolean | null = null
+  let ipIsTor: boolean | null = null
+  let ipIsBogon: boolean | null = null
+  let ipBlocklistHits: string[] = []
   let score = normalizedBinCountry ? BASE_SCORE_BY_TIER[countryRiskTier] : 50
 
   if (normalizedBinCountry) {
@@ -127,6 +169,75 @@ export function enrichGeo(binCountryCode: string, requestIp: string | null, requ
       impact: 20,
       reason: "Sem país de emissão, o risco geográfico fica em faixa conservadora por falta de contexto.",
     })
+  }
+
+  const canUseIpInfo = Boolean(env.NEUTRINO_IP_INFO_ENABLED && requestIp)
+  const canUseIpBlocklist = Boolean(env.NEUTRINO_IP_BLOCKLIST_ENABLED && requestIp)
+
+  if (canUseIpInfo || canUseIpBlocklist) {
+    try {
+      const [ipInfoResult, ipBlocklistResult] = await Promise.all([
+        canUseIpInfo ? fetchIpInfoDetailed({ ip: requestIp! }) : Promise.resolve(null),
+        canUseIpBlocklist ? fetchIpBlocklistDetailed({ ip: requestIp! }) : Promise.resolve(null),
+      ])
+
+      if (ipInfoResult) {
+        ipCountryCode = normalizeCountryCode(ipInfoResult.data.country_code ?? null) ?? ipCountryCode
+        ipCity = ipInfoResult.data.city ?? null
+        ipRegion = ipInfoResult.data.region ?? null
+        ipIsHosting = ipInfoResult.data.is_hosting ?? null
+        ipIsVpn = ipInfoResult.data.is_vpn ?? null
+        ipIsProxy = ipInfoResult.data.is_proxy ?? null
+        ipIsTor = ipInfoResult.data.is_tor ?? null
+        ipIsBogon = ipInfoResult.data.is_bogon ?? null
+
+        if (ipInfoResult.meta.networkSuccess) {
+          sourcesUsed.push("neutrino-ip-info")
+        }
+      }
+
+      if (ipBlocklistResult) {
+        ipBlocklistHits = ipBlocklistResult.data.blocklists ?? []
+        if (ipBlocklistResult.meta.networkSuccess) {
+          sourcesUsed.push("neutrino-ip-blocklist")
+        }
+      }
+
+      const neurinoRiskBoost = ipBlocklistHits.length > 0
+        ? 30
+        : ipIsProxy || ipIsVpn || ipIsTor
+          ? 20
+          : ipIsHosting
+            ? 15
+            : ipIsBogon
+              ? 10
+              : 0
+
+      if (neurinoRiskBoost > 0) {
+        score += neurinoRiskBoost
+        factors.push({
+          label: "Sinal de risco por inteligência real de IP",
+          impact: neurinoRiskBoost,
+          reason:
+            ipBlocklistHits.length > 0
+              ? `IP listado em blocklists: ${ipBlocklistHits.join(", ")}.`
+              : ipIsProxy || ipIsVpn || ipIsTor
+                ? "IP com sinal de proxy/VPN/Tor."
+                : ipIsHosting
+                  ? "IP de infraestrutura de hosting."
+                  : "IP classificado como bogon.",
+        })
+      }
+    } catch (error) {
+      console.warn("[geo-enrichment] neutrino_ip_unavailable", {
+        message: error instanceof Error ? error.message : String(error),
+      })
+      factors.push({
+        label: "neutrino_ip_unavailable",
+        impact: 0,
+        reason: "IP enrichment indisponível, usando heurística local",
+      })
+    }
   }
 
   if (normalizedBinCountry && ipCountryCode && normalizedBinCountry === ipCountryCode) {
@@ -161,9 +272,21 @@ export function enrichGeo(binCountryCode: string, requestIp: string | null, requ
 
   return {
     ipCountryCode,
+    ipCountry: ipCountryCode,
+    ipCity,
+    ipRegion,
+    ipIsHosting,
+    ipIsVpn,
+    ipIsProxy,
+    ipIsTor,
+    ipIsBogon,
+    ipBlocklistHits,
     ipCountryMatch: Boolean(normalizedBinCountry && ipCountryCode && normalizedBinCountry === ipCountryCode),
+    ipCountryTier: countryRiskTier.toLowerCase(),
+    distanceKm: null,
     countryRiskTier,
     score: clamp(score, 0, 100),
     factors,
+    sourcesUsed,
   }
 }

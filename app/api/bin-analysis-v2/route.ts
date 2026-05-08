@@ -6,7 +6,7 @@ import { normalizeNeutrinoBinResponse } from "@/lib/premium-3-0/normalizeBinApiR
 import { applyBinOverrides } from "@/lib/premium-3-0/applyBinOverrides"
 import { runFullBinAnalysis, runHolisticAnalysis } from "@/lib/premium-3-0"
 import { saveBinAnalysisLog } from "@/lib/premium-3-0/saveBinAnalysisLog"
-import { callNeutrinoApi } from "@/lib/premium-3-0/neutrino-api"
+import { fetchBinLookupDetailed } from "@/lib/premium-3-0/neutrino-api"
 import { computePeerComparison } from "@/lib/premium-3-0/peerComparison"
 import type { BinApiData, FullBinAnalysis } from "@/lib/premium-3-0/types"
 import type { AnalysisRequest, ValidationResult } from "@/lib/premium-3-0/holisticTypes"
@@ -28,6 +28,7 @@ const analysisRequestSchema = z.object({
       merchantCountry: z.string().optional(),
       merchantCategoryCode: z.string().optional(),
       mcc: z.string().optional(),
+      merchantHost: z.string().optional(),
       timestamp: z.number().optional(),
       userAgent: z.string().nullable().optional(),
       ipAddress: z.string().nullable().optional(),
@@ -42,6 +43,7 @@ const analysisRequestSchema = z.object({
   transactionCurrency: z.string().optional(),
   merchantCountry: z.string().optional(),
   mcc: z.string().optional(),
+  merchantHost: z.string().optional(),
   isFirstTransaction: z.boolean().optional(),
 })
 
@@ -132,6 +134,7 @@ function resolveTransactionContext(request: NextRequest, payload: AnalysisReques
     merchantCountry: context.merchantCountry ?? payload.merchantCountry,
     merchantCategoryCode: context.merchantCategoryCode,
     mcc: resolveMcc(payload),
+    merchantHost: context.merchantHost ?? payload.merchantHost,
     timestamp: context.timestamp ?? Date.now(),
     userAgent: context.userAgent ?? userAgent,
     ipAddress: context.ipAddress ?? forwardedFor,
@@ -146,6 +149,7 @@ function buildSafeContextEcho(context: TransactionContext) {
     currency: context.currency,
     merchantCountry: context.merchantCountry,
     merchantCategoryCode: context.merchantCategoryCode,
+    merchantHost: context.merchantHost,
     timestamp: context.timestamp,
     ipCountryCode: context.ipCountryCode ?? null,
     isFirstTransaction: context.isFirstTransaction ?? null,
@@ -188,9 +192,13 @@ export async function POST(request: NextRequest) {
 
     // Chama API real da Neutrino para análise de BIN
     let binData: BinApiData
+    const sourcesUsed = new Set<string>()
     try {
-      const neutrinoResponse = await callNeutrinoApi(cleanBin)
-      binData = normalizeNeutrinoBinResponse(neutrinoResponse, cleanBin)
+      const neutrinoResponse = await fetchBinLookupDetailed(cleanBin)
+      if (neutrinoResponse.meta.networkSuccess) {
+        sourcesUsed.add("neutrino-bin")
+      }
+      binData = normalizeNeutrinoBinResponse(neutrinoResponse.data, cleanBin)
     } catch (error) {
       const status = isTimeoutError(error) ? 504 : 502
       console.error("[bin-analysis-v2] Neutrino upstream failure", {
@@ -215,7 +223,10 @@ export async function POST(request: NextRequest) {
 
     // Executa análise completa
     const analysis: FullBinAnalysis = runFullBinAnalysis(binDataWithOverrides, resolvedContext)
-    const holistic = runHolisticAnalysis(binDataWithOverrides, resolvedContext)
+    const holistic = await runHolisticAnalysis(binDataWithOverrides, resolvedContext)
+    for (const source of holistic.sourcesUsed ?? []) {
+      sourcesUsed.add(source)
+    }
     const peerComparison = computePeerComparison(binDataWithOverrides)
 
     // Salva log interno (somente para usuários autenticados)
@@ -250,6 +261,9 @@ export async function POST(request: NextRequest) {
       holistic,
       peerComparison,
       context: buildSafeContextEcho(resolvedContext),
+      metadata: {
+        sourcesUsed: Array.from(sourcesUsed),
+      },
     })
   } catch (error) {
     console.error("[bin-analysis-v2] Unexpected error", {

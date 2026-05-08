@@ -14,11 +14,13 @@ export interface TransactionContext {
   merchantCountry?: string
   merchantCategoryCode?: string
   mcc?: string
+  merchantHost?: string
   timestamp: number
   userAgent?: string | null
   ipAddress?: string | null
   ipCountryCode?: string | null
   isFirstTransaction?: boolean
+  history?: Array<{ bin: string; timestamp: number; countryCode?: string | null }>
 }
 
 export interface HolisticDimensionScore {
@@ -41,7 +43,40 @@ export interface HolisticScore {
   recommendation: "APPROVE" | "REVIEW" | "REQUIRE_3DS" | "BLOCK_PREVENTIVELY" | "INSUFFICIENT_DATA"
   ensembleConfidence: number
   peerComparison: { percentile: number; description: string }
+  sourcesUsed?: string[]
+  neutrinoContext?: {
+    geographic: {
+      ipCountryCode: string | null
+      ipCity: string | null
+      ipRegion: string | null
+      ipIsHosting: boolean | null
+      ipIsVpn: boolean | null
+      ipIsProxy: boolean | null
+      ipIsTor: boolean | null
+      ipIsBogon: boolean | null
+      ipBlocklistHits: string[]
+    }
+    device: {
+      browserName: string | null
+      browserVersion: string | null
+      osName: string | null
+      osVersion: string | null
+      deviceModel: string | null
+      deviceManufacturer: string | null
+      isBot: boolean | null
+      botCategory: string | null
+    }
+    gateway: {
+      merchantHost: string | undefined
+      hostReputation: number | null
+      hostListed: boolean | null
+      hostLists: string[] | null
+    }
+  }
 }
+
+export type HolisticContext = TransactionContext
+export type HolisticRiskAnalysis = HolisticScore
 
 const WEIGHTS = {
   binRisk: 0.3,
@@ -61,6 +96,21 @@ function normalizeScore(value: number, min = 0) {
 }
 
 function buildBehavioralRisk(context: Partial<TransactionContext>): Omit<HolisticDimensionScore, "weight" | "explanation" | "dataAvailable"> {
+  const historyCount = context.history?.length ?? 0
+
+  if (historyCount >= 4) {
+    return {
+      score: 75,
+      factors: [
+        {
+          label: "Alta velocidade transacional",
+          impact: 35,
+          reason: `Foram observadas ${historyCount} transações recentes no histórico informado.`,
+        },
+      ],
+    }
+  }
+
   if (context.isFirstTransaction !== false) {
     return {
       score: 40,
@@ -83,6 +133,45 @@ function buildBehavioralRisk(context: Partial<TransactionContext>): Omit<Holisti
         reason: "Quando a transação não é a primeira, o risco comportamental base cai para patamar moderado.",
       },
     ],
+  }
+}
+
+function buildTemporalRisk(timestamp: number) {
+  const temporal = enrichTemporal(timestamp)
+  const factors: BinRiskFactor[] = []
+  let score = 20
+
+  if (temporal.isNightTime) {
+    score += 25
+    factors.push({
+      label: "Transação em horário noturno",
+      impact: 25,
+      reason: "Horários noturnos elevam risco operacional e probabilidade de fraude oportunista.",
+    })
+  }
+
+  if (temporal.isWeekend) {
+    score += 10
+    factors.push({
+      label: "Transação em fim de semana",
+      impact: 10,
+      reason: "Fins de semana costumam ter menor capacidade operacional de revisão manual.",
+    })
+  }
+
+  if (temporal.isBusinessHours && !temporal.isNightTime) {
+    score -= 5
+    factors.push({
+      label: "Horário comercial",
+      impact: -5,
+      reason: "Horário comercial tende a ter melhor previsibilidade e monitoramento.",
+    })
+  }
+
+  return {
+    ...temporal,
+    score: normalizeScore(score),
+    factors,
   }
 }
 
@@ -160,31 +249,37 @@ function buildBinRisk(binData: BinApiData, context: Partial<TransactionContext>)
   return { score: normalizeScore(score, 5), factors }
 }
 
-export function runHolisticAnalysis(binData: BinApiData, context: Partial<TransactionContext>): HolisticScore {
+export async function runHolisticAnalysis(binData: BinApiData, context: Partial<TransactionContext>): Promise<HolisticScore> {
   const normalizedContext: Partial<TransactionContext> = {
     ...context,
     timestamp: typeof context?.timestamp === "number" ? context.timestamp : 0,
   }
 
   const binRisk = buildBinRisk(binData, normalizedContext)
-  const temporalRiskRaw = enrichTemporal(normalizedContext.timestamp ?? 0)
+  const temporalRiskRaw = buildTemporalRisk(normalizedContext.timestamp ?? 0)
   const behavioralRisk = buildBehavioralRisk(normalizedContext)
-  const geographicRisk = enrichGeo(
-    binData.countryCode ?? "",
-    normalizedContext.ipAddress ?? null,
-    normalizedContext.ipCountryCode ?? null,
-  )
-  const deviceRiskRaw = enrichDevice(normalizedContext.userAgent)
-  const gatewayRiskRaw = enrichGateway({
-    amount: normalizedContext.amount,
-    currency: normalizedContext.currency,
-    mcc: normalizedContext.mcc ?? normalizedContext.merchantCategoryCode,
-  })
+
+  const [geographicRisk, deviceRiskRaw, gatewayRiskRaw] = await Promise.all([
+    enrichGeo(binData.countryCode ?? "", normalizedContext.ipAddress ?? null, normalizedContext.ipCountryCode ?? null),
+    enrichDevice(normalizedContext.userAgent),
+    enrichGateway({
+      amount: normalizedContext.amount,
+      currency: normalizedContext.currency,
+      mcc: normalizedContext.mcc ?? normalizedContext.merchantCategoryCode,
+      merchantHost: normalizedContext.merchantHost,
+    }),
+  ])
+
+  const sourcesUsed = [
+    ...(geographicRisk.sourcesUsed ?? []),
+    ...(deviceRiskRaw.sourcesUsed ?? []),
+    ...(gatewayRiskRaw.sourcesUsed ?? []),
+  ]
 
   const binDataAvailable = Boolean(binData.brand || binData.countryCode || binData.issuer)
   const temporalDataAvailable = (normalizedContext.timestamp ?? 0) > 0
-  const behavioralDataAvailable = typeof normalizedContext.isFirstTransaction === "boolean"
-  const geoDataAvailable = Boolean(binData.countryCode || normalizedContext.ipCountryCode)
+  const behavioralDataAvailable = typeof normalizedContext.isFirstTransaction === "boolean" || (normalizedContext.history?.length ?? 0) > 0
+  const geoDataAvailable = Boolean(binData.countryCode || normalizedContext.ipCountryCode || geographicRisk.ipCountryCode)
   const deviceDataAvailable = Boolean(normalizedContext.userAgent)
   const gatewayDataAvailable = gatewayRiskRaw.dataAvailable
 
@@ -197,7 +292,8 @@ export function runHolisticAnalysis(binData: BinApiData, context: Partial<Transa
     gatewayDataAvailable,
   ].filter(Boolean).length
 
-  const ensembleConfidence = Math.round((dimensionsWithData / 6) * 100)
+  const confidenceBoost = Math.min(25, sourcesUsed.length * 5)
+  const ensembleConfidence = Math.min(100, Math.round((dimensionsWithData / 6) * 100) + confidenceBoost)
 
   const overallScore = normalizeScore(
     binRisk.score * WEIGHTS.binRisk +
@@ -279,5 +375,35 @@ export function runHolisticAnalysis(binData: BinApiData, context: Partial<Transa
     recommendation,
     ensembleConfidence,
     peerComparison: buildPeerComparison(binData, binRisk.score, geographicRisk.score, geographicRisk.countryRiskTier),
+    sourcesUsed,
+    neutrinoContext: {
+      geographic: {
+        ipCountryCode: geographicRisk.ipCountryCode ?? null,
+        ipCity: geographicRisk.ipCity ?? null,
+        ipRegion: geographicRisk.ipRegion ?? null,
+        ipIsHosting: geographicRisk.ipIsHosting ?? null,
+        ipIsVpn: geographicRisk.ipIsVpn ?? null,
+        ipIsProxy: geographicRisk.ipIsProxy ?? null,
+        ipIsTor: geographicRisk.ipIsTor ?? null,
+        ipIsBogon: geographicRisk.ipIsBogon ?? null,
+        ipBlocklistHits: geographicRisk.ipBlocklistHits ?? [],
+      },
+      device: {
+        browserName: deviceRiskRaw.browserName ?? null,
+        browserVersion: deviceRiskRaw.browserVersion ?? null,
+        osName: deviceRiskRaw.osName ?? null,
+        osVersion: deviceRiskRaw.osVersion ?? null,
+        deviceModel: deviceRiskRaw.deviceModel ?? null,
+        deviceManufacturer: deviceRiskRaw.deviceManufacturer ?? null,
+        isBot: deviceRiskRaw.isBot ?? null,
+        botCategory: deviceRiskRaw.botCategory ?? null,
+      },
+      gateway: {
+        merchantHost: normalizedContext.merchantHost,
+        hostReputation: gatewayRiskRaw.hostReputation ?? null,
+        hostListed: gatewayRiskRaw.hostListed ?? null,
+        hostLists: gatewayRiskRaw.hostLists ?? null,
+      },
+    },
   }
 }

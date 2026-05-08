@@ -70,12 +70,17 @@ function buildExplanation(
       ? ` Mecanismos aplicáveis: ${applicableBypassMechanisms.join(", ")}.`
       : " Não há mecanismo de bypass favorável claramente aplicável."
 
-  return (
+  const technical =
     `Análise 3DS inferida para ${issuerText}, ${countryText}. ` +
     `Frictionless estimado em ${frictionlessProbability}% e challenge em ${challengeProbability}% ` +
     `com confiança ${confidence.toLowerCase()}.` +
     mechanismsText
-  )
+
+  const popular =
+    `Estimativa 3DS: ${frictionlessProbability}% de passar sem desafio e ${challengeProbability}% de exigir validação adicional.` +
+    mechanismsText
+
+  return { technical, popular }
 }
 
 export interface ThreeDSExtendedResult {

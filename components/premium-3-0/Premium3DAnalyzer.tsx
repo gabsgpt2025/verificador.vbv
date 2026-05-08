@@ -54,6 +54,9 @@ import type { PeerComparison } from '@/lib/premium-3-0/peerComparison'
 type PremiumAnalysisResponse = FullBinAnalysis & {
   holistic: HolisticScore
   peerComparison?: PeerComparison
+  metadata?: {
+    sourcesUsed?: string[]
+  }
   context: {
     amount?: number
     currency?: string
@@ -65,6 +68,8 @@ type PremiumAnalysisResponse = FullBinAnalysis & {
     userAgentPresent: boolean
   }
 }
+
+const NEUTRINO_TOOLTIP = 'Habilite NEUTRINO_X_ENABLED para esta informação'
 
 function extractApiErrorMessage(payload: ApiErrorPayload | null, status: number) {
   if (!payload) {
@@ -127,6 +132,17 @@ function riskSummary(score: number, mode: LanguageModeKey) {
   if (score < 30) return 'Situação mais tranquila'
   if (score < 60) return 'Vale acompanhar'
   return 'Precisa de bastante cuidado'
+}
+
+function displayOptional(value: string | number | boolean | null | undefined) {
+  if (value === null || value === undefined || value === '') {
+    return (
+      <span title={NEUTRINO_TOOLTIP}>
+        —
+      </span>
+    )
+  }
+  return String(value)
 }
 
 export function Premium3DAnalyzer() {
@@ -474,8 +490,44 @@ export function Premium3DAnalyzer() {
                       </p>
                     </div>
                     <div className="rounded-lg border border-slate-800 bg-slate-950/60 p-3">
+                      <p className="text-xs text-slate-500">Fontes usadas com sucesso</p>
+                      <p>{analysis.metadata?.sourcesUsed?.length ? analysis.metadata.sourcesUsed.join(', ') : '—'}</p>
+                    </div>
+                    <div className="rounded-lg border border-slate-800 bg-slate-950/60 p-3">
+                      <p className="text-xs text-slate-500">Geographic (Neutrino)</p>
+                      <p>IP Country: {displayOptional(analysis.holistic.neutrinoContext?.geographic.ipCountryCode)}</p>
+                      <p>City/Region: {displayOptional(analysis.holistic.neutrinoContext?.geographic.ipCity)} / {displayOptional(analysis.holistic.neutrinoContext?.geographic.ipRegion)}</p>
+                      <p>Hosting: {displayOptional(analysis.holistic.neutrinoContext?.geographic.ipIsHosting)}</p>
+                      <p>Proxy/VPN/Tor/Bogon: {displayOptional(analysis.holistic.neutrinoContext?.geographic.ipIsProxy)} / {displayOptional(analysis.holistic.neutrinoContext?.geographic.ipIsVpn)} / {displayOptional(analysis.holistic.neutrinoContext?.geographic.ipIsTor)} / {displayOptional(analysis.holistic.neutrinoContext?.geographic.ipIsBogon)}</p>
+                      <p>Blocklist hits: {analysis.holistic.neutrinoContext?.geographic.ipBlocklistHits?.length ? analysis.holistic.neutrinoContext.geographic.ipBlocklistHits.join(', ') : <span title={NEUTRINO_TOOLTIP}>—</span>}</p>
+                    </div>
+                    <div className="rounded-lg border border-slate-800 bg-slate-950/60 p-3">
+                      <p className="text-xs text-slate-500">Device (Neutrino)</p>
+                      <p>Browser: {displayOptional(analysis.holistic.neutrinoContext?.device.browserName)} {displayOptional(analysis.holistic.neutrinoContext?.device.browserVersion)}</p>
+                      <p>OS: {displayOptional(analysis.holistic.neutrinoContext?.device.osName)} {displayOptional(analysis.holistic.neutrinoContext?.device.osVersion)}</p>
+                      <p>Device model: {displayOptional(analysis.holistic.neutrinoContext?.device.deviceManufacturer)} {displayOptional(analysis.holistic.neutrinoContext?.device.deviceModel)}</p>
+                      <p>Bot/category: {displayOptional(analysis.holistic.neutrinoContext?.device.isBot)} / {displayOptional(analysis.holistic.neutrinoContext?.device.botCategory)}</p>
+                    </div>
+                    <div className="rounded-lg border border-slate-800 bg-slate-950/60 p-3">
+                      <p className="text-xs text-slate-500">Gateway (Neutrino)</p>
+                      <p>Host reputation: {displayOptional(analysis.holistic.neutrinoContext?.gateway.hostReputation)}</p>
+                      <p>Host listed: {displayOptional(analysis.holistic.neutrinoContext?.gateway.hostListed)}</p>
+                      {analysis.holistic.neutrinoContext?.gateway.merchantHost ? (
+                        <a
+                          href={`https://${analysis.holistic.neutrinoContext.gateway.merchantHost}`}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="text-blue-300 underline"
+                        >
+                          {analysis.holistic.neutrinoContext.gateway.merchantHost}
+                        </a>
+                      ) : (
+                        <span title={NEUTRINO_TOOLTIP}>—</span>
+                      )}
+                    </div>
+                    <div className="rounded-lg border border-slate-800 bg-slate-950/60 p-3">
                       <p className="text-xs text-slate-500">Explicação 3DS</p>
-                      <p>{languageMode === 'TECHNICAL' ? analysis.threeDSAnalysis.explanation : 'O motor estimou o caminho 3DS mais provável com base no emissor, no país e no valor da compra.'}</p>
+                      <p>{languageMode === 'TECHNICAL' ? analysis.threeDSAnalysis.explanation.technical : 'O motor estimou o caminho 3DS mais provável com base no emissor, no país e no valor da compra.'}</p>
                     </div>
                   </CardContent>
                 </Card>

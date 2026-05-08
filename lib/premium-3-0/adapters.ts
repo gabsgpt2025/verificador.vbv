@@ -159,12 +159,31 @@ export function mapFullBinAnalysisToResponse(apiData: FullBinAnalysis): Analysis
       overallRiskScore: apiData?.riskAnalysis?.score ?? 0,
       riskLevel: apiData?.riskAnalysis?.level ?? "MEDIUM",
       riskFactors: {
-        binRisk: apiData?.holistic?.dimensions.binRisk.score ?? apiData?.riskAnalysis?.score ?? 0,
-        temporalRisk: apiData?.holistic?.dimensions.temporalRisk.score ?? 0,
-        behavioralRisk: apiData?.holistic?.dimensions.behavioralRisk.score ?? 0,
-        geographicRisk: apiData?.holistic?.dimensions.geographicRisk.score ?? 0,
-        deviceRisk: apiData?.holistic?.dimensions.deviceRisk.score ?? 0,
-        gatewayRisk: apiData?.holistic?.dimensions.gatewayRisk.score ?? 0,
+        binRisk:
+          apiData?.holistic?.binRisk?.score ??
+          (apiData?.holistic as { dimensions?: { binRisk?: { score?: number } } } | undefined)?.dimensions?.binRisk?.score ??
+          apiData?.riskAnalysis?.score ??
+          0,
+        temporalRisk:
+          apiData?.holistic?.temporalRisk?.score ??
+          (apiData?.holistic as { dimensions?: { temporalRisk?: { score?: number } } } | undefined)?.dimensions?.temporalRisk?.score ??
+          0,
+        behavioralRisk:
+          apiData?.holistic?.behavioralRisk?.score ??
+          (apiData?.holistic as { dimensions?: { behavioralRisk?: { score?: number } } } | undefined)?.dimensions?.behavioralRisk?.score ??
+          0,
+        geographicRisk:
+          apiData?.holistic?.geographicRisk?.score ??
+          (apiData?.holistic as { dimensions?: { geographicRisk?: { score?: number } } } | undefined)?.dimensions?.geographicRisk?.score ??
+          0,
+        deviceRisk:
+          apiData?.holistic?.deviceRisk?.score ??
+          (apiData?.holistic as { dimensions?: { deviceRisk?: { score?: number } } } | undefined)?.dimensions?.deviceRisk?.score ??
+          0,
+        gatewayRisk:
+          apiData?.holistic?.gatewayRisk?.score ??
+          (apiData?.holistic as { dimensions?: { gatewayRisk?: { score?: number } } } | undefined)?.dimensions?.gatewayRisk?.score ??
+          0,
       },
       alerts: [],
       recommendations: {

@@ -198,7 +198,9 @@ export interface AnalysisRequest {
     amount?: number
     currency?: string
     merchantCountry?: string
+    merchantCategoryCode?: string
     mcc?: string
+    merchantHost?: string
     timestamp?: number
     userAgent?: string | null
     ipAddress?: string | null
@@ -208,6 +210,7 @@ export interface AnalysisRequest {
   transactionAmount?: number
   transactionCurrency?: string
   merchantCountry?: string
+  merchantHost?: string
   cardholderCountry?: string
   deviceType?: "MOBILE" | "DESKTOP" | "TABLET" | "UNKNOWN"
   isNewCard?: boolean

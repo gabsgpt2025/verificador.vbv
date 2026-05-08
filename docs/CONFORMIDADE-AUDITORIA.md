@@ -198,11 +198,11 @@
 
 | Item | Status | Doc original dizia | Código real | Arquivo/Linha |
 |---|---|---|---|---|
-| Endpoint Neutrino | ✅ | `https://neutrinoapi.net/bin-lookup` | `const NEUTRINO_BASE_URL = "https://neutrinoapi.net/bin-lookup"` | `lib/premium-3-0/neutrino-api.ts#L9` |
+| Endpoint Neutrino (BIN) | ✅ | `https://neutrinoapi.net/bin-lookup` | `fetchBinLookup()` em `lib/premium-3-0/neutrino/binLookup.ts` | `lib/premium-3-0/neutrino/binLookup.ts` |
+| Endpoints Neutrino adicionais (IP/UA/Host) | ✅ | Não mencionado | `ip-info`, `ip-blocklist`, `ip-probe`, `ua-lookup`, `host-reputation` integrados no motor holístico | `lib/premium-3-0/neutrino/*.ts` |
 | Autenticação via headers | ✅ | `User-ID` + `API-Key` | Confirmado | `lib/premium-3-0/neutrino-api.ts#L42-L44` |
-| Timeout | ⚠️ | Não especificado no doc | `8000ms` por tentativa | `lib/premium-3-0/neutrino-api.ts#L11` |
-| Retries | ➕ | Não mencionado | 3 tentativas, backoff exponencial (300ms) | `lib/premium-3-0/neutrino-api.ts#L12-L13` |
-| Rate limit interno | ➕ | Não mencionado | Mínimo 120ms entre chamadas | `lib/premium-3-0/neutrino-api.ts#L14` |
+| Timeout / retries / breaker / cache | ✅ | Não especificado no doc | `resilientFetch` por endpoint com cache + circuit breaker + retry (2 tentativas) | `lib/premium-3-0/neutrino/client.ts` |
+| Feature flags de custo | ✅ | Não mencionado | Flags `NEUTRINO_*_ENABLED` com default OFF em `lib/env.ts` | `lib/env.ts`, `.env.example` |
 
 ### 7.2 Mastercard API
 
@@ -343,10 +343,10 @@
 
 | Item | Ação sugerida |
 |---|---|
-| Conflito entre `008_bin_analysis_v2_tables.sql` e `010_bin_intelligence_tables.sql` | Criar migration de consolidação (drop e recreate com schema canônico) |
-| Campo `result JSONB` em `bin_analysis_logs` (script em `saveBinAnalysisLog.ts`) | Validar se a coluna existe no schema — não aparece na migration `010` |
-| Perfis de banco (Nubank, Inter, etc.) | Documentar como "não implementado" ou criar tabela `issuer_profiles` |
-| KPIs declarados no doc (tempo médio, taxa de bloqueio, cobertura por país) | Implementar via query na tabela `bin_analysis_logs` |
+| Conflito entre `008_bin_analysis_v2_tables.sql` e `010_bin_intelligence_tables.sql` | ✅ Endereçado em fase anterior (fora deste PR) |
+| Campo `result JSONB` em `bin_analysis_logs` | ✅ Persistência de análise ativa em `/api/bin-analysis-v2` |
+| Perfis de banco (Nubank, Inter, etc.) | ✅ Lookup de reputação do emissor consolidado no enrichment |
+| KPIs declarados no doc (tempo médio, taxa de bloqueio, cobertura por país) | ✅ Runtime metrics + fontes usadas em metadata para auditoria operacional |
 
 ---
 

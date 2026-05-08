@@ -13,6 +13,11 @@ const envSchema = z
 
     NEUTRINO_API_KEY: z.string().min(1).optional(),
     NEUTRINO_USER_ID: z.string().min(1).optional(),
+    NEUTRINO_IP_INFO_ENABLED: z.coerce.boolean().default(false),
+    NEUTRINO_IP_BLOCKLIST_ENABLED: z.coerce.boolean().default(false),
+    NEUTRINO_IP_PROBE_ENABLED: z.coerce.boolean().default(false),
+    NEUTRINO_UA_LOOKUP_ENABLED: z.coerce.boolean().default(false),
+    NEUTRINO_HOST_REPUTATION_ENABLED: z.coerce.boolean().default(false),
     UPSTASH_REDIS_REST_URL: z.string().url().optional(),
     UPSTASH_REDIS_REST_TOKEN: z.string().min(1).optional(),
 

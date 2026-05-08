@@ -5,7 +5,7 @@ import type { BinApiData, FullBinAnalysis } from "@/lib/premium-3-0/types"
 const {
   createClientMock,
   subtractCreditsMock,
-  callNeutrinoApiMock,
+  fetchBinLookupDetailedMock,
   normalizeNeutrinoBinResponseMock,
   applyBinOverridesMock,
   runFullBinAnalysisMock,
@@ -16,7 +16,7 @@ const {
 } = vi.hoisted(() => ({
   createClientMock: vi.fn(),
   subtractCreditsMock: vi.fn(),
-  callNeutrinoApiMock: vi.fn(),
+  fetchBinLookupDetailedMock: vi.fn(),
   normalizeNeutrinoBinResponseMock: vi.fn(),
   applyBinOverridesMock: vi.fn(),
   runFullBinAnalysisMock: vi.fn(),
@@ -35,7 +35,7 @@ vi.mock("@/lib/credits/operations", () => ({
 }))
 
 vi.mock("@/lib/premium-3-0/neutrino-api", () => ({
-  callNeutrinoApi: callNeutrinoApiMock,
+  fetchBinLookupDetailed: fetchBinLookupDetailedMock,
 }))
 
 vi.mock("@/lib/premium-3-0/normalizeBinApiResponse", () => ({
@@ -134,11 +134,14 @@ describe("/api/bin-analysis-v2 route", () => {
       },
     }
 
-    callNeutrinoApiMock.mockResolvedValue({ card_brand: "VISA" })
+    fetchBinLookupDetailedMock.mockResolvedValue({
+      data: { card_brand: "VISA" },
+      meta: { networkSuccess: true },
+    })
     normalizeNeutrinoBinResponseMock.mockReturnValue(normalizedBinData)
     applyBinOverridesMock.mockResolvedValue({ data: normalizedBinData })
     runFullBinAnalysisMock.mockReturnValue(fullAnalysis)
-    runHolisticAnalysisMock.mockReturnValue({
+    runHolisticAnalysisMock.mockResolvedValue({
       binRisk: { score: 10, factors: [] },
       temporalRisk: { score: 10, factors: [] },
       behavioralRisk: { score: 40, factors: [] },
@@ -178,19 +181,19 @@ describe("/api/bin-analysis-v2 route", () => {
     const payload = await response.json()
 
     expect(response.status).toBe(200)
-    expect(callNeutrinoApiMock).toHaveBeenCalledTimes(1)
+    expect(fetchBinLookupDetailedMock).toHaveBeenCalledTimes(1)
     expect(runHolisticAnalysisMock).toHaveBeenCalledTimes(1)
     expect(subtractCreditsMock).toHaveBeenCalledTimes(1)
     expect(payload.holistic.overallScore).toBe(15)
     expect(payload.context.userAgentPresent).toBe(false)
 
-    const neutrinoCallOrder = callNeutrinoApiMock.mock.invocationCallOrder[0]
+    const neutrinoCallOrder = fetchBinLookupDetailedMock.mock.invocationCallOrder[0]
     const debitCallOrder = subtractCreditsMock.mock.invocationCallOrder[0]
     expect(debitCallOrder).toBeGreaterThan(neutrinoCallOrder)
   })
 
   it("retorna 502 estruturado e não debita quando upstream falha", async () => {
-    callNeutrinoApiMock.mockRejectedValue(new Error("Neutrino API error: 502 - temporary error"))
+    fetchBinLookupDetailedMock.mockRejectedValue(new Error("Neutrino API error: 502 - temporary error"))
 
     const request = new Request("http://localhost/api/bin-analysis-v2", {
       method: "POST",

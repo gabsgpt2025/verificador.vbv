@@ -4,6 +4,32 @@ Histórico das fases de correção e alinhamento do sistema.
 
 ---
 
+## Fase 4 — Neutrino Tier 1 Enrichment (2026-05-08)
+
+### Mudanças
+
+- **Criada** a pasta `lib/premium-3-0/neutrino/` com subclientes desacoplados para:
+  - `bin-lookup`
+  - `ip-info`
+  - `ip-blocklist`
+  - `ip-probe`
+  - `ua-lookup`
+  - `host-reputation`
+- **Refatorado** `lib/premium-3-0/neutrino-api.ts` para camada de compatibilidade (`@deprecated`) com re-export dos novos módulos.
+- **Adicionadas** feature flags de custo no `lib/env.ts` e `.env.example` (`NEUTRINO_*_ENABLED`, default OFF).
+- **Estendido** o motor holístico para usar sinais reais de IP/UA/Host com fallback gracioso para heurísticas locais.
+- **Atualizado** `/api/bin-analysis-v2` para aceitar `merchantHost`, propagar contexto Neutrino e retornar `metadata.sourcesUsed`.
+- **Atualizada** a UI técnica de `Premium3DAnalyzer` com blocos Geographic/Device/Gateway enriquecidos por Neutrino.
+- **Adicionados** testes Vitest para os novos clientes Neutrino e integrações de enrichment/holistic.
+
+### Impacto
+
+- **Compatibilidade** preservada para imports legados de `neutrino-api.ts`.
+- **Resiliência** mantida quando APIs opcionais falham (`neutrino_*_unavailable` + fallback local).
+- **Custo controlado** por feature flags OFF por padrão.
+
+---
+
 ## Fase 5 — Runtime Infra (Cache + Circuit Breaker + Retry) (2026-05-08)
 
 ### Mudanças

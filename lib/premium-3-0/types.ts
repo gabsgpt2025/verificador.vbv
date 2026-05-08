@@ -36,7 +36,6 @@ export type {
 } from "./holisticTypes"
 import type { BypassMechanism, RiskLevel } from "./holisticTypes"
 import type { HolisticContext, HolisticRiskAnalysis } from "./holisticEngine"
-import type { PeerComparison } from "./peerComparison"
 
 // ============================================================================
 // TIPOS DE CONTEXTO INTERNO (não fazem parte do contrato público)
@@ -233,8 +232,8 @@ export type FullBinAnalysis = {
     message: string
     action: string
   }
-  holistic: HolisticRiskAnalysis
-  peerComparison: PeerComparison
+  holistic?: HolisticRiskAnalysis
+  peerComparison?: PeerComparison
 }
 
 export type BinAnalysisV2Request = {

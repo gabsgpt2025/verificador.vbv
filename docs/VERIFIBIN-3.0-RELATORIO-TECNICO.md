@@ -608,14 +608,20 @@ Aceita `{ binNumber, verificationType }` e retorna `{ success, result, creditsUs
 
 ### 5.4 Integração Neutrino API
 
-**Arquivo**: [`lib/premium-3-0/neutrino-api.ts`](../lib/premium-3-0/neutrino-api.ts)
+**Arquivos**: [`lib/premium-3-0/neutrino/`](../lib/premium-3-0/neutrino), [`lib/premium-3-0/neutrino-api.ts`](../lib/premium-3-0/neutrino-api.ts)
 
-- **Endpoint**: `POST https://neutrinoapi.net/bin-lookup`
+| Endpoint | Uso no motor | Quota Tier 1 | TTL cache | Feature flag |
+|---|---|---|---|---|
+| `POST /bin-lookup` | BIN principal | conforme plano | 7 dias | sempre ativo no endpoint v2 |
+| `POST /ip-info` | geolocalização de IP | 10K/dia | 1h | `NEUTRINO_IP_INFO_ENABLED` |
+| `POST /ip-blocklist` | blocklists/Tor/proxy | 10K/dia | 30min | `NEUTRINO_IP_BLOCKLIST_ENABLED` |
+| `POST /ip-probe` | proxy/VPN/hosting/bogon | 1K/dia | 30min | `NEUTRINO_IP_PROBE_ENABLED` |
+| `POST /ua-lookup` | browser/OS/device/bot | 10K/dia | 24h (hash do UA) | `NEUTRINO_UA_LOOKUP_ENABLED` |
+| `POST /host-reputation` | reputação do merchant host | 500/dia | 1h | `NEUTRINO_HOST_REPUTATION_ENABLED` |
+
 - **Autenticação**: Headers `User-ID` + `API-Key`
-- **Timeout**: 8.000ms por tentativa
-- **Retries**: Até 3 tentativas com backoff exponencial (300ms base)
-- **Rate limit interno**: Mínimo 120ms entre chamadas consecutivas
-- **Parâmetro**: `bin-number` (form-encoded)
+- **Resiliência padrão**: `resilientFetch` com cache + circuit breaker por endpoint + retry exponencial (máx. 2 tentativas).
+- **Fallback**: quando um endpoint opcional falha ou flag está OFF, o motor mantém heurísticas locais e inclui fator `neutrino_*_unavailable`.
 
 ---
 
