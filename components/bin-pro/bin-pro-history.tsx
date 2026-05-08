@@ -19,9 +19,19 @@ interface BinProHistoryProps {
   userId: string
 }
 
+interface BinAnalysisLogRow {
+  id: string
+  bin: string
+  brand: string
+  risk_score: number
+  risk_level: string
+  created_at: string
+}
+
 export function BinProHistory({ userId }: BinProHistoryProps) {
   const [history, setHistory] = useState<HistoryItem[]>([])
   const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
     fetchHistory()
@@ -29,37 +39,25 @@ export function BinProHistory({ userId }: BinProHistoryProps) {
 
   const fetchHistory = async () => {
     try {
-      // Simulated history data - in production, fetch from API
-      const mockHistory: HistoryItem[] = [
-        {
-          id: "1",
-          bin: "424242",
-          brand: "VISA",
-          riskScore: 25,
-          riskLevel: "LOW",
-          createdAt: new Date(Date.now() - 86400000).toISOString(),
-        },
-        {
-          id: "2",
-          bin: "555555",
-          brand: "MASTERCARD",
-          riskScore: 75,
-          riskLevel: "HIGH",
-          createdAt: new Date(Date.now() - 172800000).toISOString(),
-        },
-        {
-          id: "3",
-          bin: "378282",
-          brand: "AMEX",
-          riskScore: 45,
-          riskLevel: "MEDIUM",
-          createdAt: new Date(Date.now() - 259200000).toISOString(),
-        },
-      ]
-
-      setHistory(mockHistory)
-    } catch (error) {
-      console.error("Failed to fetch history:", error)
+      setError(null)
+      const response = await fetch("/api/history")
+      if (!response.ok) {
+        const data = await response.json()
+        throw new Error(data.error || "Failed to fetch history")
+      }
+      const data = await response.json()
+      const items: HistoryItem[] = (data.history ?? []).map((row: BinAnalysisLogRow) => ({
+        id: row.id,
+        bin: row.bin,
+        brand: row.brand,
+        riskScore: row.risk_score,
+        riskLevel: row.risk_level,
+        createdAt: row.created_at,
+      }))
+      setHistory(items)
+    } catch (err) {
+      console.error("Failed to fetch history:", err)
+      setError(err instanceof Error ? err.message : "Failed to fetch history")
     } finally {
       setLoading(false)
     }
@@ -97,6 +95,10 @@ export function BinProHistory({ userId }: BinProHistoryProps) {
         {loading ? (
           <CyberText color="muted" className="text-center py-4">
             Loading history...
+          </CyberText>
+        ) : error ? (
+          <CyberText color="muted" className="text-center py-4">
+            {error}
           </CyberText>
         ) : history.length === 0 ? (
           <CyberText color="muted" className="text-center py-4">

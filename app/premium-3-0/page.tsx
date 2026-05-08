@@ -7,7 +7,7 @@ export const metadata = {
 
 export default function Premium3Page() {
   return (
-    <main className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-slate-50 py-12">
+    <main className="min-h-screen bg-background py-12">
       <Premium3DAnalyzer />
     </main>
   );

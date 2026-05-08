@@ -14,6 +14,76 @@ interface BinVerificationResult {
   issuer_phone: string
 }
 
+interface BinlistApiResponse {
+  scheme?: string
+  type?: string
+  brand?: string
+  prepaid?: boolean
+  country?: {
+    name?: string
+    alpha2?: string
+    currency?: string
+  }
+  bank?: {
+    name?: string
+    url?: string
+    phone?: string
+    city?: string
+  }
+}
+
+/**
+ * Fetches BIN data from BinList.net (free public API, no key required).
+ * Falls back to deterministic heuristics on network/timeout error.
+ */
+async function fetchBinFromBinlist(bin: string): Promise<BinlistApiResponse> {
+  try {
+    // Strictly validate: only digits, length 6–8 (prevent SSRF via path traversal)
+    const cleanBin = bin.replace(/\D/g, "").substring(0, 8)
+    if (!/^\d{6,8}$/.test(cleanBin)) {
+      return buildFallbackBinlistResponse(bin)
+    }
+
+    // Safe: cleanBin is now guaranteed to be 6–8 ASCII digits only
+    const url = new URL(`https://lookup.binlist.net/${cleanBin}`)
+    const response = await fetch(url.toString(), {
+      headers: {
+        "Accept-Version": "3",
+        "User-Agent": "VeriFiBIN/2.0 AntiFraud Platform",
+      },
+      signal: AbortSignal.timeout(5000),
+    })
+
+    if (response.ok) {
+      const data = await response.json()
+      return data as BinlistApiResponse
+    }
+
+    return buildFallbackBinlistResponse(bin)
+  } catch {
+    return buildFallbackBinlistResponse(bin)
+  }
+}
+
+/**
+ * Deterministic fallback using BIN prefix heuristics.
+ * Never uses Math.random() — same BIN always returns the same data.
+ */
+function buildFallbackBinlistResponse(bin: string): BinlistApiResponse {
+  const firstDigit = bin.charAt(0)
+  const firstTwo = bin.substring(0, 2)
+
+  let scheme: string | undefined
+  if (firstDigit === "4") scheme = "visa"
+  else if (["51", "52", "53", "54", "55"].includes(firstTwo)) scheme = "mastercard"
+  else if (["34", "37"].includes(firstTwo)) scheme = "amex"
+  else if (firstTwo === "60") scheme = "discover"
+  else if (firstDigit === "6") scheme = "elo"
+  else if (firstTwo === "35") scheme = "jcb"
+
+  return { scheme }
+}
+
 export async function POST(request: NextRequest) {
   try {
     const supabase = await createClient()
@@ -50,17 +120,19 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: creditResult.message }, { status: 400 })
     }
 
-    // Mock verification result (in production, this would call external API)
-    const mockResult: BinVerificationResult = {
+    // Fetch real BIN data from BinList.net; falls back to deterministic heuristics on error
+    const apiData = await fetchBinFromBinlist(binNumber)
+
+    const result: BinVerificationResult = {
       bin_number: binNumber,
-      card_brand: getBrandFromBin(binNumber),
-      card_type: "Credit",
-      card_level: verificationType === "premium" ? "Platinum" : "Classic",
-      issuer_name: getIssuerFromBin(binNumber),
-      issuer_country: "United States",
-      issuer_country_code: "US",
-      issuer_website: "https://example-bank.com",
-      issuer_phone: "+1-800-123-4567",
+      card_brand: apiData.scheme?.toUpperCase() || "UNKNOWN",
+      card_type: apiData.type?.toUpperCase() || "UNKNOWN",
+      card_level: apiData.brand || (verificationType === "premium" ? "PLATINUM" : "CLASSIC"),
+      issuer_name: apiData.bank?.name || "Unknown Issuer",
+      issuer_country: apiData.country?.name || "Unknown",
+      issuer_country_code: apiData.country?.alpha2 || "",
+      issuer_website: apiData.bank?.url || "",
+      issuer_phone: apiData.bank?.phone || "",
     }
 
     // Save verification to database
@@ -69,15 +141,15 @@ export async function POST(request: NextRequest) {
       .insert({
         user_id: user.id,
         bin_number: binNumber,
-        card_brand: mockResult.card_brand,
-        card_type: mockResult.card_type,
-        card_level: mockResult.card_level,
-        issuer_name: mockResult.issuer_name,
-        issuer_country: mockResult.issuer_country,
-        issuer_country_code: mockResult.issuer_country_code,
-        issuer_website: mockResult.issuer_website,
-        issuer_phone: mockResult.issuer_phone,
-        verification_result: mockResult,
+        card_brand: result.card_brand,
+        card_type: result.card_type,
+        card_level: result.card_level,
+        issuer_name: result.issuer_name,
+        issuer_country: result.issuer_country,
+        issuer_country_code: result.issuer_country_code,
+        issuer_website: result.issuer_website,
+        issuer_phone: result.issuer_phone,
+        verification_result: result,
         credits_used: toolCost,
       })
       .select()
@@ -103,7 +175,7 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({
       success: true,
-      result: mockResult,
+      result,
       creditsUsed: toolCost,
       newBalance: creditResult.newBalance,
       verificationId: verification.id,
@@ -112,31 +184,4 @@ export async function POST(request: NextRequest) {
     console.error("[v0] BIN verification API error:", error)
     return NextResponse.json({ error: "Internal server error" }, { status: 500 })
   }
-}
-
-function getBrandFromBin(bin: string): string {
-  const firstDigit = bin.charAt(0)
-  const firstTwo = bin.substring(0, 2)
-
-  if (firstDigit === "4") return "Visa"
-  if (["51", "52", "53", "54", "55"].includes(firstTwo)) return "Mastercard"
-  if (["34", "37"].includes(firstTwo)) return "American Express"
-  if (firstTwo === "60") return "Discover"
-  if (firstTwo === "35") return "JCB"
-
-  return "Unknown"
-}
-
-function getIssuerFromBin(bin: string): string {
-  const brands = {
-    "4": ["Chase Bank", "Bank of America", "Wells Fargo", "Citibank"],
-    "5": ["Capital One", "HSBC", "PNC Bank", "US Bank"],
-    "3": ["American Express", "Diners Club"],
-    "6": ["Discover Bank", "Barclays"],
-  }
-
-  const firstDigit = bin.charAt(0)
-  const issuers = brands[firstDigit as keyof typeof brands] || ["Unknown Bank"]
-
-  return issuers[Math.floor(Math.random() * issuers.length)]
 }
