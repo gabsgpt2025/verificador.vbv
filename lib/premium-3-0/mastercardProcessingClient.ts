@@ -172,15 +172,11 @@ export class MastercardProcessingClient {
       const sign = crypto.createSign('RSA-SHA256');
       sign.update(signatureBaseString);
 
-      const signature = sign.sign(
-        {
-          key: this.getP12Buffer(),
-          format: 'der',
-          type: 'pkcs12',
-          passphrase: this.keyPassword,
-        } as unknown as crypto.SignPrivateKeyInput,
-        'base64'
-      );
+      const signatureInput: crypto.SignPrivateKeyInput = {
+        key: this.getP12Buffer(),
+        passphrase: this.keyPassword,
+      };
+      const signature = sign.sign(signatureInput, 'base64');
 
       const authParams = Object.keys(oauthParams)
         .sort()

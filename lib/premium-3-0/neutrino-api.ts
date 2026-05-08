@@ -78,7 +78,7 @@ export async function callNeutrinoApi(bin: string): Promise<NeutrinoResponse> {
           continue
         }
 
-        console.error(`[Neutrino] API error ${response.status} (bin prefix ${sanitizedBin.slice(0, 6)})`)
+        console.error(`[Neutrino] API error ${response.status}`)
         throw new Error(`Neutrino API error: ${response.status} - ${errorText}`)
       }
 
@@ -91,7 +91,7 @@ export async function callNeutrinoApi(bin: string): Promise<NeutrinoResponse> {
 
       const isFinalAttempt = attempt === NEUTRINO_MAX_RETRIES
       if (isFinalAttempt) {
-        console.error(`[Neutrino] Request failed after ${attempt} attempt(s) for bin prefix ${sanitizedBin.slice(0, 6)}`)
+        console.error(`[Neutrino] Request failed after ${attempt} attempt(s)`)
         throw error
       }
 

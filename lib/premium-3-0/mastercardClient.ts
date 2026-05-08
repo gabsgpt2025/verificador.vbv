@@ -152,15 +152,11 @@ export class MastercardClient {
 
       // Extrair chave privada do .p12
       // Nota: Em produção, usar biblioteca como 'pkcs12' ou 'node-forge'
-      const signature = sign.sign(
-        {
-          key: this.getP12Buffer(),
-          format: 'der',
-          type: 'pkcs12',
-          passphrase: this.keyPassword,
-        } as unknown as crypto.SignPrivateKeyInput,
-        'base64'
-      );
+      const signatureInput: crypto.SignPrivateKeyInput = {
+        key: this.getP12Buffer(),
+        passphrase: this.keyPassword,
+      };
+      const signature = sign.sign(signatureInput, 'base64');
 
       // Construir Authorization header
       const authParams = Object.keys(oauthParams)
