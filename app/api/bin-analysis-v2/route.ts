@@ -5,7 +5,7 @@ import { normalizeBinApiResponse } from "@/lib/premium-3-0/normalizeBinApiRespon
 import { applyBinOverrides } from "@/lib/premium-3-0/applyBinOverrides"
 import { runFullBinAnalysis } from "@/lib/premium-3-0"
 import { saveBinAnalysisLog } from "@/lib/premium-3-0/saveBinAnalysisLog"
-import { callNeutrinoApi, convertNeutrinoResponse } from "@/lib/premium-3-0/neutrino-api"
+import { callNeutrinoApi } from "@/lib/premium-3-0/neutrino-api"
 import type { BinAnalysisV2Request, BinApiData, FullBinAnalysis } from "@/lib/premium-3-0/types"
 import { getEnv } from "@/lib/env"
 
@@ -75,8 +75,7 @@ export async function POST(request: NextRequest) {
     let binData: BinApiData
     try {
       const neutrinoResponse = await callNeutrinoApi(cleanBin)
-      const convertedData = convertNeutrinoResponse(neutrinoResponse)
-      binData = normalizeBinApiResponse("NEUTRINO", convertedData, cleanBin)
+      binData = normalizeBinApiResponse("NEUTRINO", neutrinoResponse as Record<string, unknown>, cleanBin)
     } catch (error) {
       console.error("[bin-analysis-v2] Neutrino API error:", error)
       // Fallback para dados simulados em caso de erro
