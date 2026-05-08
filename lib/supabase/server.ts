@@ -1,5 +1,6 @@
 import { createServerClient as createSupabaseServerClient } from "@supabase/ssr"
 import { cookies } from "next/headers"
+import { getSupabasePublicEnv } from "@/lib/env"
 
 /**
  * Especially important if using Fluid compute: Don't put this client in a
@@ -8,8 +9,9 @@ import { cookies } from "next/headers"
  */
 export async function createClient() {
   const cookieStore = await cookies()
+  const env = getSupabasePublicEnv()
 
-  return createSupabaseServerClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!, {
+  return createSupabaseServerClient(env.url, env.anonKey, {
     cookies: {
       getAll() {
         return cookieStore.getAll()

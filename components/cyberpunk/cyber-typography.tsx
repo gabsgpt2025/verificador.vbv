@@ -1,6 +1,5 @@
 import type * as React from "react"
 import { cn } from "@/lib/utils"
-import type { JSX } from "react/jsx-runtime" // Import JSX to declare the variable
 
 interface CyberHeadingProps extends React.HTMLAttributes<HTMLHeadingElement> {
   level?: 1 | 2 | 3 | 4 | 5 | 6
@@ -16,7 +15,7 @@ export function CyberHeading({
   children,
   ...props
 }: CyberHeadingProps) {
-  const Component = `h${level}` as keyof JSX.IntrinsicElements
+  const Component = `h${level}` as React.ElementType
 
   const baseClasses = "font-mono font-bold tracking-wider"
 
@@ -48,7 +47,7 @@ export function CyberHeading({
 
 interface CyberTextProps extends React.HTMLAttributes<HTMLParagraphElement> {
   variant?: "body" | "caption" | "code"
-  color?: "primary" | "secondary" | "accent" | "muted" | "foreground"
+  color?: "primary" | "secondary" | "accent" | "muted" | "foreground" | "destructive"
 }
 
 export function CyberText({ variant = "body", color = "foreground", className, children, ...props }: CyberTextProps) {
@@ -66,6 +65,7 @@ export function CyberText({ variant = "body", color = "foreground", className, c
     accent: "text-accent",
     muted: "text-muted-foreground",
     foreground: "text-foreground",
+    destructive: "text-destructive",
   }
 
   return (

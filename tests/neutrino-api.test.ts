@@ -61,4 +61,28 @@ describe("Neutrino API integration", () => {
       "Neutrino API error: 400 - Missing parameter: bin-number",
     )
   })
+
+  it("premium client retries transient API errors with backoff", async () => {
+    process.env.NEUTRINO_API_KEY = "test-api-key"
+    process.env.NEUTRINO_USER_ID = "test-user-id"
+    vi.spyOn(console, "error").mockImplementation(() => {})
+
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(new Response("temporary error", { status: 500 }))
+      .mockResolvedValueOnce(new Response("temporary error", { status: 502 }))
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify({ valid: true, card_brand: "VISA" }), {
+          status: 200,
+          headers: { "Content-Type": "application/json" },
+        }),
+      )
+
+    vi.stubGlobal("fetch", fetchMock)
+
+    const response = await callPremiumNeutrinoApi("405708")
+
+    expect(response.valid).toBe(true)
+    expect(fetchMock).toHaveBeenCalledTimes(3)
+  })
 })

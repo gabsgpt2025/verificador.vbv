@@ -4,10 +4,11 @@ import { subtractCredits } from "@/lib/credits/operations"
 import { analyzeBIN } from "@/src/lib/intelligence/binAnalyzer"
 import type { RawBINApiResponse } from "@/src/lib/intelligence/types"
 import type { BINAnalysisV2Result } from "@/src/lib/intelligence/types"
+import { getEnv } from "@/lib/env"
 
 // Open-access mode: when NEXT_PUBLIC_REQUIRE_AUTH !== "true", allow unauthenticated BIN analysis
 // TEMPORARY: Testing mode — all auth restrictions disabled
-const OPEN_ACCESS_MODE = true
+const OPEN_ACCESS_MODE = getEnv().NEXT_PUBLIC_REQUIRE_AUTH !== "true"
 
 export async function POST(request: NextRequest) {
   try {

@@ -6,14 +6,45 @@ import { applyBinOverrides } from "@/lib/premium-3-0/applyBinOverrides"
 import { runFullBinAnalysis } from "@/lib/premium-3-0"
 import { saveBinAnalysisLog } from "@/lib/premium-3-0/saveBinAnalysisLog"
 import { callNeutrinoApi, convertNeutrinoResponse } from "@/lib/premium-3-0/neutrino-api"
-import type { BinAnalysisV2Request, FullBinAnalysis } from "@/lib/premium-3-0/types"
+import type { BinAnalysisV2Request, BinApiData, FullBinAnalysis } from "@/lib/premium-3-0/types"
+import { getEnv } from "@/lib/env"
 
 // Open-access mode: when NEXT_PUBLIC_REQUIRE_AUTH !== "true", allow unauthenticated BIN analysis
 // TEMPORARY: Testing mode — all auth restrictions disabled
-const OPEN_ACCESS_MODE = true
+const OPEN_ACCESS_MODE = getEnv().NEXT_PUBLIC_REQUIRE_AUTH !== "true"
+const RATE_LIMIT_WINDOW_MS = 60_000
+const RATE_LIMIT_MAX_REQUESTS = 30
+const requestCounters = new Map<string, { count: number; windowStart: number }>()
+
+function isRateLimited(key: string): boolean {
+  const now = Date.now()
+  const current = requestCounters.get(key)
+
+  if (!current || now - current.windowStart > RATE_LIMIT_WINDOW_MS) {
+    requestCounters.set(key, { count: 1, windowStart: now })
+    return false
+  }
+
+  if (current.count >= RATE_LIMIT_MAX_REQUESTS) {
+    return true
+  }
+
+  current.count += 1
+  requestCounters.set(key, current)
+  return false
+}
 
 export async function POST(request: NextRequest) {
   try {
+    const requesterId =
+      request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ||
+      request.headers.get("x-real-ip") ||
+      "anonymous"
+
+    if (isRateLimited(requesterId)) {
+      return NextResponse.json({ error: "Muitas requisições. Tente novamente em instantes." }, { status: 429 })
+    }
+
     const { bin }: BinAnalysisV2Request = await request.json()
 
     if (!bin || bin.replace(/\s/g, "").length < 6) {
@@ -41,7 +72,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Chama API real da Neutrino para análise de BIN
-    let binData: Record<string, unknown>
+    let binData: BinApiData
     try {
       const neutrinoResponse = await callNeutrinoApi(cleanBin)
       const convertedData = convertNeutrinoResponse(neutrinoResponse)

@@ -3,6 +3,8 @@
  * https://www.neutrinoapi.net/
  */
 
+import { getNeutrinoCredentials } from "@/lib/env"
+
 export interface NeutrinoResponse {
   bin?: string
   valid?: boolean
@@ -26,40 +28,78 @@ export interface NeutrinoResponse {
   [key: string]: unknown
 }
 
+const NEUTRINO_BASE_URL = "https://neutrinoapi.net/bin-lookup"
+const NEUTRINO_TIMEOUT_MS = 8000
+const NEUTRINO_MAX_RETRIES = 3
+const NEUTRINO_RETRY_BASE_MS = 300
+const NEUTRINO_MIN_INTERVAL_MS = 120
+
+let lastNeutrinoRequestAt = 0
+
+function sleep(ms: number) {
+  return new Promise((resolve) => setTimeout(resolve, ms))
+}
+
+async function throttleNeutrinoCalls() {
+  const now = Date.now()
+  const waitMs = Math.max(0, lastNeutrinoRequestAt + NEUTRINO_MIN_INTERVAL_MS - now)
+  if (waitMs > 0) {
+    await sleep(waitMs)
+  }
+  lastNeutrinoRequestAt = Date.now()
+}
+
 export async function callNeutrinoApi(bin: string): Promise<NeutrinoResponse> {
-  const apiKey = process.env.NEUTRINO_API_KEY
-  const userId = process.env.NEUTRINO_USER_ID
+  const { apiKey, userId } = getNeutrinoCredentials()
+  const sanitizedBin = bin.replace(/\s/g, "").substring(0, 8)
 
-  if (!apiKey || !userId) {
-    console.error("[Neutrino] API credentials missing")
-    throw new Error("Neutrino API credentials not configured")
-  }
+  for (let attempt = 1; attempt <= NEUTRINO_MAX_RETRIES; attempt++) {
+    try {
+      await throttleNeutrinoCalls()
 
-  try {
-    const response = await fetch("https://neutrinoapi.net/bin-lookup", {
-      method: "POST",
-      headers: {
-        "User-ID": userId,
-        "API-Key": apiKey,
-        "Content-Type": "application/x-www-form-urlencoded",
-      },
-      body: new URLSearchParams({
-        "bin-number": bin.replace(/\s/g, "").substring(0, 8),
-      }).toString(),
-    })
+      const response = await fetch(NEUTRINO_BASE_URL, {
+        method: "POST",
+        headers: {
+          "User-ID": userId,
+          "API-Key": apiKey,
+          "Content-Type": "application/x-www-form-urlencoded",
+        },
+        body: new URLSearchParams({
+          "bin-number": sanitizedBin,
+        }).toString(),
+        signal: AbortSignal.timeout(NEUTRINO_TIMEOUT_MS),
+      })
 
-    if (!response.ok) {
-      const errorText = await response.text()
-      console.error(`[Neutrino] API error ${response.status}:`, errorText)
-      throw new Error(`Neutrino API error: ${response.status} - ${errorText}`)
+      if (!response.ok) {
+        const errorText = await response.text()
+        const isRetryable = response.status === 429 || response.status >= 500
+        if (isRetryable && attempt < NEUTRINO_MAX_RETRIES) {
+          await sleep(NEUTRINO_RETRY_BASE_MS * 2 ** (attempt - 1))
+          continue
+        }
+
+        console.error(`[Neutrino] API error ${response.status} (bin prefix ${sanitizedBin.slice(0, 6)})`)
+        throw new Error(`Neutrino API error: ${response.status} - ${errorText}`)
+      }
+
+      const data: NeutrinoResponse = await response.json()
+      return data
+    } catch (error) {
+      if (error instanceof Error && /^Neutrino API error: 4\d{2}/.test(error.message)) {
+        throw error
+      }
+
+      const isFinalAttempt = attempt === NEUTRINO_MAX_RETRIES
+      if (isFinalAttempt) {
+        console.error(`[Neutrino] Request failed after ${attempt} attempt(s) for bin prefix ${sanitizedBin.slice(0, 6)}`)
+        throw error
+      }
+
+      await sleep(NEUTRINO_RETRY_BASE_MS * 2 ** (attempt - 1))
     }
-
-    const data: NeutrinoResponse = await response.json()
-    return data
-  } catch (error) {
-    console.error("[Neutrino] Request failed:", error)
-    throw error
   }
+
+  throw new Error("Neutrino API request failed")
 }
 
 /**

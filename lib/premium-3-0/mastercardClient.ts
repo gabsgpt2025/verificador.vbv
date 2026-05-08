@@ -6,7 +6,7 @@
 
 import crypto from 'crypto';
 import fs from 'fs';
-import path from 'path';
+import { getEnv } from "@/lib/env"
 
 interface MastercardConfig {
   consumerKey: string;
@@ -48,16 +48,17 @@ export class MastercardClient {
   private consumerKey: string;
   private keyAlias: string;
   private keyPassword: string;
-  private p12Buffer: Buffer;
+  private p12Buffer: Buffer | null;
 
   constructor(config: Partial<MastercardConfig> = {}) {
+    const env = getEnv()
     this.config = {
-      consumerKey: config.consumerKey || process.env.MASTERCARD_CONSUMER_KEY || '',
-      sandboxClientId: config.sandboxClientId || process.env.MASTERCARD_SANDBOX_CLIENT_ID || '',
-      keyAlias: config.keyAlias || process.env.MASTERCARD_KEY_ALIAS || 'verifibin',
-      keyPassword: config.keyPassword || process.env.MASTERCARD_KEY_PASSWORD || '',
-      p12Path: config.p12Path || process.env.MASTERCARD_P12_PATH || '',
-      sandboxMode: config.sandboxMode ?? (process.env.MASTERCARD_SANDBOX_MODE !== 'false'),
+      consumerKey: config.consumerKey || env.MASTERCARD_CONSUMER_KEY || '',
+      sandboxClientId: config.sandboxClientId || env.MASTERCARD_SANDBOX_CLIENT_ID || '',
+      keyAlias: config.keyAlias || env.MASTERCARD_KEY_ALIAS || 'verifibin',
+      keyPassword: config.keyPassword || env.MASTERCARD_KEY_PASSWORD || '',
+      p12Path: config.p12Path || env.MASTERCARD_P12_PATH || '',
+      sandboxMode: config.sandboxMode ?? (env.MASTERCARD_SANDBOX_MODE !== 'false'),
     };
 
     this.consumerKey = this.config.consumerKey;
@@ -73,8 +74,7 @@ export class MastercardClient {
         : 'https://api.mastercard.com';
     }
 
-    // Carregar arquivo .p12
-    this.p12Buffer = this.loadP12();
+    this.p12Buffer = null;
   }
 
   /**
@@ -82,9 +82,10 @@ export class MastercardClient {
    */
   private loadP12(): Buffer {
     try {
+      const env = getEnv()
       // Tentar carregar do environment variable (base64)
-      if (process.env.MASTERCARD_P12_CERT) {
-        return Buffer.from(process.env.MASTERCARD_P12_CERT, 'base64');
+      if (env.MASTERCARD_P12_CERT) {
+        return Buffer.from(env.MASTERCARD_P12_CERT, 'base64');
       }
 
       // Tentar carregar do arquivo local
@@ -92,17 +93,18 @@ export class MastercardClient {
         return fs.readFileSync(this.config.p12Path);
       }
 
-      // Tentar carregar do diretório padrão
-      const defaultPath = path.join(__dirname, 'gabriel gpt-sandbox-signing.p12');
-      if (fs.existsSync(defaultPath)) {
-        return fs.readFileSync(defaultPath);
-      }
-
       throw new Error('Arquivo .p12 não encontrado');
     } catch (error) {
-      console.error('Erro ao carregar arquivo .p12:', error);
+      console.error('Erro ao carregar arquivo .p12 da Mastercard');
       throw error;
     }
+  }
+
+  private getP12Buffer(): Buffer {
+    if (!this.p12Buffer) {
+      this.p12Buffer = this.loadP12();
+    }
+    return this.p12Buffer;
   }
 
   /**
@@ -152,11 +154,11 @@ export class MastercardClient {
       // Nota: Em produção, usar biblioteca como 'pkcs12' ou 'node-forge'
       const signature = sign.sign(
         {
-          key: this.p12Buffer,
+          key: this.getP12Buffer(),
           format: 'der',
           type: 'pkcs12',
           passphrase: this.keyPassword,
-        },
+        } as unknown as crypto.SignPrivateKeyInput,
         'base64'
       );
 

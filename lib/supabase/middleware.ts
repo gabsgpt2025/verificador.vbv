@@ -1,19 +1,15 @@
 import { createServerClient } from "@supabase/ssr"
 import { NextResponse, type NextRequest } from "next/server"
+import { getSupabasePublicEnv } from "@/lib/env"
 
 export async function updateSession(request: NextRequest) {
   let supabaseResponse = NextResponse.next({
     request,
   })
 
-  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
-  const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
-
-  // If Supabase env vars are not set, allow the request to continue
-  // This prevents crashes during initial setup or when env vars are loading
-  if (!supabaseUrl || !supabaseAnonKey) {
-    return supabaseResponse
-  }
+  const env = getSupabasePublicEnv()
+  const supabaseUrl = env.url
+  const supabaseAnonKey = env.anonKey
 
   // With Fluid compute, don't put this client in a global environment
   // variable. Always create a new one on each request.
@@ -93,7 +89,9 @@ export async function updateSession(request: NextRequest) {
     }
   }
 
-  if (user && request.ip) {
+  const requestIp = request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || null
+
+  if (user && requestIp) {
     try {
       // Check for suspicious patterns (multiple IPs, unusual user agents, etc.)
       const userAgent = request.headers.get("user-agent") || ""
@@ -104,7 +102,7 @@ export async function updateSession(request: NextRequest) {
           user_id: user.id,
           suspicious_activity: "Unusual user agent detected",
           risk_level: "low",
-          ip_address: request.ip,
+          ip_address: requestIp,
           user_agent: userAgent,
         })
       }
