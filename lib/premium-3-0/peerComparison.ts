@@ -1,45 +1,81 @@
-import { COUNTRY_RISK_TIER, getCountryRiskTier } from "./enrichment/geoEnrichment"
-import type { BinApiData } from "./types"
+import { getCountryRiskTier } from "./enrichment/geoEnrichment"
+import type { BinApiData, PeerComparison } from "./types"
 
-export interface PeerComparison {
-  percentile: number
-  description: string
-  similarCount: number
-  cohortKey: string
-}
-
-function clamp(value: number, min: number, max: number) {
-  return Math.min(Math.max(Math.round(value), min), max)
-}
-
-function hashText(input: string) {
-  let hash = 2166136261
-  for (let index = 0; index < input.length; index += 1) {
-    hash ^= input.charCodeAt(index)
-    hash = Math.imul(hash, 16777619)
+type SupabaseLike = {
+  from: (table: string) => {
+    select: (columns: string) => {
+      eq: (field: string, value: string) => {
+        eq: (field2: string, value2: string) => {
+          gte: (field3: string, value3: string) => PromiseLike<{ data: Array<{ risk_score: number }> | null; error: { message: string } | null }>
+        }
+      }
+    }
   }
-  return Math.abs(hash >>> 0)
 }
 
-export function comparePeer(binData: BinApiData, overallScore: number): PeerComparison {
-  const country = (binData.countryCode ?? "UN").toUpperCase()
+function clampPercentile(value: number) {
+  return Math.max(0, Math.min(100, Math.round(value)))
+}
+
+function computePercentile(values: number[], score: number) {
+  if (values.length === 0) return 50
+  const sorted = [...values].sort((a, b) => a - b)
+  const lessOrEqual = sorted.filter((value) => value <= score).length
+  return clampPercentile((lessOrEqual / sorted.length) * 100)
+}
+
+function fallbackPeerSample(countryCode?: string | null) {
+  const tier = getCountryRiskTier(countryCode)
+  if (tier === "critical") return [70, 75, 80, 85, 90, 95]
+  if (tier === "tier3") return [45, 50, 55, 60, 65, 70]
+  if (tier === "tier2") return [30, 35, 40, 45, 50, 55]
+  return [15, 20, 25, 30, 35, 40]
+}
+
+export async function comparePeers(
+  binData: BinApiData,
+  riskScore: number,
+  supabase?: SupabaseLike,
+): Promise<PeerComparison> {
+  const country = (binData.countryCode ?? "XX").toUpperCase()
+  const brand = (binData.brand ?? "UNKNOWN").toUpperCase()
   const type = (binData.type ?? "UNKNOWN").toUpperCase()
-  const level = (binData.category ?? "UNKNOWN").toUpperCase()
-  const cohortKey = `${country}-${type}-${level}`
+  const peerGroup = `${brand}-${country}-${type}`
 
-  const tier = getCountryRiskTier(country)
-  const tierImpact = tier === "LOW" ? 8 : tier === "MEDIUM" ? 0 : tier === "HIGH" ? -8 : -12
-  const cohortNoise = (hashText(cohortKey) % 11) - 5
-  const percentile = clamp(100 - overallScore + tierImpact + cohortNoise, 1, 99)
-  const similarCount = 120 + (hashText(cohortKey + String(overallScore)) % 780)
+  const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString()
 
-  const tierLabel = COUNTRY_RISK_TIER[country] ?? "MEDIUM"
-  const description = `melhor que ${percentile}% dos cartões similares (tier ${tierLabel})`
+  let peerScores: number[] = []
+
+  if (supabase) {
+    try {
+      const queryBuilder = supabase
+        .from("bin_analyses")
+        .select("risk_score")
+        .eq("country", country)
+        .eq("brand", brand)
+        .gte("created_at", thirtyDaysAgo)
+      const { data, error } = await queryBuilder
+
+      if (!error && data) {
+        peerScores = data.map((entry) => Number(entry.risk_score)).filter((score) => Number.isFinite(score))
+      }
+    } catch {
+      peerScores = []
+    }
+  }
+
+  if (peerScores.length < 5) {
+    peerScores = fallbackPeerSample(country)
+  }
+
+  const percentile = computePercentile(peerScores, riskScore)
+  const peerCount = peerScores.length
+  const betterThan = percentile
 
   return {
     percentile,
-    description,
-    similarCount,
-    cohortKey,
+    peerCount,
+    betterThan,
+    peerGroup,
   }
 }

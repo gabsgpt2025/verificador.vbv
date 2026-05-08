@@ -1,18 +1,11 @@
-import threeDsByBank from "./data/threeDsByBank.json"
-import { getCountryMaturity } from "./country3dsMaturity"
-import { normalizeIssuerName } from "./enrichment/bankReputation"
+import { lookupBank } from "./enrichment/bankReputation"
 import { getCountryRiskTier } from "./enrichment/geoEnrichment"
-import type { BypassMechanism } from "./holisticTypes"
 import type { BinApiData, BinThreeDSResult } from "./types"
 
 type ThreeDSContextInput = {
   amount?: number
   currency?: string
 }
-
-const THREE_DS_BY_BANK = new Map<string, number>(
-  Object.entries(threeDsByBank).map(([issuer, adoption]) => [normalizeIssuerName(issuer), Number(adoption)]),
-)
 
 const EUR_EXCHANGE_RATE: Record<string, number> = {
   EUR: 1,
@@ -28,197 +21,118 @@ function clamp(value: number, min: number, max: number) {
   return Math.min(Math.max(Math.round(value), min), max)
 }
 
-function convertAmountToEur(amountInCents?: number, currency?: string) {
+function toEur(amountInCents?: number, currency?: string) {
   if (typeof amountInCents !== "number") return null
   const rate = EUR_EXCHANGE_RATE[(currency ?? "EUR").toUpperCase()] ?? 1
   return (amountInCents / 100) * rate
 }
 
-function inferProtocol(
-  brand?: string,
-  countryCode?: string,
-  frictionlessProbability?: number,
-): BinThreeDSResult["protocolLikely"] {
-  const normalizedBrand = (brand ?? "").toUpperCase()
-  const maturity = getCountryMaturity(countryCode)
-
-  if (!["VISA", "MASTERCARD", "AMEX", "AMERICAN EXPRESS"].includes(normalizedBrand)) {
-    return "UNKNOWN"
-  }
-
-  if ((frictionlessProbability ?? 0) >= 70 && maturity?.maturity === "HIGH") {
-    return "EMV_3DS_2_2"
-  }
-
-  if ((frictionlessProbability ?? 0) >= 45) {
-    return "EMV_3DS_2"
-  }
-
+function inferProtocol(frictionlessProbability: number): BinThreeDSResult["protocolLikely"] {
+  if (frictionlessProbability >= 80) return "EMV_3DS_2_2"
+  if (frictionlessProbability >= 60) return "EMV_3DS_2"
+  if (frictionlessProbability >= 40) return "EMV_3DS_2_1"
   return "UNKNOWN"
 }
 
-function buildExplanation(
-  binData: BinApiData,
-  confidence: BinThreeDSResult["confidence"],
-  frictionlessProbability: number,
-  challengeProbability: number,
-  applicableBypassMechanisms: BinThreeDSResult["applicableBypassMechanisms"],
-) {
-  const issuerText = binData.issuer ? `emissor ${binData.issuer}` : "emissor sem benchmark específico"
-  const countryText = binData.countryName ?? binData.countryCode ?? "país não informado"
-  const mechanismsText =
-    applicableBypassMechanisms.length > 0
-      ? ` Mecanismos aplicáveis: ${applicableBypassMechanisms.join(", ")}.`
-      : " Não há mecanismo de bypass favorável claramente aplicável."
-
-  return (
-    `Análise 3DS inferida para ${issuerText}, ${countryText}. ` +
-    `Frictionless estimado em ${frictionlessProbability}% e challenge em ${challengeProbability}% ` +
-    `com confiança ${confidence.toLowerCase()}.` +
-    mechanismsText
-  )
-}
-
 export function analyzeThreeDS(binData: BinApiData, context?: ThreeDSContextInput): BinThreeDSResult {
-  const normalizedIssuer = normalizeIssuerName(binData.issuer)
-  const issuerAdoption = THREE_DS_BY_BANK.get(normalizedIssuer)
-  const countryRiskTier = getCountryRiskTier(binData.countryCode)
-  const amountInEur = convertAmountToEur(context?.amount, context?.currency ?? binData.currency)
+  const brand = (binData.brand ?? "").toUpperCase()
+  const countryCode = (binData.countryCode ?? "").toUpperCase()
+  const countryTier = getCountryRiskTier(countryCode)
+  const bank = lookupBank(binData.issuer ?? "")
+  const amountEur = toEur(context?.amount, context?.currency ?? binData.currency)
 
-  let frictionlessProbability = typeof issuerAdoption === "number" ? issuerAdoption * 100 : 50
+  let frictionlessLikelihood = 45
 
-  if (amountInEur !== null && amountInEur < 30) {
-    frictionlessProbability += 20
+  if (brand === "AMEX" || brand === "AMERICAN EXPRESS") {
+    frictionlessLikelihood += 20
   }
 
-  if (countryRiskTier === "LOW") {
-    frictionlessProbability += 10
-  } else if (countryRiskTier === "MEDIUM") {
-    frictionlessProbability += 5
-  } else if (countryRiskTier === "HIGH") {
-    frictionlessProbability -= 20
-  } else {
-    frictionlessProbability -= 20
+  if (countryTier === "tier1") {
+    frictionlessLikelihood += 15
+  } else if (countryTier === "tier2") {
+    frictionlessLikelihood -= 5
+  } else if (countryTier === "tier3") {
+    frictionlessLikelihood -= 10
+  } else if (countryTier === "critical") {
+    frictionlessLikelihood -= 25
   }
 
-  if (binData.isPrepaid) {
-    frictionlessProbability -= 30
+  if ((bank?.threeDsAdoption ?? 0) > 90) {
+    frictionlessLikelihood += 20
   }
 
-  frictionlessProbability = clamp(frictionlessProbability, 0, 100)
-
-  let challengeProbability = clamp(100 - frictionlessProbability, 0, 100)
-  if (binData.isPrepaid) {
-    challengeProbability = clamp(challengeProbability + 10, 0, 100)
+  if (amountEur !== null && amountEur < 30) {
+    frictionlessLikelihood += 25
   }
+
+  if (amountEur !== null && amountEur > 500) {
+    frictionlessLikelihood -= 30
+  }
+
+  frictionlessLikelihood = clamp(frictionlessLikelihood, 0, 100)
+  const challengeProbability = clamp(100 - frictionlessLikelihood, 0, 100)
 
   const applicableBypassMechanisms: BinThreeDSResult["applicableBypassMechanisms"] = []
 
-  if (amountInEur !== null && amountInEur < 30) {
+  if (amountEur !== null && amountEur < 30) {
     applicableBypassMechanisms.push("SCA_EXEMPTION_LOW_VALUE")
   }
 
-  if (!binData.isPrepaid && (countryRiskTier === "LOW" || countryRiskTier === "MEDIUM") && frictionlessProbability >= 65) {
-    applicableBypassMechanisms.push("TRA")
-  }
-
-  const category = (binData.category ?? "").toUpperCase()
-  if (category.includes("RECURR")) {
-    applicableBypassMechanisms.push("RECURRING")
-  }
-
-  if (["BUSINESS", "CORPORATE", "COMMERCIAL"].some((entry) => category.includes(entry))) {
-    applicableBypassMechanisms.push("MIT")
-  }
-
-  if (frictionlessProbability >= 70) {
+  if ((brand === "AMEX" || brand === "AMERICAN EXPRESS") && (bank?.threeDsAdoption ?? 0) > 95) {
     applicableBypassMechanisms.push("FRICTIONLESS_3DS2")
   }
 
-  const bypassProbability = clamp(
-    frictionlessProbability - Math.round(challengeProbability * 0.25) + applicableBypassMechanisms.length * 8,
-    0,
-    100,
-  )
-
-  let status: BinThreeDSResult["status"]
-  if (frictionlessProbability >= 60) {
-    status = "LIKELY_ACTIVE"
-  } else if (frictionlessProbability >= 40) {
-    status = "UNKNOWN"
-  } else {
-    status = "LIKELY_INACTIVE"
+  if (countryTier === "tier1" && frictionlessLikelihood >= 65) {
+    applicableBypassMechanisms.push("TRA")
   }
 
-  const confidence: BinThreeDSResult["confidence"] =
-    typeof issuerAdoption === "number"
-      ? "HIGH"
-      : countryRiskTier === "LOW" && frictionlessProbability >= 60
-        ? "HIGH"
-        : countryRiskTier === "LOW" || countryRiskTier === "MEDIUM"
-          ? "MEDIUM"
-          : "LOW"
+  if ((binData.category ?? "").toUpperCase().includes("RECURR")) {
+    applicableBypassMechanisms.push("RECURRING")
+  }
+
+  if ((binData.category ?? "").toUpperCase().includes("BUSINESS") || binData.isCommercial) {
+    applicableBypassMechanisms.push("MIT")
+  }
+
+  const confidence: BinThreeDSResult["confidence"] = bank ? "HIGH" : countryTier === "tier1" ? "MEDIUM" : "LOW"
+
+  const status: BinThreeDSResult["status"] =
+    frictionlessLikelihood >= 60 ? "LIKELY_ACTIVE" : frictionlessLikelihood >= 40 ? "UNKNOWN" : "LIKELY_INACTIVE"
 
   const challengeLikelihood: BinThreeDSResult["challengeLikelihood"] =
-    challengeProbability >= 70 ? "HIGH" : challengeProbability >= 35 ? "MEDIUM" : frictionlessProbability >= 70 ? "LOW" : "UNKNOWN"
+    challengeProbability >= 70 ? "HIGH" : challengeProbability >= 35 ? "MEDIUM" : "LOW"
 
-  const protocolLikely = inferProtocol(binData.brand, binData.countryCode, frictionlessProbability)
+  const bankText = binData.issuer ?? "Issuer not in benchmark base"
+  const adoptionText = bank ? `${bank.threeDsAdoption}%` : "N/A"
+  const defaultMethodText = bank?.defaultMethod ?? "NONE"
+  const maturityText = bank?.threeDsMaturity ?? "MEDIUM"
+  const amountText = amountEur !== null ? amountEur.toFixed(2) : "N/A"
 
-  const authMethodsLikely =
-    challengeProbability >= 60
-      ? ["OTP", "APP_PUSH", "BIOMETRIA"]
-      : challengeProbability >= 35
-        ? ["OTP", "APP_PUSH"]
-        : ["RBA", "DEVICE_BINDING"]
+  const technicalExplanation =
+    `Bank ${bankText} has ${adoptionText} 3DS adoption with ${defaultMethodText} as default. ` +
+    `Amount ${amountText} EUR ${amountEur !== null && amountEur < 30 ? "within" : "above"} SCA exemption threshold. ` +
+    `Country ${countryCode || "N/A"} ${countryTier} with ${maturityText} 3DS maturity. ` +
+    `Estimated frictionless: ${frictionlessLikelihood}%.`
+
+  const popularExplanation =
+    `Banco ${bank ? "com" : "sem"} benchmark robusto de segurança 3DS. ` +
+    `Para esta compra, há ${frictionlessLikelihood}% de chance do cliente não precisar de autenticação extra.`
 
   return {
     status,
     confidence,
     challengeLikelihood,
-    protocolLikely,
-    authMethodsLikely,
-    explanation: buildExplanation(
-      binData,
-      confidence,
-      frictionlessProbability,
-      challengeProbability,
-      applicableBypassMechanisms,
-    ),
+    protocolLikely: inferProtocol(frictionlessLikelihood),
+    authMethodsLikely:
+      challengeProbability >= 60 ? ["OTP", "APP_PUSH", "BIOMETRIA"] : challengeProbability >= 35 ? ["OTP", "APP_PUSH"] : ["RBA", "DEVICE_BINDING"],
+    explanation: {
+      technical: technicalExplanation,
+      popular: popularExplanation,
+    },
     inferred: true,
-    frictionlessProbability,
+    frictionlessProbability: frictionlessLikelihood,
     challengeProbability,
-    bypassProbability,
+    bypassProbability: clamp(frictionlessLikelihood - Math.round(challengeProbability * 0.25) + applicableBypassMechanisms.length * 8, 0, 100),
     applicableBypassMechanisms,
-  }
-}
-
-function mapMechanismsToBypass(
-  mechanisms: BinThreeDSResult["applicableBypassMechanisms"],
-  frictionlessProbability: number,
-): BypassMechanism[] {
-  if (mechanisms.includes("FRICTIONLESS_3DS2") || frictionlessProbability >= 70) {
-    return ["FRICTIONLESS_3DS2"]
-  }
-
-  if (mechanisms.some((mechanism) => mechanism === "SCA_EXEMPTION_LOW_VALUE" || mechanism === "TRA")) {
-    return ["SCA_EXEMPTION"]
-  }
-
-  if (mechanisms.some((mechanism) => mechanism === "MIT" || mechanism === "RECURRING")) {
-    return ["3DS_NOMINAL"]
-  }
-
-  return ["NONE"]
-}
-
-export function analyzeThreeDSExtended(binData: BinApiData, context?: ThreeDSContextInput) {
-  const base = analyzeThreeDS(binData, context)
-  const bypassMechanisms = mapMechanismsToBypass(base.applicableBypassMechanisms, base.frictionlessProbability)
-
-  return {
-    ...base,
-    frictionlessProbability: base.frictionlessProbability,
-    bypassProbability: base.bypassProbability,
-    bypassMechanisms,
   }
 }

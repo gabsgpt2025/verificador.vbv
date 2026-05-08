@@ -67,7 +67,7 @@ function sleep(ms: number): Promise<void> {
 }
 
 function calculateDelayMs(retryIndex: number, options: RetryOptions): number {
-  const jitterMs = options.jitter ? Math.floor(Math.random() * options.baseDelayMs) : 0
+  const jitterMs = options.jitter ? Math.floor(options.baseDelayMs * ((retryIndex + 1) / (options.maxAttempts + 1))) : 0
   return Math.min(options.baseDelayMs * 2 ** retryIndex + jitterMs, options.maxDelayMs)
 }
 

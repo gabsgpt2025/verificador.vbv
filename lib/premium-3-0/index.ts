@@ -7,28 +7,13 @@ import { calculateRisk } from "./calculateRisk"
 import { calculateDataQuality } from "./calculateDataQuality"
 import { analyzeCompliance } from "./analyzeCompliance"
 import { generateRecommendation } from "./generateRecommendation"
-import { comparePeer } from "./peerComparison"
-import { runHolisticAnalysis } from "./holisticEngine"
-import type { HolisticContext, HolisticRiskAnalysis } from "./holisticEngine"
+import type { TransactionContext } from "./holisticEngine"
 
-export function runFullBinAnalysis(binData: BinApiData, context?: Partial<HolisticContext>): FullBinAnalysis {
-  const resolvedContext: HolisticContext = {
-    timestamp: context?.timestamp ?? 0,
-    amount: context?.amount,
-    currency: context?.currency,
-    merchantCountry: context?.merchantCountry,
-    mcc: context?.mcc,
-    userAgent: context?.userAgent,
-    ipAddress: context?.ipAddress,
-    ipCountryCode: context?.ipCountryCode,
-    isFirstTransaction: context?.isFirstTransaction,
-  }
+export function runFullBinAnalysis(binData: BinApiData, context?: Partial<TransactionContext>): FullBinAnalysis {
   const threeDSAnalysis = analyzeThreeDS(binData, context)
   const riskAnalysis = calculateRisk(binData, threeDSAnalysis)
   const dataQuality = calculateDataQuality(binData)
   const compliance = analyzeCompliance(binData)
-  const holistic: HolisticRiskAnalysis = runHolisticAnalysis(binData, resolvedContext)
-  const peerComparison = comparePeer(binData, holistic.overallScore)
 
   const partialAnalysis = {
     bin: binData.bin,
@@ -47,8 +32,6 @@ export function runFullBinAnalysis(binData: BinApiData, context?: Partial<Holist
     riskAnalysis,
     dataQuality,
     compliance,
-    holistic,
-    peerComparison,
   }
 
   const finalSummary = generateRecommendation(partialAnalysis)
@@ -57,7 +40,6 @@ export function runFullBinAnalysis(binData: BinApiData, context?: Partial<Holist
 }
 
 export { analyzeThreeDS } from "./analyzeThreeDS"
-export { analyzeThreeDSExtended } from "./analyzeThreeDS"
 export { calculateRisk } from "./calculateRisk"
 export { calculateDataQuality } from "./calculateDataQuality"
 export { analyzeCompliance } from "./analyzeCompliance"
@@ -66,7 +48,8 @@ export { normalizeBinApiResponse } from "./normalizeBinApiResponse"
 export { applyBinOverrides } from "./applyBinOverrides"
 export { saveBinAnalysisLog } from "./saveBinAnalysisLog"
 export { getCountryMaturity, COUNTRY_3DS_MATURITY } from "./country3dsMaturity"
-export { runHolisticAnalysis } from "./holisticEngine"
-export { comparePeer } from "./peerComparison"
-export type { HolisticContext, HolisticRiskAnalysis } from "./holisticEngine"
+export { runHolisticAnalysis, calculateHolisticRisk } from "./holisticEngine"
+export { comparePeers } from "./peerComparison"
+export * from "./enrichment"
+export type { TransactionContext, HolisticScore } from "./holisticEngine"
 export type * from "./types"

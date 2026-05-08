@@ -1,139 +1,142 @@
-import type { BinRiskFactor } from "../types"
-
-export type BankTier = "TIER1" | "TIER2" | "TIER3"
-
-export interface BankReputationSeedItem {
-  issuerName: string
-  country: string
-  approvalRate: number
-  fraudRate: number
-  threeDsAdoption: number
-  tier: BankTier
-}
-
-export const BANK_SUFFIX_PATTERN = /\b(s\.?\s*a\.?|n\.?\s*a\.?|plc|gmbh|ltd)\b\.?/gi
-
-export const BANK_REPUTATION_SEED: BankReputationSeedItem[] = [
-  { issuerName: "Banco do Brasil", country: "BR", approvalRate: 0.93, fraudRate: 0.012, threeDsAdoption: 0.91, tier: "TIER1" },
-  { issuerName: "Bradesco", country: "BR", approvalRate: 0.94, fraudRate: 0.011, threeDsAdoption: 0.92, tier: "TIER1" },
-  { issuerName: "Itaú", country: "BR", approvalRate: 0.94, fraudRate: 0.011, threeDsAdoption: 0.93, tier: "TIER1" },
-  { issuerName: "Santander BR", country: "BR", approvalRate: 0.92, fraudRate: 0.013, threeDsAdoption: 0.89, tier: "TIER1" },
-  { issuerName: "Caixa", country: "BR", approvalRate: 0.9, fraudRate: 0.016, threeDsAdoption: 0.85, tier: "TIER2" },
-  { issuerName: "Nubank", country: "BR", approvalRate: 0.91, fraudRate: 0.017, threeDsAdoption: 0.87, tier: "TIER2" },
-  { issuerName: "Inter", country: "BR", approvalRate: 0.9, fraudRate: 0.018, threeDsAdoption: 0.84, tier: "TIER2" },
-  { issuerName: "BTG Pactual", country: "BR", approvalRate: 0.92, fraudRate: 0.014, threeDsAdoption: 0.88, tier: "TIER2" },
-  { issuerName: "C6 Bank", country: "BR", approvalRate: 0.89, fraudRate: 0.019, threeDsAdoption: 0.83, tier: "TIER2" },
-  { issuerName: "Mercado Pago", country: "BR", approvalRate: 0.88, fraudRate: 0.021, threeDsAdoption: 0.81, tier: "TIER3" },
-  { issuerName: "Sicredi", country: "BR", approvalRate: 0.91, fraudRate: 0.015, threeDsAdoption: 0.86, tier: "TIER2" },
-  { issuerName: "Sicoob", country: "BR", approvalRate: 0.9, fraudRate: 0.016, threeDsAdoption: 0.85, tier: "TIER2" },
-  { issuerName: "Chase", country: "US", approvalRate: 0.95, fraudRate: 0.009, threeDsAdoption: 0.9, tier: "TIER1" },
-  { issuerName: "Bank of America", country: "US", approvalRate: 0.94, fraudRate: 0.01, threeDsAdoption: 0.89, tier: "TIER1" },
-  { issuerName: "Wells Fargo", country: "US", approvalRate: 0.93, fraudRate: 0.011, threeDsAdoption: 0.88, tier: "TIER1" },
-  { issuerName: "Citibank", country: "US", approvalRate: 0.93, fraudRate: 0.011, threeDsAdoption: 0.89, tier: "TIER1" },
-  { issuerName: "Capital One", country: "US", approvalRate: 0.92, fraudRate: 0.012, threeDsAdoption: 0.87, tier: "TIER1" },
-  { issuerName: "Amex", country: "US", approvalRate: 0.96, fraudRate: 0.008, threeDsAdoption: 0.91, tier: "TIER1" },
-  { issuerName: "Discover", country: "US", approvalRate: 0.91, fraudRate: 0.013, threeDsAdoption: 0.85, tier: "TIER2" },
-  { issuerName: "US Bank", country: "US", approvalRate: 0.91, fraudRate: 0.013, threeDsAdoption: 0.85, tier: "TIER2" },
-  { issuerName: "PNC Bank", country: "US", approvalRate: 0.9, fraudRate: 0.014, threeDsAdoption: 0.84, tier: "TIER2" },
-  { issuerName: "TD Bank", country: "US", approvalRate: 0.9, fraudRate: 0.014, threeDsAdoption: 0.84, tier: "TIER2" },
-  { issuerName: "Barclays", country: "GB", approvalRate: 0.94, fraudRate: 0.01, threeDsAdoption: 0.92, tier: "TIER1" },
-  { issuerName: "HSBC", country: "GB", approvalRate: 0.93, fraudRate: 0.011, threeDsAdoption: 0.91, tier: "TIER1" },
-  { issuerName: "Lloyds", country: "GB", approvalRate: 0.92, fraudRate: 0.012, threeDsAdoption: 0.9, tier: "TIER1" },
-  { issuerName: "NatWest", country: "GB", approvalRate: 0.91, fraudRate: 0.013, threeDsAdoption: 0.88, tier: "TIER2" },
-  { issuerName: "Deutsche Bank", country: "DE", approvalRate: 0.93, fraudRate: 0.011, threeDsAdoption: 0.9, tier: "TIER1" },
-  { issuerName: "Commerzbank", country: "DE", approvalRate: 0.91, fraudRate: 0.012, threeDsAdoption: 0.88, tier: "TIER2" },
-  { issuerName: "BNP Paribas", country: "FR", approvalRate: 0.93, fraudRate: 0.011, threeDsAdoption: 0.91, tier: "TIER1" },
-  { issuerName: "Société Générale", country: "FR", approvalRate: 0.92, fraudRate: 0.012, threeDsAdoption: 0.89, tier: "TIER2" },
-  { issuerName: "ING", country: "NL", approvalRate: 0.93, fraudRate: 0.011, threeDsAdoption: 0.9, tier: "TIER1" },
-  { issuerName: "Santander ES", country: "ES", approvalRate: 0.92, fraudRate: 0.012, threeDsAdoption: 0.9, tier: "TIER1" },
-  { issuerName: "BBVA", country: "ES", approvalRate: 0.92, fraudRate: 0.012, threeDsAdoption: 0.9, tier: "TIER1" },
-  { issuerName: "CaixaBank", country: "ES", approvalRate: 0.91, fraudRate: 0.013, threeDsAdoption: 0.88, tier: "TIER2" },
-  { issuerName: "UniCredit", country: "IT", approvalRate: 0.91, fraudRate: 0.013, threeDsAdoption: 0.88, tier: "TIER2" },
-  { issuerName: "Intesa Sanpaolo", country: "IT", approvalRate: 0.91, fraudRate: 0.013, threeDsAdoption: 0.88, tier: "TIER2" },
-  { issuerName: "Revolut", country: "LT", approvalRate: 0.9, fraudRate: 0.015, threeDsAdoption: 0.87, tier: "TIER2" },
-  { issuerName: "N26", country: "DE", approvalRate: 0.89, fraudRate: 0.016, threeDsAdoption: 0.86, tier: "TIER2" },
-  { issuerName: "Wise", country: "GB", approvalRate: 0.9, fraudRate: 0.015, threeDsAdoption: 0.87, tier: "TIER2" },
-  { issuerName: "Monzo", country: "GB", approvalRate: 0.89, fraudRate: 0.016, threeDsAdoption: 0.85, tier: "TIER2" },
-]
-
-const BANK_LOOKUP = new Map<string, BankReputationSeedItem>(
-  BANK_REPUTATION_SEED.map((item) => [`${normalizeIssuerName(item.issuerName)}:${item.country}`, item]),
-)
-
-function clamp(value: number, min: number, max: number) {
-  return Math.min(Math.max(Math.round(value), min), max)
-}
+import type { BankReputation, BinRiskFactor } from "../types"
 
 export function normalizeIssuerName(issuerName?: string | null) {
   return (issuerName ?? "")
     .normalize("NFD")
     .replace(/[\u0300-\u036f]/g, "")
-    .toLowerCase()
-    .replace(BANK_SUFFIX_PATTERN, "")
-    .replace(/[^\p{L}\p{N}\s]/gu, " ")
+    .toUpperCase()
+    .replace(/[^A-Z0-9 ]/g, " ")
     .replace(/\s+/g, " ")
     .trim()
 }
 
-export function lookupBankReputation(issuerName?: string | null, countryCode?: string | null) {
-  const normalizedIssuer = normalizeIssuerName(issuerName)
-  const normalizedCountry = (countryCode ?? "").trim().toUpperCase().slice(0, 2)
-  const byCountry = normalizedCountry ? BANK_LOOKUP.get(`${normalizedIssuer}:${normalizedCountry}`) : undefined
-  const fallback = normalizedIssuer
-    ? BANK_REPUTATION_SEED.find((item) => normalizeIssuerName(item.issuerName) === normalizedIssuer)
-    : undefined
-  const found = byCountry ?? fallback
+export const BANK_REPUTATION: Record<string, BankReputation> = {
+  BRADESCO: { approvalRate: 92, fraudRate: 3, threeDsAdoption: 95, threeDsMaturity: "HIGH", defaultMethod: "APP_PUSH" },
+  ITAU: { approvalRate: 91, fraudRate: 4, threeDsAdoption: 94, threeDsMaturity: "HIGH", defaultMethod: "APP_PUSH" },
+  "BANCO DO BRASIL": { approvalRate: 90, fraudRate: 4, threeDsAdoption: 93, threeDsMaturity: "HIGH", defaultMethod: "OTP_SMS" },
+  NUBANK: { approvalRate: 95, fraudRate: 2, threeDsAdoption: 96, threeDsMaturity: "VERY_HIGH", defaultMethod: "APP_PUSH" },
+  "SANTANDER BRASIL": { approvalRate: 90, fraudRate: 4, threeDsAdoption: 93, threeDsMaturity: "HIGH", defaultMethod: "APP_PUSH" },
+  CAIXA: { approvalRate: 88, fraudRate: 5, threeDsAdoption: 89, threeDsMaturity: "MEDIUM", defaultMethod: "OTP_SMS" },
+  INTER: { approvalRate: 93, fraudRate: 3, threeDsAdoption: 94, threeDsMaturity: "HIGH", defaultMethod: "APP_PUSH" },
+  BTG: { approvalRate: 92, fraudRate: 3, threeDsAdoption: 93, threeDsMaturity: "HIGH", defaultMethod: "APP_PUSH" },
+  "C6 BANK": { approvalRate: 90, fraudRate: 4, threeDsAdoption: 92, threeDsMaturity: "HIGH", defaultMethod: "APP_PUSH" },
+  PICPAY: { approvalRate: 89, fraudRate: 5, threeDsAdoption: 90, threeDsMaturity: "MEDIUM", defaultMethod: "APP_PUSH" },
+  SICREDI: { approvalRate: 89, fraudRate: 4, threeDsAdoption: 90, threeDsMaturity: "MEDIUM", defaultMethod: "OTP_SMS" },
+  SICOOB: { approvalRate: 88, fraudRate: 4, threeDsAdoption: 89, threeDsMaturity: "MEDIUM", defaultMethod: "OTP_SMS" },
+  SAFRA: { approvalRate: 90, fraudRate: 4, threeDsAdoption: 91, threeDsMaturity: "HIGH", defaultMethod: "APP_PUSH" },
+  PAN: { approvalRate: 86, fraudRate: 6, threeDsAdoption: 84, threeDsMaturity: "MEDIUM", defaultMethod: "OTP_SMS" },
+  NEON: { approvalRate: 87, fraudRate: 5, threeDsAdoption: 86, threeDsMaturity: "MEDIUM", defaultMethod: "APP_PUSH" },
+  DIGIO: { approvalRate: 88, fraudRate: 5, threeDsAdoption: 88, threeDsMaturity: "MEDIUM", defaultMethod: "OTP_SMS" },
+  ORIGINAL: { approvalRate: 87, fraudRate: 5, threeDsAdoption: 86, threeDsMaturity: "MEDIUM", defaultMethod: "OTP_SMS" },
+  MERCADO: { approvalRate: 89, fraudRate: 4, threeDsAdoption: 91, threeDsMaturity: "HIGH", defaultMethod: "APP_PUSH" },
+  WILL: { approvalRate: 86, fraudRate: 6, threeDsAdoption: 84, threeDsMaturity: "MEDIUM", defaultMethod: "OTP_SMS" },
+  XP: { approvalRate: 91, fraudRate: 3, threeDsAdoption: 92, threeDsMaturity: "HIGH", defaultMethod: "APP_PUSH" },
 
-  if (!found) {
-    return {
-      tier: "TIER2" as const,
-      approvalRate: 0.86,
-      fraudRate: 0.018,
-      threeDsAdoption: 0.72,
-      score: 30,
-      found: false,
-    }
-  }
+  CHASE: { approvalRate: 94, fraudRate: 2, threeDsAdoption: 95, threeDsMaturity: "VERY_HIGH", defaultMethod: "APP_PUSH" },
+  "BANK OF AMERICA": { approvalRate: 93, fraudRate: 2, threeDsAdoption: 94, threeDsMaturity: "HIGH", defaultMethod: "APP_PUSH" },
+  "WELLS FARGO": { approvalRate: 91, fraudRate: 3, threeDsAdoption: 92, threeDsMaturity: "HIGH", defaultMethod: "OTP_SMS" },
+  CITI: { approvalRate: 92, fraudRate: 3, threeDsAdoption: 93, threeDsMaturity: "HIGH", defaultMethod: "APP_PUSH" },
+  "CAPITAL ONE": { approvalRate: 93, fraudRate: 2, threeDsAdoption: 95, threeDsMaturity: "VERY_HIGH", defaultMethod: "APP_PUSH" },
+  AMEX: { approvalRate: 95, fraudRate: 2, threeDsAdoption: 97, threeDsMaturity: "VERY_HIGH", defaultMethod: "APP_PUSH" },
+  DISCOVER: { approvalRate: 91, fraudRate: 3, threeDsAdoption: 92, threeDsMaturity: "HIGH", defaultMethod: "OTP_SMS" },
+  "US BANK": { approvalRate: 90, fraudRate: 3, threeDsAdoption: 91, threeDsMaturity: "HIGH", defaultMethod: "OTP_SMS" },
+  PNC: { approvalRate: 90, fraudRate: 3, threeDsAdoption: 90, threeDsMaturity: "HIGH", defaultMethod: "OTP_SMS" },
+  TD: { approvalRate: 89, fraudRate: 3, threeDsAdoption: 90, threeDsMaturity: "HIGH", defaultMethod: "APP_PUSH" },
+  RBC: { approvalRate: 91, fraudRate: 2, threeDsAdoption: 93, threeDsMaturity: "HIGH", defaultMethod: "APP_PUSH" },
+  CIBC: { approvalRate: 89, fraudRate: 3, threeDsAdoption: 91, threeDsMaturity: "HIGH", defaultMethod: "OTP_SMS" },
+  SCOTIABANK: { approvalRate: 90, fraudRate: 3, threeDsAdoption: 91, threeDsMaturity: "HIGH", defaultMethod: "APP_PUSH" },
+  BMO: { approvalRate: 88, fraudRate: 3, threeDsAdoption: 89, threeDsMaturity: "MEDIUM", defaultMethod: "OTP_SMS" },
 
-  const tierImpact = found.tier === "TIER1" ? -12 : found.tier === "TIER2" ? 0 : 12
-  const approvalImpact = Math.round((0.9 - found.approvalRate) * 120)
-  const fraudImpact = Math.round(found.fraudRate * 1200)
-  const threeDsImpact = Math.round((0.85 - found.threeDsAdoption) * 80)
-  const score = clamp(30 + tierImpact + approvalImpact + fraudImpact + threeDsImpact, 0, 100)
-
-  return {
-    tier: found.tier,
-    approvalRate: found.approvalRate,
-    fraudRate: found.fraudRate,
-    threeDsAdoption: found.threeDsAdoption,
-    score,
-    found: true,
-  }
+  BARCLAYS: { approvalRate: 91, fraudRate: 3, threeDsAdoption: 94, threeDsMaturity: "HIGH", defaultMethod: "APP_PUSH" },
+  HSBC: { approvalRate: 90, fraudRate: 3, threeDsAdoption: 93, threeDsMaturity: "HIGH", defaultMethod: "APP_PUSH" },
+  LLOYDS: { approvalRate: 89, fraudRate: 3, threeDsAdoption: 92, threeDsMaturity: "HIGH", defaultMethod: "APP_PUSH" },
+  NATWEST: { approvalRate: 88, fraudRate: 4, threeDsAdoption: 91, threeDsMaturity: "HIGH", defaultMethod: "OTP_SMS" },
+  MONZO: { approvalRate: 92, fraudRate: 2, threeDsAdoption: 95, threeDsMaturity: "VERY_HIGH", defaultMethod: "APP_PUSH" },
+  STARLING: { approvalRate: 92, fraudRate: 2, threeDsAdoption: 95, threeDsMaturity: "VERY_HIGH", defaultMethod: "APP_PUSH" },
+  "DEUTSCHE BANK": { approvalRate: 89, fraudRate: 3, threeDsAdoption: 91, threeDsMaturity: "HIGH", defaultMethod: "OTP_SMS" },
+  COMMERZBANK: { approvalRate: 88, fraudRate: 3, threeDsAdoption: 90, threeDsMaturity: "HIGH", defaultMethod: "OTP_SMS" },
+  "BNP PARIBAS": { approvalRate: 89, fraudRate: 3, threeDsAdoption: 92, threeDsMaturity: "HIGH", defaultMethod: "APP_PUSH" },
+  SOCIETE: { approvalRate: 88, fraudRate: 3, threeDsAdoption: 91, threeDsMaturity: "HIGH", defaultMethod: "OTP_SMS" },
+  ING: { approvalRate: 90, fraudRate: 2, threeDsAdoption: 93, threeDsMaturity: "HIGH", defaultMethod: "APP_PUSH" },
+  ABN: { approvalRate: 89, fraudRate: 2, threeDsAdoption: 92, threeDsMaturity: "HIGH", defaultMethod: "APP_PUSH" },
+  SANTANDER: { approvalRate: 89, fraudRate: 3, threeDsAdoption: 91, threeDsMaturity: "HIGH", defaultMethod: "APP_PUSH" },
+  BBVA: { approvalRate: 89, fraudRate: 3, threeDsAdoption: 91, threeDsMaturity: "HIGH", defaultMethod: "APP_PUSH" },
+  UNICREDIT: { approvalRate: 87, fraudRate: 4, threeDsAdoption: 89, threeDsMaturity: "MEDIUM", defaultMethod: "OTP_SMS" },
+  INTESA: { approvalRate: 88, fraudRate: 4, threeDsAdoption: 90, threeDsMaturity: "HIGH", defaultMethod: "APP_PUSH" },
+  REVOLUT: { approvalRate: 94, fraudRate: 2, threeDsAdoption: 97, threeDsMaturity: "VERY_HIGH", defaultMethod: "APP_PUSH" },
+  WISE: { approvalRate: 93, fraudRate: 2, threeDsAdoption: 96, threeDsMaturity: "VERY_HIGH", defaultMethod: "APP_PUSH" },
+  N26: { approvalRate: 92, fraudRate: 2, threeDsAdoption: 96, threeDsMaturity: "VERY_HIGH", defaultMethod: "APP_PUSH" },
+  KLARNA: { approvalRate: 90, fraudRate: 3, threeDsAdoption: 94, threeDsMaturity: "HIGH", defaultMethod: "APP_PUSH" },
+  STRIPE: { approvalRate: 91, fraudRate: 2, threeDsAdoption: 95, threeDsMaturity: "VERY_HIGH", defaultMethod: "APP_PUSH" },
 }
 
-export function buildBankReputationFactors(issuerName?: string | null, countryCode?: string | null): BinRiskFactor[] {
-  const reputation = lookupBankReputation(issuerName, countryCode)
+const BANK_ENTRIES = Object.entries(BANK_REPUTATION).map(([issuerName, reputation]) => ({
+  normalizedName: normalizeIssuerName(issuerName),
+  reputation,
+}))
 
-  if (!reputation.found) {
-    return [
-      {
-        label: "Emissor fora da base de reputação",
-        impact: 0,
-        reason: "Sem benchmark do emissor, o motor comportamental usa baseline neutro.",
-      },
-    ]
+const BASE_APPROVAL_TARGET = 95
+const APPROVAL_WEIGHT = 0.8
+const FRAUD_WEIGHT = 2
+const BASE_3DS_TARGET = 90
+const ADOPTION_WEIGHT = 0.5
+
+export function lookupBank(issuerName: string): BankReputation | null {
+  const normalized = normalizeIssuerName(issuerName)
+  if (!normalized) return null
+
+  const exactMatch = BANK_ENTRIES.find((entry) => entry.normalizedName === normalized)
+  if (exactMatch) return exactMatch.reputation
+
+  const fuzzyMatch = BANK_ENTRIES.find(
+    (entry) =>
+      normalized.includes(entry.normalizedName) ||
+      entry.normalizedName.includes(normalized) ||
+      entry.normalizedName.split(" ").some((token) => token.length > 2 && normalized.includes(token)),
+  )
+
+  return fuzzyMatch?.reputation ?? null
+}
+
+function clamp(value: number) {
+  return Math.max(0, Math.min(100, Math.round(value)))
+}
+
+export function calculateBankRisk(issuerName: string | null) {
+  const factors: BinRiskFactor[] = []
+  const bank = issuerName ? lookupBank(issuerName) : null
+
+  if (!bank) {
+    factors.push({
+      label: "Emissor sem benchmark",
+      impact: 0,
+      reason: "Banco não encontrado na base estática, aplicado ajuste neutro.",
+    })
+
+    return { score: 30, factors }
   }
 
-  return [
-    {
-      label: `Tier de emissor: ${reputation.tier}`,
-      impact: reputation.tier === "TIER1" ? -12 : reputation.tier === "TIER3" ? 12 : 0,
-      reason: `Histórico estático de aprovação/fraude para ${issuerName ?? "emissor informado"}.`,
-    },
-    {
-      label: "Taxas históricas do emissor",
-      impact: reputation.score - 30,
-      reason: `Aprovação ${(reputation.approvalRate * 100).toFixed(1)}%, fraude ${(reputation.fraudRate * 100).toFixed(2)}%, 3DS ${(reputation.threeDsAdoption * 100).toFixed(1)}%.`,
-    },
-  ]
+  const approvalAdjustment = Math.round((BASE_APPROVAL_TARGET - bank.approvalRate) * APPROVAL_WEIGHT)
+  const fraudAdjustment = Math.round(bank.fraudRate * FRAUD_WEIGHT)
+  const adoptionAdjustment = Math.round((BASE_3DS_TARGET - bank.threeDsAdoption) * ADOPTION_WEIGHT)
+
+  const score = clamp(20 + approvalAdjustment + fraudAdjustment + adoptionAdjustment)
+
+  factors.push({
+    label: "Taxa de aprovação do banco",
+    impact: approvalAdjustment,
+    reason: `Approval rate seed de ${bank.approvalRate}% aplicada no ensemble de BIN.`,
+  })
+  factors.push({
+    label: "Taxa histórica de fraude",
+    impact: fraudAdjustment,
+    reason: `Fraud rate seed de ${bank.fraudRate}% aplicada no ensemble de BIN.`,
+  })
+  factors.push({
+    label: "Adoção 3DS do banco",
+    impact: adoptionAdjustment,
+    reason: `Adoção seed de ${bank.threeDsAdoption}% impacta resiliência de autenticação.`,
+  })
+
+  return { score, factors }
 }

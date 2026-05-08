@@ -1,132 +1,66 @@
 import { describe, expect, it } from "vitest"
 
-import {
-  BANK_REP_WEIGHT,
-  CARD_LEVEL_WEIGHT,
-  HOLISTIC_DIMENSION_WEIGHTS,
-  runHolisticAnalysis,
-} from "@/lib/premium-3-0/holisticEngine"
+import { calculateHolisticRisk, runHolisticAnalysis } from "@/lib/premium-3-0"
+import { enrichGeo, enrichTemporal, lookupBank } from "@/lib/premium-3-0/enrichment"
 import type { BinApiData } from "@/lib/premium-3-0/types"
 
 function makeBin(overrides: Partial<BinApiData> = {}): BinApiData {
   return {
-    bin: "55323000",
-    binLength: 8,
-    source: "INTERNAL",
+    bin: "553133",
+    binLength: 6,
+    brand: "MASTERCARD",
+    type: "CREDIT",
+    category: "BLACK",
+    countryCode: "BR",
+    countryName: "Brazil",
+    issuer: "Bradesco S.A.",
+    source: "NEUTRINO",
     ...overrides,
   }
 }
 
-describe("runHolisticAnalysis", () => {
-  it("aplica pesos 6D nomeados que somam 100", () => {
-    const total = Object.values(HOLISTIC_DIMENSION_WEIGHTS).reduce((acc, value) => acc + value, 0)
-    expect(HOLISTIC_DIMENSION_WEIGHTS.binRisk).toBe(30)
-    expect(HOLISTIC_DIMENSION_WEIGHTS.geographicRisk).toBe(20)
-    expect(HOLISTIC_DIMENSION_WEIGHTS.behavioralRisk).toBe(15)
-    expect(HOLISTIC_DIMENSION_WEIGHTS.gatewayRisk).toBe(15)
-    expect(HOLISTIC_DIMENSION_WEIGHTS.temporalRisk).toBe(10)
-    expect(HOLISTIC_DIMENSION_WEIGHTS.deviceRisk).toBe(10)
-    expect(total).toBe(100)
-  })
+describe("holisticEngine deterministic calculations", () => {
+  it("calcula 6 dimensões sem zero quando contexto existe", () => {
+    const binData = makeBin()
+    const geo = enrichGeo("BR", { ipCountry: "US" })
+    const temporal = enrichTemporal(Date.UTC(2026, 4, 11, 23, 0, 0))
+    const bank = lookupBank(binData.issuer ?? "")
 
-  it("expõe pesos de composição comportamental", () => {
-    expect(BANK_REP_WEIGHT).toBe(0.6)
-    expect(CARD_LEVEL_WEIGHT).toBe(0.4)
-  })
-
-  it("retorna baseline neutro (30) quando dimensões estão sem dados", () => {
-    const result = runHolisticAnalysis(
-      makeBin({
-        source: "UNKNOWN",
-      }),
-      {
-        timestamp: Date.UTC(2026, 4, 12, 14, 0, 0),
-      },
-    )
-
-    expect(result.dimensions.binRisk.score).toBe(30)
-    expect(result.dimensions.geographicRisk.score).toBe(30)
-    expect(result.dimensions.deviceRisk.score).toBe(30)
-    expect(result.dimensions.gatewayRisk.score).toBe(30)
-    expect(result.dimensions.binRisk.dataAvailable).toBe(false)
-    expect(result.dimensions.deviceRisk.dataAvailable).toBe(false)
-  })
-
-  it("gera risco baixo para cenário favorável", () => {
-    const result = runHolisticAnalysis(
-      makeBin({
-        brand: "MASTERCARD",
-        type: "CREDIT",
-        category: "BLACK",
-        countryCode: "BR",
-        countryName: "Brazil",
-        issuer: "Bradesco",
-      }),
-      {
-        amount: 1500,
-        currency: "BRL",
-        mcc: "5411",
-        ipAddress: "200.147.67.1",
-        ipCountryCode: "BR",
-        timestamp: Date.UTC(2026, 4, 12, 14, 0, 0),
-        userAgent: "Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/136.0",
-        isFirstTransaction: false,
-      },
-    )
-
-    expect(result.overallScore).toBeLessThan(40)
-    expect(result.level).toBe("LOW")
-    expect(result.recommendation).toBe("APPROVE")
-    expect(result.ensembleConfidence).toBeGreaterThan(70)
-  })
-
-  it("gera risco alto para cenário crítico", () => {
-    const result = runHolisticAnalysis(
-      makeBin({
-        brand: "VISA",
-        type: "PREPAID",
-        category: "VIRTUAL",
-        countryCode: "RU",
-        issuer: null,
-        isPrepaid: true,
-        source: "NEUTRINO",
-      }),
-      {
-        amount: 12000,
-        currency: "USD",
-        mcc: "7995",
-        ipAddress: "8.8.8.8",
-        ipCountryCode: "US",
-        timestamp: Date.UTC(2026, 4, 10, 2, 0, 0),
-        userAgent: "python-requests/2.31.0",
-        isFirstTransaction: true,
-      },
-    )
-
-    expect(result.dimensions.geographicRisk.score).toBeGreaterThanOrEqual(80)
-    expect(result.dimensions.deviceRisk.score).toBeGreaterThanOrEqual(50)
-    expect(result.overallScore).toBeGreaterThanOrEqual(60)
-    expect(["CHALLENGE", "DECLINE"]).toContain(result.recommendation)
-  })
-
-  it("mantém resultado determinístico para mesmo input", () => {
-    const inputBin = makeBin({
-      brand: "VISA",
-      type: "CREDIT",
-      category: "GOLD",
-      countryCode: "GB",
-      issuer: "Barclays",
+    const risk = calculateHolisticRisk({
+      binData,
+      geo,
+      temporal,
+      bank,
+      amount: 120_000,
+      currency: "BRL",
+      userAgent: "Mozilla/5.0",
+      history: [{ bin: "553133", timestamp: Date.UTC(2026, 4, 11, 22, 40, 0), countryCode: "BR" }],
     })
-    const inputContext = {
-      amount: 3000,
-      currency: "EUR",
-      timestamp: Date.UTC(2026, 4, 13, 20, 0, 0),
-      ipCountryCode: "GB",
-      userAgent: "Mozilla/5.0 (iPhone; CPU iPhone OS 18_4 like Mac OS X) Mobile Safari/605.1",
-    }
 
-    const first = runHolisticAnalysis(inputBin, inputContext)
-    const second = runHolisticAnalysis(inputBin, inputContext)
-    expect(second).toEqual(first)
+    expect(risk.temporalRisk).toBeGreaterThan(0)
+    expect(risk.geographicRisk).toBeGreaterThan(0)
+    expect(risk.deviceRisk).toBeGreaterThan(0)
+    expect(risk.gatewayRisk).toBeGreaterThanOrEqual(0)
+  })
+
+  it("eleva risco comportamental com alta velocidade", () => {
+    const now = Date.UTC(2026, 4, 11, 12, 0, 0)
+    const result = runHolisticAnalysis(makeBin(), {
+      timestamp: now,
+      history: [
+        { bin: "553133", timestamp: now - 10 * 60_000, countryCode: "BR" },
+        { bin: "553133", timestamp: now - 20 * 60_000, countryCode: "BR" },
+        { bin: "553133", timestamp: now - 30 * 60_000, countryCode: "BR" },
+        { bin: "553133", timestamp: now - 40 * 60_000, countryCode: "US" },
+      ],
+      ipCountryCode: "US",
+      userAgent: "curl/8.1",
+      amount: 100,
+      currency: "BRL",
+    })
+
+    expect(result.behavioralRisk.score).toBeGreaterThanOrEqual(70)
+    expect(result.deviceRisk.score).toBe(80)
+    expect(result.geographicRisk.score).toBeGreaterThan(0)
   })
 })

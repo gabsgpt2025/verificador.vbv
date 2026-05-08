@@ -1,154 +1,138 @@
-import type { BinRiskFactor } from "../types"
+import type { NextRequest } from "next/server"
 
-export type CountryRiskTier = "LOW" | "MEDIUM" | "HIGH" | "CRITICAL"
+import type { GeoContext } from "../types"
 
-export const COUNTRY_RISK_TIER: Record<string, CountryRiskTier> = {
-  US: "LOW",
-  BR: "LOW",
-  GB: "LOW",
-  DE: "LOW",
-  FR: "LOW",
-  ES: "LOW",
-  IT: "LOW",
-  NL: "LOW",
-  JP: "LOW",
-  AU: "LOW",
-  CA: "LOW",
-  MX: "LOW",
-  PT: "LOW",
-  SE: "LOW",
-  NO: "LOW",
-  FI: "LOW",
-  DK: "LOW",
-  CH: "LOW",
-  SG: "LOW",
-  IE: "LOW",
-  AR: "MEDIUM",
-  BO: "MEDIUM",
-  ZW: "MEDIUM",
-  CN: "MEDIUM",
-  IN: "MEDIUM",
-  TR: "MEDIUM",
-  ZA: "MEDIUM",
-  EG: "MEDIUM",
-  NG: "HIGH",
-  VE: "HIGH",
-  PK: "HIGH",
-  BD: "HIGH",
-  KE: "HIGH",
-  GH: "HIGH",
-  RU: "CRITICAL",
-  IR: "CRITICAL",
-  KP: "CRITICAL",
-  BY: "CRITICAL",
-  UA: "CRITICAL",
+type HeaderReader = {
+  headers: {
+    get(name: string): string | null
+  }
 }
 
-const BASE_SCORE_BY_TIER: Record<CountryRiskTier, number> = {
-  LOW: 15,
-  MEDIUM: 35,
-  HIGH: 55,
-  CRITICAL: 80,
+type GeoInput = {
+  ipCountry?: string | null
+  ipCity?: string | null
+  ipLatitude?: string | null
+  ipLongitude?: string | null
+  realIp?: string | null
 }
 
-function clamp(value: number, min: number, max: number) {
-  return Math.min(Math.max(Math.round(value), min), max)
+const COUNTRY_RISK_TIER: Record<string, GeoContext["ipCountryTier"]> = {
+  US: "tier1",
+  UK: "tier1",
+  GB: "tier1",
+  DE: "tier1",
+  FR: "tier1",
+  JP: "tier1",
+  BR: "tier2",
+  MX: "tier2",
+  AR: "tier2",
+  PL: "tier3",
+  RO: "tier3",
+  UA: "tier3",
+  BG: "tier3",
+  AL: "tier3",
+  DZ: "tier3",
+  EG: "tier3",
+  MA: "tier3",
+  TN: "tier3",
+  NG: "critical",
+  VE: "critical",
+  IR: "critical",
 }
 
-function normalizeCountryCode(countryCode?: string | null) {
-  if (!countryCode) return null
-  const normalized = countryCode.trim().toUpperCase()
+const COUNTRY_COORDS: Record<string, { lat: number; lng: number }> = {
+  BR: { lat: -14.235, lng: -51.9253 },
+  US: { lat: 39.8283, lng: -98.5795 },
+  GB: { lat: 55.3781, lng: -3.436 },
+  UK: { lat: 55.3781, lng: -3.436 },
+  DE: { lat: 51.1657, lng: 10.4515 },
+  FR: { lat: 46.2276, lng: 2.2137 },
+  JP: { lat: 36.2048, lng: 138.2529 },
+  MX: { lat: 23.6345, lng: -102.5528 },
+  AR: { lat: -38.4161, lng: -63.6167 },
+  NG: { lat: 9.082, lng: 8.6753 },
+  VE: { lat: 6.4238, lng: -66.5897 },
+  IR: { lat: 32.4279, lng: 53.688 },
+}
+
+function normalizeCountry(country?: string | null) {
+  if (!country) return null
+  const normalized = country.trim().toUpperCase()
+  if (normalized === "UK") return "GB"
   return normalized.length >= 2 ? normalized.slice(0, 2) : null
 }
 
-function getHeaderValue(headers: Headers | Record<string, string | null | undefined>, key: string) {
-  if (headers instanceof Headers) {
-    return headers.get(key)
+function getTier(country?: string | null): GeoContext["ipCountryTier"] {
+  const normalizedCountry = normalizeCountry(country)
+  if (!normalizedCountry) {
+    return "tier3"
   }
 
-  const exact = headers[key]
-  if (typeof exact === "string") return exact
-
-  const lower = headers[key.toLowerCase()]
-  return typeof lower === "string" ? lower : null
+  return COUNTRY_RISK_TIER[normalizedCountry] ?? "tier3"
 }
 
-export function extractGeoFromHeaders(headers: Headers | Record<string, string | null | undefined>) {
-  const forwardedFor = getHeaderValue(headers, "x-forwarded-for")
-  const ipAddress = forwardedFor?.split(",")[0]?.trim() ?? null
-  const ipCountry =
-    normalizeCountryCode(getHeaderValue(headers, "x-vercel-ip-country")) ??
-    normalizeCountryCode(getHeaderValue(headers, "cf-ipcountry"))
-  const ipRegion = getHeaderValue(headers, "x-vercel-ip-country-region")?.trim() ?? null
-
-  return {
-    ipAddress,
-    ipCountry,
-    ipRegion,
-  }
+function toNumber(value?: string | null) {
+  if (!value) return null
+  const parsed = Number(value)
+  return Number.isFinite(parsed) ? parsed : null
 }
 
-export function getCountryRiskTier(countryCode?: string | null): CountryRiskTier {
-  const normalized = normalizeCountryCode(countryCode)
-  if (!normalized) return "MEDIUM"
-  return COUNTRY_RISK_TIER[normalized] ?? "MEDIUM"
+function toRadians(value: number) {
+  return (value * Math.PI) / 180
 }
 
-export function enrichGeo(
-  binCountryCode?: string | null,
-  ipAddress?: string | null,
-  ipCountryCode?: string | null,
-) {
-  const binCountry = normalizeCountryCode(binCountryCode)
-  const ipCountry = normalizeCountryCode(ipCountryCode)
-  const countryRiskTier = getCountryRiskTier(binCountry)
-  const factors: BinRiskFactor[] = []
-  let score = binCountry ? BASE_SCORE_BY_TIER[countryRiskTier] : 30
+function haversineDistanceKm(lat1: number, lon1: number, lat2: number, lon2: number) {
+  const earthRadiusKm = 6371
+  const dLat = toRadians(lat2 - lat1)
+  const dLon = toRadians(lon2 - lon1)
 
-  if (binCountry) {
-    factors.push({
-      label: `Tier geográfico do BIN: ${countryRiskTier}`,
-      impact: BASE_SCORE_BY_TIER[countryRiskTier] - 20,
-      reason: `País emissor ${binCountry} classificado como ${countryRiskTier}.`,
-    })
-  } else {
-    factors.push({
-      label: "País emissor indisponível",
-      impact: 0,
-      reason: "Sem país do BIN, a dimensão geográfica opera em baseline neutro.",
-    })
+  const a =
+    Math.sin(dLat / 2) ** 2 +
+    Math.cos(toRadians(lat1)) * Math.cos(toRadians(lat2)) * Math.sin(dLon / 2) ** 2
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a))
+
+  return Math.round(earthRadiusKm * c)
+}
+
+function readGeoInput(request: NextRequest | HeaderReader | GeoInput): GeoInput {
+  if ("headers" in request && typeof request.headers.get === "function") {
+    return {
+      ipCountry: request.headers.get("x-vercel-ip-country"),
+      ipCity: request.headers.get("x-vercel-ip-city"),
+      ipLatitude: request.headers.get("x-vercel-ip-latitude"),
+      ipLongitude: request.headers.get("x-vercel-ip-longitude"),
+      realIp: request.headers.get("x-real-ip") ?? request.headers.get("x-forwarded-for"),
+    }
   }
 
-  const ipCountryMatch = Boolean(binCountry && ipCountry && binCountry === ipCountry)
+  return request as GeoInput
+}
 
-  if (binCountry && ipCountry && !ipCountryMatch) {
-    score += 25
-    factors.push({
-      label: "Divergência BIN vs IP",
-      impact: 25,
-      reason: `BIN em ${binCountry}, IP em ${ipCountry} (${ipAddress ?? "IP não informado"}).`,
-    })
-  } else if (ipCountryMatch) {
-    score -= 10
-    factors.push({
-      label: "BIN e IP alinhados",
-      impact: -10,
-      reason: `BIN e IP apontam para ${binCountry}.`,
-    })
-  } else {
-    factors.push({
-      label: "Geolocalização IP parcial/ausente",
-      impact: 0,
-      reason: "Sem país do IP confirmado para comparar com o BIN.",
-    })
-  }
+export function enrichGeo(binCountry: string, request: NextRequest | HeaderReader | GeoInput): GeoContext {
+  const normalizedBinCountry = normalizeCountry(binCountry)
+  const input = readGeoInput(request)
+  const ipCountry = normalizeCountry(input.ipCountry)
+  const binCoords = normalizedBinCountry ? COUNTRY_COORDS[normalizedBinCountry] : undefined
+
+  const latitude = toNumber(input.ipLatitude)
+  const longitude = toNumber(input.ipLongitude)
+
+  const distanceKm =
+    latitude !== null && longitude !== null && binCoords
+      ? haversineDistanceKm(binCoords.lat, binCoords.lng, latitude, longitude)
+      : null
 
   return {
     ipCountry,
-    binCountry,
-    ipCountryMatch,
-    countryRiskTier,
-    score: clamp(score, 0, 100),
-    factors,
+    ipCity: input.ipCity ?? null,
+    ipCountryMatch: Boolean(ipCountry && normalizedBinCountry && ipCountry === normalizedBinCountry),
+    distanceKm,
+    ipCountryTier: getTier(ipCountry),
   }
 }
+
+export function getCountryRiskTier(country?: string | null): GeoContext["ipCountryTier"] {
+  return getTier(country)
+}
+
+export { COUNTRY_RISK_TIER }

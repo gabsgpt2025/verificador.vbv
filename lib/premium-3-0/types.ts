@@ -115,7 +115,10 @@ export type BinThreeDSResult = {
     | "EMV_3DS_2_2"
     | "UNKNOWN"
   authMethodsLikely: string[]
-  explanation: string
+  explanation: {
+    technical: string
+    popular: string
+  }
   inferred: boolean
   frictionlessProbability: number
   challengeProbability: number
@@ -124,6 +127,54 @@ export type BinThreeDSResult = {
     "SCA_EXEMPTION_LOW_VALUE" | "TRA" | "RECURRING" | "MIT" | "FRICTIONLESS_3DS2"
   >
   bypassMechanisms?: BypassMechanism[]
+}
+
+export interface GeoContext {
+  ipCountry: string | null
+  ipCity: string | null
+  ipCountryMatch: boolean
+  distanceKm: number | null
+  ipCountryTier: "tier1" | "tier2" | "tier3" | "critical"
+}
+
+export interface TemporalContext {
+  hour: number
+  dayOfWeek: "MONDAY" | "TUESDAY" | "WEDNESDAY" | "THURSDAY" | "FRIDAY" | "SATURDAY" | "SUNDAY"
+  isWeekend: boolean
+  isNightTime: boolean
+  isBusinessHours: boolean
+}
+
+export interface BankReputation {
+  approvalRate: number
+  fraudRate: number
+  threeDsAdoption: number
+  threeDsMaturity: "LOW" | "MEDIUM" | "HIGH" | "VERY_HIGH"
+  defaultMethod: "OTP_SMS" | "BIOMETRIC" | "APP_PUSH" | "NONE"
+}
+
+export interface HistorySummary {
+  bin: string
+  timestamp: number
+  countryCode?: string | null
+}
+
+export interface RiskContext {
+  binData: BinApiData
+  geo: GeoContext
+  temporal: TemporalContext
+  bank: BankReputation | null
+  amount?: number
+  currency?: string
+  userAgent?: string
+  history?: HistorySummary[]
+}
+
+export interface PeerComparison {
+  percentile: number
+  peerCount: number
+  betterThan: number
+  peerGroup: string
 }
 
 export type BinRiskFactor = {

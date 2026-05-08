@@ -29,7 +29,10 @@ function makeAnalysis(overrides: Partial<FullBinAnalysis> = {}): FullBinAnalysis
       challengeLikelihood: "LOW",
       protocolLikely: "EMV_3DS_2",
       authMethodsLikely: ["OTP"],
-      explanation: "Análise inferida",
+      explanation: {
+        technical: "Análise inferida",
+        popular: "Análise inferida",
+      },
       inferred: true,
       frictionlessProbability: 82,
       challengeProbability: 18,
@@ -111,7 +114,10 @@ describe("mapFullBinAnalysisToResponse", () => {
           challengeLikelihood: "UNKNOWN",
           protocolLikely: "UNKNOWN",
           authMethodsLikely: [],
-          explanation: "",
+          explanation: {
+            technical: "",
+            popular: "",
+          },
           inferred: true,
           frictionlessProbability: 50,
           challengeProbability: 50,
