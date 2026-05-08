@@ -65,7 +65,7 @@ export function TransactionContextForm({ value, onChange }: TransactionContextFo
   return (
     <Collapsible.Root open={open} onOpenChange={setOpen} className="rounded-lg border border-border bg-card/50 p-4">
       <Collapsible.Trigger className="flex w-full items-center justify-between gap-3 text-left text-sm font-medium text-foreground">
-        <span>⚙️ Contexto avançado da transação (opcional — melhora a precisão da análise)</span>
+        <span><span aria-hidden="true">⚙️ </span>Contexto avançado da transação (opcional — melhora a precisão da análise)</span>
         <ChevronDown className={cn('h-4 w-4 text-muted-foreground transition-transform', open && 'rotate-180')} />
       </Collapsible.Trigger>
 
@@ -115,12 +115,7 @@ export function TransactionContextForm({ value, onChange }: TransactionContextFo
           <div className="space-y-2">
             <Label htmlFor="merchant-mcc" className="flex items-center gap-2">
               MCC
-              <span title="MCCs comuns: 5411 mercado, 5812 restaurante, 7995 gambling, 6051 cripto">
-                <Info
-                  className="h-3.5 w-3.5 text-muted-foreground"
-                  aria-label="MCCs comuns: 5411 mercado, 5812 restaurante, 7995 gambling, 6051 cripto"
-                />
-              </span>
+              <Info className="h-3.5 w-3.5 text-muted-foreground" aria-hidden="true" />
             </Label>
             <Input
               id="merchant-mcc"
@@ -131,6 +126,7 @@ export function TransactionContextForm({ value, onChange }: TransactionContextFo
               value={value.mcc}
               onChange={(event) => onChange({ ...value, mcc: sanitizeMcc(event.target.value) })}
             />
+            <p className="text-xs text-muted-foreground">MCCs comuns: 5411 mercado, 5812 restaurante, 7995 gambling, 6051 cripto.</p>
           </div>
         </div>
 

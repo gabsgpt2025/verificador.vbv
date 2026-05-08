@@ -103,6 +103,17 @@ type Premium3DAnalyzerProps = {
   initialHistory?: HistoryItem[]
 }
 
+function formatDiscrepancyMessage(entry: string) {
+  const trimmed = entry.trim()
+  if (!trimmed.includes('mismatch:')) return trimmed
+
+  const [labelPart, valuesPart] = trimmed.split('mismatch:', 2)
+  const label = labelPart.trim().replace(/:$/, '')
+  const normalizedValues = (valuesPart ?? '').trim().replace(/,/g, ' e')
+  if (!normalizedValues) return label
+  return `${label} diz ${normalizedValues}`
+}
+
 function getRiskTone(level: string) {
   switch (level) {
     case 'LOW':
@@ -153,9 +164,13 @@ function riskSummary(score: number, mode: LanguageModeKey) {
   return 'Precisa de bastante cuidado'
 }
 
-function toRelativeTime(dateValue: string) {
-  const parsed = new Date(dateValue)
-  if (Number.isNaN(parsed.getTime())) return 'agora'
+function clampPercentile(value: number) {
+  return Math.min(Math.max(value, 0), 100)
+}
+
+function toRelativeTime(dateString: string) {
+  const parsed = new Date(dateString)
+  if (Number.isNaN(parsed.getTime())) return 'data inválida'
   return formatDistanceToNow(parsed, { addSuffix: true, locale: ptBR })
 }
 
@@ -447,7 +462,7 @@ export function Premium3DAnalyzer({ initialAnalysis = null, initialHistory = [] 
                 {consensus?.discrepancies && consensus.discrepancies.length > 0 ? (
                   <ul className="space-y-2 rounded-lg border border-destructive/30 bg-destructive/10 p-3 text-sm text-destructive">
                     {consensus.discrepancies.map((entry) => (
-                      <li key={entry}>⚠️ {entry.replace('mismatch:', 'diz')}</li>
+                      <li key={entry}>⚠️ {formatDiscrepancyMessage(entry)}</li>
                     ))}
                   </ul>
                 ) : null}
@@ -463,11 +478,11 @@ export function Premium3DAnalyzer({ initialAnalysis = null, initialHistory = [] 
               </CardHeader>
               <CardContent className="space-y-3">
                 <div className="flex items-center justify-between gap-3">
-                  <p className="text-sm text-muted-foreground">Top {Math.max(1, 100 - peerComparison.percentile)}% de risco entre BINs comparáveis</p>
+                  <p className="text-sm text-muted-foreground">Percentil de risco: {clampPercentile(peerComparison.percentile)}/100 entre BINs comparáveis</p>
                   {peerComparison.percentile > 50 ? (
-                    <TrendingUp className="h-5 w-5 text-destructive" aria-label="Tendência de risco acima da média" />
+                    <TrendingUp className="h-5 w-5 text-destructive" aria-hidden="true" />
                   ) : (
-                    <TrendingDown className="h-5 w-5 text-primary" aria-label="Tendência de risco abaixo da média" />
+                    <TrendingDown className="h-5 w-5 text-primary" aria-hidden="true" />
                   )}
                 </div>
                 <Progress value={peerComparison.percentile} />

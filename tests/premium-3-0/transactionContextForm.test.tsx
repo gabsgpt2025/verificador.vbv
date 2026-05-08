@@ -9,7 +9,7 @@ import {
 } from '@/components/premium-3-0/TransactionContextForm'
 
 describe('TransactionContextForm', () => {
-  it('renderiza o formulário colapsável com label principal', () => {
+  it('renders collapsible form with primary label', () => {
     const html = renderToStaticMarkup(
       createElement(TransactionContextForm, {
         value: {
@@ -27,7 +27,7 @@ describe('TransactionContextForm', () => {
     expect(html).toContain('data-state="closed"')
   })
 
-  it('converte valores preenchidos para o payload de request', () => {
+  it('converts filled values into request payload', () => {
     const value: TransactionContextFormValue = {
       amount: '123.45',
       currency: 'USD',

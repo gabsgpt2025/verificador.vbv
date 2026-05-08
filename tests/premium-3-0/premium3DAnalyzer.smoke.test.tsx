@@ -5,7 +5,7 @@ import { createElement } from 'react'
 import { Premium3DAnalyzer, buildAnalysisRequestBody } from '@/components/premium-3-0/Premium3DAnalyzer'
 
 describe('Premium3DAnalyzer smoke', () => {
-  it('renderiza seções principais com resposta completa mockada', () => {
+  it('renders key sections with complete mocked response', () => {
     const html = renderToStaticMarkup(
       createElement(Premium3DAnalyzer, {
         initialAnalysis: {
@@ -99,7 +99,7 @@ describe('Premium3DAnalyzer smoke', () => {
     expect(html).toContain('Análise Detalhada de Fatores de Risco')
   })
 
-  it('inclui contexto transacional opcional no body do POST', () => {
+  it('includes optional transaction context in POST body', () => {
     const payload = buildAnalysisRequestBody('411111', {
       amount: '50.00',
       currency: 'USD',

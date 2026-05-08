@@ -10,7 +10,7 @@ import {
 } from '@/components/premium-3-0/RiskRadarChart'
 
 describe('RiskRadarChart', () => {
-  it('normaliza as 6 dimensões e preserva dataAvailable=false', () => {
+  it('normalizes all six dimensions and preserves dataAvailable=false', () => {
     const dimensions: RadarDimension[] = [
       { key: 'binRisk', label: 'BIN', score: 10, dataAvailable: true },
       { key: 'geographicRisk', label: 'Geográfico', score: 20, dataAvailable: true },
@@ -26,7 +26,7 @@ describe('RiskRadarChart', () => {
     expect(getRadarColor(85)).toBe('#ef4444')
   })
 
-  it('renderiza componente com seis dimensões sem quebrar SSR', () => {
+  it('renders component with six dimensions in SSR', () => {
     const html = renderToStaticMarkup(
       createElement(RiskRadarChart, {
         overallScore: 55,
