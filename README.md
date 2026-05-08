@@ -133,6 +133,19 @@ pnpm build      # build de produção
 pnpm test       # vitest run
 ```
 
+## Página /antifraude — análise automática de sessão
+
+Rota pública que executa, **automaticamente ao carregar**, uma análise antifraude completa do visitante (sessão/dispositivo/rede) sem exigir BIN de cartão.
+
+| Rota | Descrição |
+|---|---|
+| `GET /antifraude` | Página pública — auto-executa análise e exibe resultado com UI neon |
+| `POST /api/antifraud-session` | API chamada internamente pela página |
+
+O endpoint extrai IP real (headers Vercel/CF), User-Agent e sinais de navegador (fingerprint SHA-256 via `crypto.subtle`, sem libs externas), chama os enrichments Neutrino Tier 1 (IP Info, IP Blocklist, UA Lookup, Host Reputation) e devolve um `SessionRiskResponse` com score 0–100, riskLevel, recomendação e fatores.
+
+Para a documentação completa do contrato, veja [`docs/ANTIFRAUDE-SESSION.md`](docs/ANTIFRAUDE-SESSION.md).
+
 ## CI
 
 O workflow `.github/workflows/ci.yml` roda `lint → typecheck → build` em todo PR e push para `main`.
