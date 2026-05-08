@@ -9,9 +9,12 @@ const envSchema = z
     NEXT_PUBLIC_REQUIRE_AUTH: z.enum(["true", "false"]).default("false"),
     NEXT_PUBLIC_DEV_SUPABASE_REDIRECT_URL: z.string().url().optional(),
     CREDITS_TESTING_MODE: z.enum(["true", "false"]).default("false"),
+    ADMIN_METRICS_KEY: z.string().min(1).optional(),
 
     NEUTRINO_API_KEY: z.string().min(1).optional(),
     NEUTRINO_USER_ID: z.string().min(1).optional(),
+    UPSTASH_REDIS_REST_URL: z.string().url().optional(),
+    UPSTASH_REDIS_REST_TOKEN: z.string().min(1).optional(),
 
     MASTERCARD_CONSUMER_KEY: z.string().min(1).optional(),
     MASTERCARD_SANDBOX_CLIENT_ID: z.string().min(1).optional(),

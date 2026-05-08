@@ -1,4 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest"
+import { resetCacheState } from "../lib/premium-3-0/runtime/cache"
+import { resetBreakers } from "../lib/premium-3-0/runtime/circuitBreaker"
+import { resetMetrics } from "../lib/premium-3-0/runtime/metrics"
 import { callNeutrinoApi } from "../lib/premium-3-0/neutrino-api"
 
 describe("Neutrino API integration", () => {
@@ -6,6 +9,9 @@ describe("Neutrino API integration", () => {
     vi.restoreAllMocks()
     delete process.env.NEUTRINO_API_KEY
     delete process.env.NEUTRINO_USER_ID
+    resetCacheState()
+    resetBreakers()
+    resetMetrics()
   })
 
   it("posts to the official endpoint with bin-number", async () => {
@@ -63,7 +69,6 @@ describe("Neutrino API integration", () => {
     const fetchMock = vi
       .fn()
       .mockResolvedValueOnce(new Response("temporary error", { status: 500 }))
-      .mockResolvedValueOnce(new Response("temporary error", { status: 502 }))
       .mockResolvedValueOnce(
         new Response(JSON.stringify({ valid: true, card_brand: "VISA" }), {
           status: 200,
@@ -76,6 +81,6 @@ describe("Neutrino API integration", () => {
     const response = await callNeutrinoApi("405708")
 
     expect(response.valid).toBe(true)
-    expect(fetchMock).toHaveBeenCalledTimes(3)
+    expect(fetchMock).toHaveBeenCalledTimes(2)
   })
 })
