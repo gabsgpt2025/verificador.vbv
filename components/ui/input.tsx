@@ -2,15 +2,21 @@ import * as React from 'react'
 
 import { cn } from '@/lib/utils'
 
-function Input({ className, type, ...props }: React.ComponentProps<'input'>) {
+interface InputProps extends React.ComponentProps<'input'> {
+  error?: boolean
+}
+
+function Input({ className, type, error = false, ...props }: InputProps) {
+  const invalid = error || props['aria-invalid'] === true || props['aria-invalid'] === 'true'
+
   return (
     <input
       type={type}
       data-slot="input"
+      aria-invalid={invalid || undefined}
       className={cn(
-        'file:text-foreground placeholder:text-muted-foreground selection:bg-primary selection:text-primary-foreground dark:bg-input/30 border-input h-9 w-full min-w-0 rounded-md border bg-transparent px-3 py-1 text-base shadow-xs transition-[color,box-shadow] outline-none file:inline-flex file:h-7 file:border-0 file:bg-transparent file:text-sm file:font-medium disabled:pointer-events-none disabled:cursor-not-allowed disabled:opacity-50 md:text-sm',
-        'focus-visible:border-ring focus-visible:ring-ring/50 focus-visible:ring-[3px]',
-        'aria-invalid:ring-destructive/20 dark:aria-invalid:ring-destructive/40 aria-invalid:border-destructive',
+        'h-9 w-full min-w-0 rounded-md border border-border-default bg-bg-surface px-3 py-1 text-sm text-fg shadow-xs outline-none transition-colors placeholder:text-fg-muted hover:border-border-strong focus-visible:border-ds-accent focus-visible:ring-[3px] focus-visible:ring-ds-accent/40 disabled:cursor-not-allowed disabled:border-border-subtle disabled:bg-bg-surface-elevated disabled:text-fg-disabled disabled:opacity-100 file:border-0 file:bg-transparent file:text-sm file:font-medium',
+        invalid && 'border-status-danger focus-visible:border-status-danger focus-visible:ring-status-danger/30',
         className,
       )}
       {...props}

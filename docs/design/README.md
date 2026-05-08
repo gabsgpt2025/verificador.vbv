@@ -11,8 +11,8 @@
 |------|------|--------|----------------|
 | **0** | Inventário & Métricas | ✅ Completo | `docs/design/00-audit-metrics.md` |
 | **1** | Design Tokens (fundação) | ✅ Completo | `app/globals.css`, `docs/design/01-tokens.md` |
-| **2** | Componentes Base | 🔜 Próximo | `components/ui/*` + Storybook |
-| **3** | Layout Shell & Navegação | 🔜 Futuro | `components/dashboard/dashboard-header.tsx`, `AppShell` |
+| **2** | Componentes Base | ✅ Completo | `components/ui/*`, `docs/design/02-components.md` |
+| **3** | Layout Shell & Navegação | ✅ Completo | `components/shell/*`, `app/dashboard/layout.tsx`, `docs/design/03-shell.md` |
 | **4** | Migração de Páginas | 🔜 Futuro | BIN Pro, Credits, History, Admin |
 | **5** | Acessibilidade & QA | 🔜 Contínuo | axe-core CI, NVDA/VoiceOver |
 | **6** | Governança & Documentação | 🔜 Futuro | Storybook, Chromatic, ADRs |
@@ -25,7 +25,9 @@
 docs/design/
 ├── README.md              ← este arquivo (índice das fases)
 ├── 00-audit-metrics.md    ← Fase 0: inventário real de código
-└── 01-tokens.md           ← Fase 1: catálogo de design tokens
+├── 01-tokens.md           ← Fase 1: catálogo de design tokens
+├── 02-components.md       ← Fase 2: componentes base + domínio
+└── 03-shell.md            ← Fase 3: AppShell unificado
 ```
 
 ---
@@ -54,3 +56,13 @@ docs/design/
 
 `app/dashboard/page.tsx` — refatorada para consumir tokens semânticos.
 Demais páginas serão migradas nas Fases 4.x.
+
+---
+
+## Diferenciais Enterprise
+
+- **CommandPalette** (Cmd/Ctrl + K)
+- **Light/Dark mode** com `next-themes`
+- **Density tokens** (`compact` / `comfortable`)
+- **RiskIndicator** (componente-âncora antifraude)
+- **Intl formatters** centralizados em `lib/format.ts`

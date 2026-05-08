@@ -1,23 +1,17 @@
-import { requireAuth, getUserProfile } from "@/lib/auth"
-import { CreditsHistory } from "@/components/credits/credits-history"
-import { DashboardHeader } from "@/components/dashboard/dashboard-header"
+import { CreditsHistory } from '@/components/credits/credits-history'
+import { requireAuth } from '@/lib/auth'
 
 export default async function CreditsHistoryPage() {
   const user = await requireAuth()
-  const profile = await getUserProfile(user.id)
 
   return (
-    <div className="min-h-screen bg-background">
-      <DashboardHeader user={user} profile={profile} />
+    <div>
+      <div className="mb-8">
+        <h1 className="mb-2 text-3xl font-bold text-foreground">Credits History</h1>
+        <p className="text-muted-foreground">View and export your complete credit transaction history.</p>
+      </div>
 
-      <main className="container mx-auto px-4 py-8">
-        <div className="mb-8">
-          <h1 className="text-3xl font-bold text-foreground mb-2">Credits History</h1>
-          <p className="text-muted-foreground">View and export your complete credit transaction history.</p>
-        </div>
-
-        <CreditsHistory userId={user.id} />
-      </main>
+      <CreditsHistory userId={user.id} />
     </div>
   )
 }

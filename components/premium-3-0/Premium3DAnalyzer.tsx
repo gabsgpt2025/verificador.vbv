@@ -26,6 +26,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Input } from '@/components/ui/input'
 import { Progress } from '@/components/ui/progress'
 import { Skeleton } from '@/components/ui/skeleton'
+import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 
 import RiskRadarChart, { type RadarDimension } from '@/components/premium-3-0/RiskRadarChart'
 import TransactionContextForm, {
@@ -40,11 +41,11 @@ import type { BinRiskFactor, FullBinAnalysis } from '@/lib/premium-3-0/types'
 
 const LANGUAGE_MODES = {
   TECHNICAL: {
-    label: '🔧 Modo Técnico',
+    label: 'Modo Técnico',
     description: 'Explicações com termos de risco, autenticação e contexto transacional.',
   },
   POPULAR: {
-    label: '👥 Modo Popular',
+    label: 'Modo Popular',
     description: 'Explicações curtas e simples para leitura rápida.',
   },
 } as const
@@ -321,16 +322,15 @@ export function Premium3DAnalyzer({ initialAnalysis = null, initialHistory = [] 
           <CardDescription>{LANGUAGE_MODES[languageMode].description}</CardDescription>
         </CardHeader>
         <CardContent className="flex flex-col gap-3 sm:flex-row">
-          {(Object.keys(LANGUAGE_MODES) as LanguageModeKey[]).map((mode) => (
-            <Button
-              key={mode}
-              type="button"
-              variant={languageMode === mode ? 'default' : 'outline'}
-              onClick={() => setLanguageMode(mode)}
-            >
-              {LANGUAGE_MODES[mode].label}
-            </Button>
-          ))}
+          <Tabs value={languageMode} onValueChange={(value) => setLanguageMode(value as LanguageModeKey)} className="w-full">
+            <TabsList>
+              {(Object.keys(LANGUAGE_MODES) as LanguageModeKey[]).map((mode) => (
+                <TabsTrigger key={mode} value={mode} aria-label={LANGUAGE_MODES[mode].label}>
+                  {LANGUAGE_MODES[mode].label}
+                </TabsTrigger>
+              ))}
+            </TabsList>
+          </Tabs>
         </CardContent>
       </Card>
 
