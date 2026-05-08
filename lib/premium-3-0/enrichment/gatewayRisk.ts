@@ -65,9 +65,6 @@ export function enrichGateway({ amount, currency, mcc, merchantHost }: GatewayCo
   let score = 30
   const amountInBrl = convertAmountToBrl(amount, currency)
   const amountInEur = convertAmountToEur(amount, currency)
-  const hostReputation: number | null = null
-  const hostListed: boolean | null = null
-  const hostLists: string[] | null = null
 
   if (hasAmount) {
     factors.push({
@@ -126,9 +123,9 @@ export function enrichGateway({ amount, currency, mcc, merchantHost }: GatewayCo
     score: clamp(score, 0, 100),
     factors,
     dataAvailable: true,
-    hostReputation,
-    hostListed,
-    hostLists,
+    hostReputation: null,
+    hostListed: null,
+    hostLists: null,
     sourcesUsed,
   }
 }
