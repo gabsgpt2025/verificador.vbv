@@ -46,6 +46,9 @@ export interface GatewayContext {
   merchantHost?: string
 }
 
+// Keep this enrichment synchronous because the current holistic engine callers are synchronous
+// and only rely on local gateway signals (amount, currency, MCC). Merchant host presence is
+// tracked in `sourcesUsed`, leaving room for future async host-reputation enrichment upstream.
 export function enrichGateway({ amount, currency, mcc, merchantHost }: GatewayContext) {
   const factors: BinRiskFactor[] = []
   const sourcesUsed: string[] = []

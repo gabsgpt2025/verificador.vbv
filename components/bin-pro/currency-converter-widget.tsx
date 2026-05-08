@@ -22,7 +22,7 @@ export function CurrencyConverterWidget() {
   const updateRealtimeRate = useCallback(() => {
     const rate = CurrencyConverter.getRealtimeRate(fromCurrency, toCurrency)
     setRealtimeRate(rate)
-  }, [fromCurrency, toCurrency])
+  }, [fromCurrency, setRealtimeRate, toCurrency])
 
   useEffect(() => {
     updateRealtimeRate()
