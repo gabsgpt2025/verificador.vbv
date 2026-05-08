@@ -1,5 +1,3 @@
-import { getEnv } from "@/lib/env"
-import { fetchHostReputationDetailed } from "@/lib/premium-3-0/neutrino"
 import type { BinRiskFactor } from "../types"
 
 /** MCC codes that carry elevated gateway risk */
@@ -48,8 +46,7 @@ export interface GatewayContext {
   merchantHost?: string
 }
 
-export async function enrichGateway({ amount, currency, mcc, merchantHost }: GatewayContext) {
-  const env = getEnv()
+export function enrichGateway({ amount, currency, mcc, merchantHost }: GatewayContext) {
   const factors: BinRiskFactor[] = []
   const sourcesUsed: string[] = []
 
@@ -68,9 +65,9 @@ export async function enrichGateway({ amount, currency, mcc, merchantHost }: Gat
   let score = 30
   const amountInBrl = convertAmountToBrl(amount, currency)
   const amountInEur = convertAmountToEur(amount, currency)
-  let hostReputation: number | null = null
-  let hostListed: boolean | null = null
-  let hostLists: string[] | null = null
+  const hostReputation: number | null = null
+  const hostListed: boolean | null = null
+  const hostLists: string[] | null = null
 
   if (hasAmount) {
     factors.push({
@@ -117,35 +114,12 @@ export async function enrichGateway({ amount, currency, mcc, merchantHost }: Gat
     })
   }
 
-  if (env.NEUTRINO_HOST_REPUTATION_ENABLED && merchantHost) {
-    try {
-      const hostResult = await fetchHostReputationDetailed({ host: merchantHost })
-      hostReputation = hostResult.data.reputation_score ?? null
-      hostListed = hostResult.data.is_listed ?? null
-      hostLists = hostResult.data.lists ?? null
-
-      if (hostResult.meta.networkSuccess) {
-        sourcesUsed.push("neutrino-host-reputation")
-      }
-
-      if (hostResult.data.is_listed) {
-        score += 25
-        factors.push({
-          label: `host_reputation: ${hostResult.data.reputation_score ?? "N/A"}`,
-          impact: 25,
-          reason: `Host ${merchantHost} listado em serviços de reputação (${(hostResult.data.lists ?? []).join(", ") || "sem lista detalhada"}).`,
-        })
-      }
-    } catch (error) {
-      factors.push({
-        label: "neutrino_host_unavailable",
-        impact: 0,
-        reason: "Host enrichment indisponível, mantendo heurística local",
-      })
-      console.warn("[gateway-enrichment] neutrino_host_unavailable", {
-        message: error instanceof Error ? error.message : String(error),
-      })
-    }
+  if (merchantHost) {
+    factors.push({
+      label: "Host do merchant informado",
+      impact: 0,
+      reason: `Host ${merchantHost} recebido no contexto; heurística local aplicada sem consulta externa.`,
+    })
   }
 
   return {

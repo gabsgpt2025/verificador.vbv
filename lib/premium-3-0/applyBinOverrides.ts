@@ -1,7 +1,7 @@
 // lib/premium-3-0/applyBinOverrides.ts
 // Aplica correções manuais (overrides) antes da análise final
 
-import type { BinApiData, BinOverride } from "./types"
+import type { BinApiData } from "./types"
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type SupabaseClient = any

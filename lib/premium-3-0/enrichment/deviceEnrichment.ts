@@ -60,5 +60,11 @@ export function enrichDevice(userAgent?: string | null) {
     })
   }
 
-  return { score: clamp(score, 0, 100), deviceType, factors }
+  return {
+    score: clamp(score, 0, 100),
+    deviceType,
+    factors,
+    isBot: deviceType === "bot",
+    sourcesUsed: [] as string[],
+  }
 }

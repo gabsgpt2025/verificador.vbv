@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - main
+      - "v0/**"
   pull_request:
 
 permissions:
@@ -31,11 +32,11 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
-      - name: Lint
-        run: pnpm lint
-
       - name: Typecheck
         run: pnpm typecheck
+
+      - name: Lint
+        run: pnpm lint
 
       - name: Build
         run: pnpm build

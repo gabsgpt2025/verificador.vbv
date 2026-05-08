@@ -43,9 +43,7 @@ export async function updateSession(request: NextRequest) {
   } = await supabase.auth.getUser()
 
   const isAuthRoute = request.nextUrl.pathname.startsWith("/auth")
-  const isPublicRoute = request.nextUrl.pathname === "/"
   const isAdminRoute = request.nextUrl.pathname.startsWith("/admin")
-  const isProtectedRoute = !isAuthRoute && !isPublicRoute
 
   // Redirect authenticated users away from auth pages
   if (user && isAuthRoute && !request.nextUrl.pathname.includes("/verify-email")) {
@@ -63,7 +61,7 @@ export async function updateSession(request: NextRequest) {
   // Redirect unauthenticated users to login for protected routes.
   // TEMPORARILY DISABLED: Login desativado em produção para testes.
   // Para reativar: remova o comentário e defina NEXT_PUBLIC_REQUIRE_AUTH=true
-  // if (!user && isProtectedRoute && process.env.NEXT_PUBLIC_REQUIRE_AUTH === "true") {
+  // if (!user && !isAuthRoute && request.nextUrl.pathname !== "/" && process.env.NEXT_PUBLIC_REQUIRE_AUTH === "true") {
   //   const url = request.nextUrl.clone()
   //   url.pathname = "/auth/login"
   //   return NextResponse.redirect(url)

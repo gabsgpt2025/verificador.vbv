@@ -135,6 +135,7 @@ export function enrichGeo(binCountryCode: string, requestIp: string | null, requ
   distanceKm: number | null
   score: number
   factors: BinRiskFactor[]
+  sourcesUsed: string[]
 }
 export function enrichGeo(binCountryCode: string, lookup?: LegacyGeoLookup | null): {
   ipCountry: string | null
@@ -146,6 +147,7 @@ export function enrichGeo(binCountryCode: string, lookup?: LegacyGeoLookup | nul
   distanceKm: number | null
   score: number
   factors: BinRiskFactor[]
+  sourcesUsed: string[]
 }
 export function enrichGeo(
   binCountryCode: string,
@@ -215,5 +217,6 @@ export function enrichGeo(
     distanceKm: null,
     score: clamp(score, 0, 100),
     factors,
+    sourcesUsed: [],
   }
 }

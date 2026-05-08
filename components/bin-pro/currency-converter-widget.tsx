@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useCallback } from "react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -19,16 +19,16 @@ export function CurrencyConverterWidget() {
   const [history, setHistory] = useState<any[]>([])
   const [isConverting, setIsConverting] = useState(false)
 
+  const updateRealtimeRate = useCallback(() => {
+    const rate = CurrencyConverter.getRealtimeRate(fromCurrency, toCurrency)
+    setRealtimeRate(rate)
+  }, [fromCurrency, toCurrency])
+
   useEffect(() => {
     updateRealtimeRate()
     loadPopularPairs()
     loadHistory()
-  }, [fromCurrency, toCurrency])
-
-  const updateRealtimeRate = () => {
-    const rate = CurrencyConverter.getRealtimeRate(fromCurrency, toCurrency)
-    setRealtimeRate(rate)
-  }
+  }, [updateRealtimeRate])
 
   const loadPopularPairs = () => {
     const pairs = CurrencyConverter.getPopularPairs()
@@ -194,7 +194,6 @@ export function CurrencyConverterWidget() {
           <CardContent className="space-y-3">
             {popularPairs.map((pair, index) => {
               const fromInfo = CurrencyConverter.getCurrencyInfo(pair.from)
-              const toInfo = CurrencyConverter.getCurrencyInfo(pair.to)
               return (
                 <div
                   key={index}

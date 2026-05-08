@@ -41,6 +41,7 @@ export interface HolisticScore {
   riskLevel: "LOW" | "MEDIUM" | "HIGH" | "CRITICAL"
   recommendation: "APPROVE" | "REVIEW" | "REQUIRE_3DS" | "BLOCK_PREVENTIVELY" | "INSUFFICIENT_DATA"
   ensembleConfidence: number
+  sourcesUsed: string[]
   peerComparison: { percentile: number; description: string }
 }
 
@@ -245,6 +246,7 @@ export function runHolisticAnalysis(binData: BinApiData, context: Partial<Transa
   const geoDataAvailable = Boolean(binData.countryCode || normalizedContext.ipCountryCode)
   const deviceDataAvailable = Boolean(normalizedContext.userAgent)
   const gatewayDataAvailable = gatewayRiskRaw.dataAvailable
+  const sourcesUsed = [...geographicRisk.sourcesUsed, ...deviceRiskRaw.sourcesUsed, ...gatewayRiskRaw.sourcesUsed]
 
   const dimensionsWithData = [
     binDataAvailable,
@@ -336,6 +338,7 @@ export function runHolisticAnalysis(binData: BinApiData, context: Partial<Transa
     riskLevel,
     recommendation,
     ensembleConfidence,
+    sourcesUsed,
     peerComparison: buildPeerComparison(binData, binRisk.score, geographicRisk.score, geographicRisk.countryRiskTier),
   }
 }

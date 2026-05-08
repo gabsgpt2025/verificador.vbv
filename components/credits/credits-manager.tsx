@@ -19,7 +19,7 @@ interface CreditsManagerProps {
   initialCredits?: number
 }
 
-export function CreditsManager({ userId, isAdmin = false, initialCredits = 0 }: CreditsManagerProps) {
+export function CreditsManager({ userId: _userId, isAdmin = false, initialCredits = 0 }: CreditsManagerProps) {
   const [credits, setCredits] = useState(initialCredits)
   const [loading, setLoading] = useState(false)
   const [amount, setAmount] = useState("")

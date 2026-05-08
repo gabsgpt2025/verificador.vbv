@@ -35,7 +35,7 @@ interface CreditsHistoryProps {
   userId: string
 }
 
-export function CreditsHistory({ userId }: CreditsHistoryProps) {
+export function CreditsHistory({ userId: _userId }: CreditsHistoryProps) {
   const [history, setHistory] = useState<CreditLogEntry[]>([])
   const [loading, setLoading] = useState(true)
   const [currentPage, setCurrentPage] = useState(1)

@@ -106,6 +106,7 @@ export function mapFullBinAnalysisToResponse(apiData: FullBinAnalysis): Analysis
   const challengeLikelihood = mapChallengeLikelihood(apiData?.threeDSAnalysis?.challengeLikelihood)
   const frictionlessLikelihood = mapFrictionlessLikelihood(apiData?.threeDSAnalysis)
   const recommendedFlow = mapRecommendedFlow(challengeLikelihood, frictionlessLikelihood)
+  const holisticDimensions = apiData?.holistic?.dimensions
   const estimatedSuccessRate = mapEstimatedSuccessRate(
     frictionlessLikelihood,
     challengeLikelihood,
@@ -160,29 +161,23 @@ export function mapFullBinAnalysisToResponse(apiData: FullBinAnalysis): Analysis
       riskLevel: apiData?.riskAnalysis?.level ?? "MEDIUM",
       riskFactors: {
         binRisk:
-          apiData?.holistic?.binRisk?.score ??
-          (apiData?.holistic as { dimensions?: { binRisk?: { score?: number } } } | undefined)?.dimensions?.binRisk?.score ??
+          holisticDimensions?.binRisk?.score ??
           apiData?.riskAnalysis?.score ??
           0,
         temporalRisk:
-          apiData?.holistic?.temporalRisk?.score ??
-          (apiData?.holistic as { dimensions?: { temporalRisk?: { score?: number } } } | undefined)?.dimensions?.temporalRisk?.score ??
+          holisticDimensions?.temporalRisk?.score ??
           0,
         behavioralRisk:
-          apiData?.holistic?.behavioralRisk?.score ??
-          (apiData?.holistic as { dimensions?: { behavioralRisk?: { score?: number } } } | undefined)?.dimensions?.behavioralRisk?.score ??
+          holisticDimensions?.behavioralRisk?.score ??
           0,
         geographicRisk:
-          apiData?.holistic?.geographicRisk?.score ??
-          (apiData?.holistic as { dimensions?: { geographicRisk?: { score?: number } } } | undefined)?.dimensions?.geographicRisk?.score ??
+          holisticDimensions?.geographicRisk?.score ??
           0,
         deviceRisk:
-          apiData?.holistic?.deviceRisk?.score ??
-          (apiData?.holistic as { dimensions?: { deviceRisk?: { score?: number } } } | undefined)?.dimensions?.deviceRisk?.score ??
+          holisticDimensions?.deviceRisk?.score ??
           0,
         gatewayRisk:
-          apiData?.holistic?.gatewayRisk?.score ??
-          (apiData?.holistic as { dimensions?: { gatewayRisk?: { score?: number } } } | undefined)?.dimensions?.gatewayRisk?.score ??
+          holisticDimensions?.gatewayRisk?.score ??
           0,
       },
       alerts: [],

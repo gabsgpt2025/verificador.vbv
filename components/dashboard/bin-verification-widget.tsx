@@ -28,7 +28,7 @@ interface VerificationResult {
   issuer_phone: string
 }
 
-export function BinVerificationWidget({ userId }: BinVerificationWidgetProps) {
+export function BinVerificationWidget({ userId: _userId }: BinVerificationWidgetProps) {
   const [binNumber, setBinNumber] = useState("")
   const [verificationType, setVerificationType] = useState("basic")
   const [isLoading, setIsLoading] = useState(false)
