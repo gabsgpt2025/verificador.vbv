@@ -40,7 +40,7 @@ export default async function DashboardPage() {
           <h2 className="text-2xl font-semibold text-fg tracking-wide mb-2">
             Welcome back, {profile?.full_name || user.email}
           </h2>
-          <p className="text-sm text-fg-muted">Here&apos;s what&apos;s happening with your BIN verifications today.</p>
+          <p className="text-sm text-fg-muted">Here's what's happening with your BIN verifications today.</p>
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
@@ -154,7 +154,7 @@ export default async function DashboardPage() {
                         <div>
                           <p className="text-sm font-medium text-fg">BIN: {verification.bin_number}</p>
                           <p className="text-xs text-fg-muted">
-                            {verification.card_brand} &bull; {verification.card_type}
+                          {verification.card_brand} {'•'} {verification.card_type}
                           </p>
                         </div>
                       </div>

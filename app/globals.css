@@ -274,14 +274,6 @@
 
   /* === DESIGN SYSTEM — Global base rules === */
 
-  html,
-  body {
-    background: var(--bg-app);
-    color: var(--text-primary);
-    -webkit-font-smoothing: antialiased;
-    -moz-osx-font-smoothing: grayscale;
-  }
-
   :focus-visible {
     outline: none;
     box-shadow: var(--ds-shadow-focus);
