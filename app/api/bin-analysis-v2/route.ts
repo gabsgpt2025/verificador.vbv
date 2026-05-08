@@ -8,7 +8,7 @@ import { runFullBinAnalysis } from "@/lib/premium-3-0"
 import { saveBinAnalysisLog } from "@/lib/premium-3-0/saveBinAnalysisLog"
 import { callNeutrinoApi } from "@/lib/premium-3-0/neutrino-api"
 import type { BinApiData, FullBinAnalysis } from "@/lib/premium-3-0/types"
-import type { AnalysisRequest } from "@/lib/premium-3-0/holisticTypes"
+import type { AnalysisRequest, ValidationResult } from "@/lib/premium-3-0/holisticTypes"
 import { OPEN_ACCESS_MODE } from "@/lib/open-access-mode"
 
 // ============================================================================
@@ -38,9 +38,7 @@ const analysisRequestSchema = z.object({
  * Valida e converte o body recebido pelo endpoint para AnalysisRequest.
  * Retorna o objeto tipado em caso de sucesso, ou um objeto de erro estruturado.
  */
-function validateAnalysisRequest(
-  body: unknown,
-): { ok: true; data: AnalysisRequest } | { ok: false; error: string } {
+function validateAnalysisRequest(body: unknown): ValidationResult<AnalysisRequest> {
   const result = analysisRequestSchema.safeParse(body)
   if (!result.success) {
     const firstIssue = result.error.issues[0]

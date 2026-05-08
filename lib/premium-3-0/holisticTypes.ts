@@ -175,12 +175,24 @@ export interface LanguageMode {
 }
 
 // ============================================================================
+// TIPOS UTILITÁRIOS
+// ============================================================================
+
+/** Resultado de validação discriminado — use em funções de validação de input. */
+export type ValidationResult<T> =
+  | { ok: true; data: T }
+  | { ok: false; error: string }
+
+// ============================================================================
 // CONTRATO DE BORDA: AnalysisRequest / AnalysisResponse
 // ============================================================================
 
 /** Payload aceito pelo endpoint POST /api/bin-analysis-v2. */
 export interface AnalysisRequest {
-  /** Primeiros 6–8 dígitos do cartão (somente números). */
+  /**
+   * Primeiros 6–8 dígitos do cartão (somente números).
+   * Formato validado em runtime via `validateAnalysisRequest` no route handler.
+   */
   bin: string
   transactionAmount?: number
   transactionCurrency?: string

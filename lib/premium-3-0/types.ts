@@ -28,6 +28,7 @@ export type {
   MastercardBINLookupResponse,
   MastercardIdentityInsightsResponse,
   LanguageMode,
+  ValidationResult,
   AnalysisRequest,
   AnalysisResponse,
   DashboardMetrics,
