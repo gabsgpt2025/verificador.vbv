@@ -4,6 +4,33 @@ Histórico das fases de correção e alinhamento do sistema.
 
 ---
 
+## Fase 5 — Runtime Infra (Cache + Circuit Breaker + Retry) (2026-05-08)
+
+### Mudanças
+
+- **Criado** `lib/premium-3-0/runtime/` com os módulos `cache/`, `circuitBreaker.ts`, `retry.ts`, `resilientFetch.ts` e `metrics.ts`.
+- **Adicionada** camada de cache pluggable com implementação default em memória (`memoryCache`) e adapter preparado para Upstash (`upstashCache`) sem nova dependência obrigatória.
+- **Adicionado** `CircuitBreaker` com registry singleton por operação, timeout, transições `CLOSED → OPEN → HALF_OPEN` e métricas de rejeição.
+- **Adicionado** `withRetry()` com backoff exponencial, jitter opcional e proteção para não repetir erros `4xx` nem `CircuitOpenError`.
+- **Adicionado** `resilientFetch()` para compor cache + breaker + retry + parse tipado em um único helper reutilizável por providers.
+- **Adicionado** coletor in-memory em `lib/premium-3-0/runtime/metrics.ts` com ring buffer de até 1000 amostras por `(provider, operation)`.
+- **Criado** endpoint protegido `app/api/admin/runtime-metrics/route.ts`, habilitado apenas quando `ADMIN_METRICS_KEY` estiver configurada.
+- **Refatorado** `lib/premium-3-0/neutrino-api.ts` para usar `resilientFetch()` no `bin-lookup`, com cache de 7 dias e retry idempotente.
+- **Atualizado** `.env.example` com `ADMIN_METRICS_KEY` e placeholders comentados para Upstash.
+- **Adicionados** testes Vitest focados em runtime infra em `tests/premium-3-0/runtime/`.
+
+### Impacto
+
+- **API externa**: o shape retornado por `/api/bin-analysis-v2` permanece inalterado.
+- **Quota upstream**: BIN lookup da Neutrino passa a poder reaproveitar resultados por 7 dias, reduzindo chamadas repetidas.
+- **Resiliência**: falhas consecutivas do upstream deixam de escalar linearmente em timeouts para o usuário.
+
+### Próxima fase
+
+- **Fase 5N**: ativar novos endpoints da Neutrino usando `resilientFetch()` como padrão de integração.
+
+---
+
 ## Fase 2 — Alinhamento de tipos & contratos (2026-05-08)
 
 ### Mudanças
