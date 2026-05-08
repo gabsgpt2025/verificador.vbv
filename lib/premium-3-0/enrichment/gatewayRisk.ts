@@ -1,62 +1,113 @@
 import type { BinRiskFactor } from "../types"
 
-type GatewayContext = {
-  amount?: number
-  currency?: string
-  mcc?: string
-  gateway?: string
+/** MCC codes that carry elevated gateway risk */
+const HIGH_RISK_MCC = new Set(["7995", "6051"])
+
+const EUR_EXCHANGE_RATE: Record<string, number> = {
+  EUR: 1,
+  BRL: 0.18,
+  USD: 0.92,
+  GBP: 1.16,
+  CAD: 0.67,
+  AUD: 0.6,
+  MXN: 0.05,
+}
+
+const BRL_EXCHANGE_RATE: Record<string, number> = {
+  BRL: 1,
+  EUR: 6,
+  USD: 5.45,
+  GBP: 6.9,
+  CAD: 4.0,
+  AUD: 3.6,
+  MXN: 0.29,
 }
 
 function clamp(value: number, min: number, max: number) {
   return Math.min(Math.max(Math.round(value), min), max)
 }
 
-export function enrichGateway(context: GatewayContext = {}) {
+function convertAmountToEur(amountInCents?: number, currency?: string) {
+  if (typeof amountInCents !== "number") return null
+  const rate = EUR_EXCHANGE_RATE[(currency ?? "EUR").toUpperCase()] ?? 1
+  return (amountInCents / 100) * rate
+}
+
+function convertAmountToBrl(amountInCents?: number, currency?: string) {
+  if (typeof amountInCents !== "number") return null
+  const rate = BRL_EXCHANGE_RATE[(currency ?? "BRL").toUpperCase()] ?? 1
+  return (amountInCents / 100) * rate
+}
+
+export interface GatewayContext {
+  amount?: number
+  currency?: string
+  mcc?: string
+}
+
+export function enrichGateway({ amount, currency, mcc }: GatewayContext) {
   const factors: BinRiskFactor[] = []
-  const hasData =
-    typeof context.amount === "number" ||
-    Boolean(context.currency) ||
-    Boolean(context.mcc) ||
-    Boolean(context.gateway)
 
-  if (!hasData) {
+  const hasAmount = typeof amount === "number"
+  const hasMcc = typeof mcc === "string" && mcc.length > 0
+
+  if (!hasAmount && !hasMcc) {
     factors.push({
-      label: "Contexto de gateway ausente",
+      label: "Sem dados de contexto do gateway",
       impact: 0,
-      reason: "Sem dados de gateway/MCC/valor, o enrichment retorna baseline 10.",
+      reason: "Sem valor de transação ou MCC informado, o motor usa score neutro conservador.",
     })
-    return { score: 10, factors }
+    return { score: 20, factors, dataAvailable: false }
   }
 
-  let score = 10
-  const currency = (context.currency ?? "").toUpperCase()
-  const mcc = (context.mcc ?? "").trim()
+  let score = 30
+  const amountInBrl = convertAmountToBrl(amount, currency)
+  const amountInEur = convertAmountToEur(amount, currency)
 
-  if (typeof context.amount === "number" && context.amount > 5000 && ["USD", "EUR", "BRL"].includes(currency)) {
-    score += 15
+  if (hasAmount) {
     factors.push({
-      label: "Valor alto",
-      impact: 15,
-      reason: `Valor ${context.amount} ${currency} acima de 5000.`,
+      label: "Valor da transação informado",
+      impact: 10,
+      reason: "Com valor disponível, o motor consegue estimar pressão de risco do gateway e de possíveis isenções.",
     })
+
+    if (amountInBrl !== null && amountInBrl > 5000) {
+      score += 20
+      factors.push({
+        label: "Valor alto para o gateway",
+        impact: 20,
+        reason: `O valor equivalente em BRL é ${amountInBrl.toFixed(2)}, acima da faixa de R$ 5.000.`,
+      })
+    }
+
+    if (amountInEur !== null && amountInEur < 30) {
+      score -= 5
+      factors.push({
+        label: "Faixa elegível para isenção de baixo valor",
+        impact: -5,
+        reason: `O valor equivalente em EUR é ${amountInEur.toFixed(2)}, permitindo leitura de low-value exemption/SCA.`,
+      })
+    }
   }
 
-  if (mcc === "7995" || mcc === "6051") {
+  if (hasMcc && HIGH_RISK_MCC.has(mcc)) {
     score += 25
+    const mccLabels: Record<string, string> = {
+      "7995": "7995 (apostas / jogos de azar)",
+      "6051": "6051 (câmbio / quasi-cash)",
+    }
     factors.push({
-      label: "MCC de alto risco",
+      label: `MCC de alto risco: ${mccLabels[mcc] ?? mcc}`,
       impact: 25,
-      reason: `MCC ${mcc} classificado como gambling/crypto.`,
+      reason: `Transações com MCC ${mcc} exigem autenticação reforçada e maior escrutínio do gateway.`,
     })
-  }
-
-  if (factors.length === 0) {
+  } else if (hasMcc) {
     factors.push({
-      label: "Gateway sem red flags",
+      label: `MCC informado: ${mcc}`,
       impact: 0,
-      reason: "Sem gatilhos de risco alto para valor/MCC.",
+      reason: `O código MCC ${mcc} não está classificado como alto risco nesta base.`,
     })
   }
 
-  return { score: clamp(score, 0, 100), factors }
+  return { score: clamp(score, 0, 100), factors, dataAvailable: true }
 }

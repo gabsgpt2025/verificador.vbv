@@ -63,4 +63,62 @@ describe("holisticEngine deterministic calculations", () => {
     expect(result.deviceRisk.score).toBe(80)
     expect(result.geographicRisk.score).toBeGreaterThan(0)
   })
+
+  it('dimensões têm weight, explanation e dataAvailable', () => {
+    const result = runHolisticAnalysis(
+      makeBin({ brand: 'VISA', countryCode: 'US' }),
+      { timestamp: Date.UTC(2026, 4, 11, 10, 0, 0), userAgent: 'Mozilla/5.0', isFirstTransaction: false },
+    )
+
+    for (const dim of [
+      result.binRisk,
+      result.temporalRisk,
+      result.behavioralRisk,
+      result.geographicRisk,
+      result.deviceRisk,
+      result.gatewayRisk,
+    ]) {
+      expect(dim).toHaveProperty('weight')
+      expect(dim).toHaveProperty('explanation')
+      expect(dim.explanation).toHaveProperty('technical')
+      expect(dim.explanation).toHaveProperty('popular')
+      expect(dim).toHaveProperty('dataAvailable')
+    }
+
+    expect(result.overallScore).toBeGreaterThanOrEqual(0)
+    expect(result.overallScore).toBeLessThanOrEqual(100)
+  })
+
+  it('retorna recommendation e ensembleConfidence', () => {
+    const result = runHolisticAnalysis(
+      makeBin({ brand: 'MASTERCARD', countryCode: 'BR', issuer: 'NUBANK' }),
+      {
+        timestamp: Date.UTC(2026, 4, 11, 14, 0, 0),
+        userAgent: 'Mozilla/5.0 Android Chrome',
+        amount: 10_000,
+        currency: 'BRL',
+        ipCountryCode: 'BR',
+        isFirstTransaction: false,
+      },
+    )
+
+    expect(['APPROVE', 'REVIEW', 'REQUIRE_3DS', 'BLOCK_PREVENTIVELY', 'INSUFFICIENT_DATA']).toContain(result.recommendation)
+    expect(result.ensembleConfidence).toBeGreaterThan(0)
+    expect(result.ensembleConfidence).toBeLessThanOrEqual(100)
+  })
+
+  it('eleva risco para MCC de alto risco (7995 — apostas)', () => {
+    const result = runHolisticAnalysis(
+      makeBin({ brand: 'VISA', countryCode: 'US' }),
+      {
+        timestamp: Date.UTC(2026, 4, 11, 14, 0, 0),
+        amount: 50_000,
+        currency: 'BRL',
+        mcc: '7995',
+      },
+    )
+
+    expect(result.gatewayRisk.score).toBeGreaterThan(30)
+    expect(result.gatewayRisk.factors.some((f) => f.label.toLowerCase().includes('mcc'))).toBe(true)
+  })
 })

@@ -1,72 +1,64 @@
 import type { BinRiskFactor } from "../types"
 
-type DeviceType = "mobile" | "desktop" | "tablet" | "unknown"
-
 function clamp(value: number, min: number, max: number) {
   return Math.min(Math.max(Math.round(value), min), max)
 }
 
-function sanitize(value: string) {
-  return value.replace(/[<>"'`]/g, "").replace(/\s+/g, " ").trim()
+function redactUserAgent(userAgent: string): string {
+  return userAgent.slice(0, 30)
 }
 
-export function redactUserAgent(userAgent?: string | null) {
-  if (!userAgent) return "n/a"
-  return sanitize(userAgent)
-    .replace(/\d/g, "x")
-    .slice(0, 30)
-}
+export type DeviceType = "mobile" | "desktop" | "tablet" | "bot" | "unknown"
 
-function detectDeviceType(userAgent: string): DeviceType {
-  if (/ipad|tablet|kindle/i.test(userAgent)) return "tablet"
-  if (/android|iphone|mobile/i.test(userAgent)) return "mobile"
-  if (!userAgent) return "unknown"
+export function parseDeviceType(userAgent?: string | null): DeviceType {
+  const ua = (userAgent ?? "").toLowerCase()
+  if (!ua) return "unknown"
+  if (/(bot|headless|phantom|playwright|puppeteer|selenium|curl|python-requests|axios|scrapy)/i.test(ua)) return "bot"
+  if (/(ipad|tablet|kindle|playbook)/i.test(ua)) return "tablet"
+  if (/(iphone|android|mobile|ipod)/i.test(ua)) return "mobile"
   return "desktop"
 }
 
-function detectBrowser(userAgent: string) {
-  if (/edg\//i.test(userAgent)) return "Edge"
-  if (/chrome\//i.test(userAgent)) return "Chrome"
-  if (/firefox\//i.test(userAgent)) return "Firefox"
-  if (/safari\//i.test(userAgent) && !/chrome\//i.test(userAgent)) return "Safari"
-  return "Unknown"
-}
-
 export function enrichDevice(userAgent?: string | null) {
-  const ua = userAgent ?? ""
-  const deviceType = detectDeviceType(ua)
-  const browser = detectBrowser(ua)
-  const isBot = /(bot|crawler|spider|headless|playwright|puppeteer|selenium|curl|wget|python-requests)/i.test(ua)
   const factors: BinRiskFactor[] = []
-  let score = 10
+  let score = 15
+  const deviceType = parseDeviceType(userAgent)
 
-  if (isBot) {
-    score += 40
+  if (deviceType === "unknown") {
+    score += 20
     factors.push({
-      label: "Padrão bot/headless",
-      impact: 40,
-      reason: `User-Agent suspeito (redacted: ${redactUserAgent(ua)}).`,
+      label: "User-Agent ausente",
+      impact: 20,
+      reason: "Sem identificação de dispositivo, o motor assume maior incerteza operacional.",
+    })
+  } else if (deviceType === "bot") {
+    score += 50
+    const redacted = redactUserAgent(userAgent ?? "")
+    factors.push({
+      label: "Padrão de bot/headless detectado",
+      impact: 50,
+      reason: `O user-agent indica automação ou browser headless. UA: ${redacted}${(userAgent ?? "").length > 30 ? "…" : ""}`,
     })
   } else if (deviceType === "mobile") {
-    score += 5
+    score -= 5
     factors.push({
-      label: "Dispositivo mobile",
-      impact: 5,
-      reason: `Sessão mobile detectada (redacted: ${redactUserAgent(ua)}).`,
+      label: "Dispositivo móvel comum",
+      impact: -5,
+      reason: "Fluxos mobile modernos tendem a ter telemetria e biometria mais consistentes.",
+    })
+  } else if (deviceType === "tablet") {
+    factors.push({
+      label: "Dispositivo tablet",
+      impact: 0,
+      reason: "Tablet identificado sem sinais de automação.",
     })
   } else {
     factors.push({
-      label: "Dispositivo desktop/baseline",
+      label: "Desktop/browser tradicional",
       impact: 0,
-      reason: `User-Agent regular (redacted: ${redactUserAgent(ua)}).`,
+      reason: "User-agent de desktop identificado sem sinais claros de automação.",
     })
   }
 
-  return {
-    deviceType,
-    browser,
-    isBot,
-    score: clamp(score, 0, 100),
-    factors,
-  }
+  return { score: clamp(score, 0, 100), deviceType, factors }
 }

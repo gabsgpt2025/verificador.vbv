@@ -1,81 +1,74 @@
 import { getCountryRiskTier } from "./enrichment/geoEnrichment"
-import type { BinApiData, PeerComparison } from "./types"
+import type { BinApiData } from "./types"
 
-type SupabaseLike = {
-  from: (table: string) => {
-    select: (columns: string) => {
-      eq: (field: string, value: string) => {
-        eq: (field2: string, value2: string) => {
-          gte: (field3: string, value3: string) => PromiseLike<{ data: Array<{ risk_score: number }> | null; error: { message: string } | null }>
-        }
-      }
-    }
-  }
+function clamp(value: number, min: number, max: number) {
+  return Math.min(Math.max(Math.round(value), min), max)
 }
 
-function clampPercentile(value: number) {
-  return Math.max(0, Math.min(100, Math.round(value)))
+export interface PeerComparison {
+  percentile: number
+  description: string
 }
 
-function computePercentile(values: number[], score: number) {
-  if (values.length === 0) return 50
-  const sorted = [...values].sort((a, b) => a - b)
-  const lessOrEqual = sorted.filter((value) => value <= score).length
-  return clampPercentile((lessOrEqual / sorted.length) * 100)
-}
+/**
+ * Deterministic peer comparison: computes a percentile (1–99) for this BIN
+ * relative to comparable cards in the same country/category bucket.
+ * Importa `getCountryRiskTier` de geoEnrichment (sem duplicar).
+ */
+export function computePeerComparison(binData: BinApiData): PeerComparison {
+  const countryRiskTier = getCountryRiskTier(binData.countryCode)
+  const category = (binData.category ?? "").toUpperCase()
+  const brand = (binData.brand ?? "").toUpperCase()
 
-function fallbackPeerSample(countryCode?: string | null) {
-  const tier = getCountryRiskTier(countryCode)
-  if (tier === "critical") return [70, 75, 80, 85, 90, 95]
-  if (tier === "tier3") return [45, 50, 55, 60, 65, 70]
-  if (tier === "tier2") return [30, 35, 40, 45, 50, 55]
-  return [15, 20, 25, 30, 35, 40]
-}
-
-export async function comparePeers(
-  binData: BinApiData,
-  riskScore: number,
-  supabase?: SupabaseLike,
-): Promise<PeerComparison> {
-  const country = (binData.countryCode ?? "XX").toUpperCase()
-  const brand = (binData.brand ?? "UNKNOWN").toUpperCase()
-  const type = (binData.type ?? "UNKNOWN").toUpperCase()
-  const peerGroup = `${brand}-${country}-${type}`
-
-  const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString()
-
-  let peerScores: number[] = []
-
-  if (supabase) {
-    try {
-      const queryBuilder = supabase
-        .from("bin_analyses")
-        .select("risk_score")
-        .eq("country", country)
-        .eq("brand", brand)
-        .gte("created_at", thirtyDaysAgo)
-      const { data, error } = await queryBuilder
-
-      if (!error && data) {
-        peerScores = data.map((entry) => Number(entry.risk_score)).filter((score) => Number.isFinite(score))
-      }
-    } catch {
-      peerScores = []
-    }
+  // Base percentile: safer countries start higher
+  let percentile: number
+  switch (countryRiskTier) {
+    case "TIER1":
+      percentile = 70
+      break
+    case "TIER2":
+      percentile = 55
+      break
+    case "CRITICAL":
+      percentile = 25
+      break
+    default: // TIER3
+      percentile = 45
   }
 
-  if (peerScores.length < 5) {
-    peerScores = fallbackPeerSample(country)
+  // Premium card category bonus
+  if (["BLACK", "PLATINUM", "SIGNATURE", "INFINITE", "WORLD ELITE"].some((entry) => category.includes(entry))) {
+    percentile += 10
   }
 
-  const percentile = computePercentile(peerScores, riskScore)
-  const peerCount = peerScores.length
-  const betterThan = percentile
-
-  return {
-    percentile,
-    peerCount,
-    betterThan,
-    peerGroup,
+  // Prepaid penalty
+  if (binData.isPrepaid) {
+    percentile -= 25
   }
+
+  // Virtual card small penalty
+  if (category.includes("VIRTUAL")) {
+    percentile -= 10
+  }
+
+  // Business/Corporate mild penalty
+  if (["BUSINESS", "CORPORATE", "COMMERCIAL"].some((entry) => category.includes(entry))) {
+    percentile -= 5
+  }
+
+  // Major network bonus
+  if (["VISA", "MASTERCARD", "AMEX", "AMERICAN EXPRESS"].includes(brand)) {
+    percentile += 5
+  }
+
+  percentile = clamp(percentile, 1, 99)
+
+  const description =
+    percentile >= 75
+      ? `Melhor que ${percentile}% dos cartões comparáveis em BIN + geografia.`
+      : percentile >= 40
+        ? `Na média do mercado: melhor que ${percentile}% dos cartões comparáveis.`
+        : `Abaixo da média: melhor que apenas ${percentile}% dos cartões comparáveis.`
+
+  return { percentile, description }
 }

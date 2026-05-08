@@ -1,52 +1,60 @@
-import { describe, expect, it } from "vitest"
+import { describe, expect, it } from 'vitest'
 
-import { analyzeThreeDS, analyzeThreeDSExtended } from "@/lib/premium-3-0/analyzeThreeDS"
-import type { BinApiData } from "@/lib/premium-3-0/types"
+import { analyzeThreeDS, analyzeThreeDSExtended } from '@/lib/premium-3-0/analyzeThreeDS'
+import type { BinApiData } from '@/lib/premium-3-0/types'
 
 function makeBin(overrides: Partial<BinApiData> = {}): BinApiData {
   return {
-    bin: "405708",
+    bin: '411111',
     binLength: 6,
-    source: "INTERNAL",
+    source: 'NEUTRINO',
+    brand: 'VISA',
+    countryCode: 'US',
     ...overrides,
   }
 }
 
-describe("analyzeThreeDSExtended", () => {
-  it("mantém compatibilidade com analyzeThreeDS base", () => {
-    const bin = makeBin({ brand: "VISA", type: "CREDIT", countryCode: "BR", issuer: "Bradesco" })
-    const base = analyzeThreeDS(bin)
-    const extended = analyzeThreeDSExtended(bin)
-    expect(extended.status).toBe(base.status)
-    expect(extended.frictionlessProbability).toBe(base.frictionlessProbability)
-  })
-
-  it("retorna campos estendidos de probabilidade", () => {
-    const result = analyzeThreeDSExtended(
-      makeBin({ brand: "VISA", type: "CREDIT", countryCode: "GB", issuer: "Barclays" }),
-      { amount: 1200, currency: "EUR" },
-    )
+describe('analyzeThreeDS', () => {
+  it('retorna frictionlessProbability e challengeProbability somando ≤ 200', () => {
+    const result = analyzeThreeDS(makeBin())
     expect(result.frictionlessProbability).toBeGreaterThanOrEqual(0)
     expect(result.frictionlessProbability).toBeLessThanOrEqual(100)
-    expect(result.bypassProbability).toBeGreaterThanOrEqual(0)
-    expect(result.bypassProbability).toBeLessThanOrEqual(100)
+    expect(result.challengeProbability).toBeGreaterThanOrEqual(0)
+    expect(result.challengeProbability).toBeLessThanOrEqual(100)
   })
 
-  it("mapeia mecanismos para SSOT BypassMechanism", () => {
-    const result = analyzeThreeDSExtended(
-      makeBin({ brand: "VISA", type: "CREDIT", category: "RECURRING", countryCode: "BR", issuer: "Itaú" }),
-      { amount: 500, currency: "EUR" },
-    )
-    expect(result.bypassMechanisms.length).toBeGreaterThan(0)
-    expect(["NONE", "FRICTIONLESS_3DS2", "SCA_EXEMPTION", "3DS_NOMINAL"]).toContain(result.bypassMechanisms[0])
+  it('pré-pago reduz frictionlessProbability', () => {
+    const normalResult = analyzeThreeDS(makeBin())
+    const prepaidResult = analyzeThreeDS(makeBin({ isPrepaid: true, type: 'PREPAID' }))
+    expect(prepaidResult.frictionlessProbability).toBeLessThan(normalResult.frictionlessProbability)
   })
 
-  it("continua inferindo risco alto para país crítico + prepaid", () => {
-    const result = analyzeThreeDSExtended(
-      makeBin({ brand: "VISA", type: "PREPAID", isPrepaid: true, countryCode: "VE" }),
-      { amount: 9000, currency: "USD" },
-    )
-    expect(result.challengeProbability).toBeGreaterThanOrEqual(50)
-    expect(result.status).toBe("LIKELY_INACTIVE")
+  it('cartão CRITICAL country tem frictionless mais baixo que TIER1', () => {
+    const tier1Result = analyzeThreeDS(makeBin({ countryCode: 'US' }))
+    const criticalResult = analyzeThreeDS(makeBin({ countryCode: 'NG' }))
+    expect(criticalResult.frictionlessProbability).toBeLessThan(tier1Result.frictionlessProbability)
+  })
+})
+
+describe('analyzeThreeDSExtended', () => {
+  it('retorna frictionlessProbability, bypassProbability e bypassMechanisms', () => {
+    const result = analyzeThreeDSExtended(makeBin())
+    expect(result).toHaveProperty('frictionlessProbability')
+    expect(result).toHaveProperty('bypassProbability')
+    expect(result).toHaveProperty('bypassMechanisms')
+    expect(Array.isArray(result.bypassMechanisms)).toBe(true)
+  })
+
+  it('valor baixo (< EUR 30) inclui SCA_EXEMPTION_LOW_VALUE em bypassMechanisms', () => {
+    // 1000 cents USD = USD 10 ≈ EUR 9.2 < 30
+    const result = analyzeThreeDSExtended(makeBin(), { amount: 1_000, currency: 'USD' })
+    expect(result.bypassMechanisms).toContain('SCA_EXEMPTION_LOW_VALUE')
+  })
+
+  it('não quebra com BIN vazio e retorna tipos corretos', () => {
+    const result = analyzeThreeDSExtended(makeBin({ brand: undefined, countryCode: undefined }))
+    expect(typeof result.frictionlessProbability).toBe('number')
+    expect(typeof result.bypassProbability).toBe('number')
+    expect(Array.isArray(result.bypassMechanisms)).toBe(true)
   })
 })

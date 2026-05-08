@@ -40,7 +40,6 @@ type HistoryItem = {
   id: string
   bin: string
   brand?: string | null
-  country_code?: string | null
   risk_score: number
   risk_level: string
   created_at: string
@@ -50,14 +49,11 @@ type HistoryResponse = {
   history?: HistoryItem[]
 }
 
+import type { PeerComparison } from '@/lib/premium-3-0/peerComparison'
+
 type PremiumAnalysisResponse = FullBinAnalysis & {
   holistic: HolisticScore
-  peerComparison?: {
-    percentile: number
-    peerCount: number
-    betterThan: number
-    peerGroup: string
-  }
+  peerComparison?: PeerComparison
   context: {
     amount?: number
     currency?: string
@@ -69,8 +65,6 @@ type PremiumAnalysisResponse = FullBinAnalysis & {
     userAgentPresent: boolean
   }
 }
-
-const LOCAL_HISTORY_KEY = 'verifibin_history'
 
 function extractApiErrorMessage(payload: ApiErrorPayload | null, status: number) {
   if (!payload) {
@@ -135,21 +129,6 @@ function riskSummary(score: number, mode: LanguageModeKey) {
   return 'Precisa de bastante cuidado'
 }
 
-function getDimensionBarColor(score: number) {
-  if (score < 33) return 'bg-emerald-500'
-  if (score < 66) return 'bg-amber-500'
-  return 'bg-rose-500'
-}
-
-function getFlagEmoji(countryCode?: string | null) {
-  if (!countryCode || countryCode.length !== 2) return '🏳️'
-  const codePoints = countryCode
-    .toUpperCase()
-    .split('')
-    .map((char) => 127397 + char.charCodeAt(0))
-  return String.fromCodePoint(...codePoints)
-}
-
 export function Premium3DAnalyzer() {
   const [languageMode, setLanguageMode] = useState<LanguageModeKey>('TECHNICAL')
   const [cardNumber, setCardNumber] = useState('')
@@ -170,26 +149,17 @@ export function Premium3DAnalyzer() {
       const response = await fetch('/api/history?limit=10')
 
       if (response.status === 401) {
-        const fallback = localStorage.getItem(LOCAL_HISTORY_KEY)
-        const parsedFallback = fallback ? ((JSON.parse(fallback) as HistoryItem[]) ?? []) : []
-        setHistory(parsedFallback)
-        setHistoryMessage(parsedFallback.length === 0 ? 'Faça login para ver histórico completo.' : 'Histórico local da sessão (guest).')
+        setHistory([])
+        setHistoryMessage('Faça login para ver seu histórico recente de análises.')
         return
       }
 
       const payload = (await response.json().catch(() => ({}))) as HistoryResponse
       const items = payload.history ?? []
-      if (items.length > 0) {
-        setHistory(items)
-        setHistoryMessage(null)
-        return
-      }
-
-      const fallback = localStorage.getItem(LOCAL_HISTORY_KEY)
-      const parsedFallback = fallback ? ((JSON.parse(fallback) as HistoryItem[]) ?? []) : []
-      setHistory(parsedFallback)
-      setHistoryMessage(parsedFallback.length === 0 ? 'Nenhuma análise recente disponível ainda.' : 'Histórico local da sessão (guest).')
-    } catch {
+      setHistory(items)
+      setHistoryMessage(items.length === 0 ? 'Nenhuma análise recente disponível ainda.' : null)
+    } catch (err) {
+      console.error('[Premium3DAnalyzer] Erro ao carregar histórico', err)
       setHistory([])
       setHistoryMessage('Não foi possível carregar o histórico agora.')
     } finally {
@@ -230,6 +200,7 @@ export function Premium3DAnalyzer() {
             currency,
             userAgent: navigator.userAgent,
             timestamp: Date.now(),
+            timezoneOffset: new Date().getTimezoneOffset(),
           },
         }),
       })
@@ -241,19 +212,6 @@ export function Premium3DAnalyzer() {
 
       const payload = (await response.json()) as PremiumAnalysisResponse
       setAnalysis(payload)
-      const localEntry: HistoryItem = {
-        id: `${payload.bin}-${Date.now()}`,
-        bin: payload.bin,
-        brand: payload.technicalData.brand ?? null,
-        country_code: payload.technicalData.countryCode ?? null,
-        risk_level: payload.holistic.riskLevel,
-        risk_score: payload.holistic.overallScore,
-        created_at: new Date().toISOString(),
-      }
-      const localRaw = localStorage.getItem(LOCAL_HISTORY_KEY)
-      const localHistory = localRaw ? ((JSON.parse(localRaw) as HistoryItem[]) ?? []) : []
-      const merged = [localEntry, ...localHistory].slice(0, 10)
-      localStorage.setItem(LOCAL_HISTORY_KEY, JSON.stringify(merged))
       void fetchHistory()
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Erro ao analisar o cartão. Tente novamente.')
@@ -423,6 +381,9 @@ export function Premium3DAnalyzer() {
                 <CardContent className="grid gap-4 md:grid-cols-2">
                   {riskDimensions.map((dimension) => {
                     const Icon = dimension.icon
+                    const dimExplanation = dimension.value.explanation
+                      ? (languageMode === 'TECHNICAL' ? dimension.value.explanation.technical : dimension.value.explanation.popular)
+                      : null
                     return (
                       <details key={dimension.key} className="rounded-xl border border-slate-700 bg-slate-950/60 p-4">
                         <summary className="flex cursor-pointer list-none items-center justify-between gap-3">
@@ -433,18 +394,13 @@ export function Premium3DAnalyzer() {
                               <p className="text-xs text-slate-400">{riskSummary(dimension.value.score, languageMode)}</p>
                             </div>
                           </div>
-                          <div className="text-right">
-                            <span className="text-lg font-semibold text-white">{dimension.value.score}/100</span>
-                            <p className="text-xs text-slate-500">Por que este score?</p>
-                          </div>
+                          <span className="text-lg font-semibold text-white">{dimension.value.score}/100</span>
                         </summary>
                         <div className="mt-4 space-y-3 border-t border-slate-800 pt-4">
-                          <div className="h-2 w-full overflow-hidden rounded-full bg-slate-800">
-                            <div
-                              className={`h-full ${getDimensionBarColor(dimension.value.score)}`}
-                              style={{ width: `${dimension.value.score}%` }}
-                            />
-                          </div>
+                          {dimExplanation ? (
+                            <p className="text-xs italic text-slate-400">{dimExplanation}</p>
+                          ) : null}
+                          <Progress value={dimension.value.score} className="bg-slate-800" />
                           <ul className="space-y-2">
                             {dimension.value.factors.map((factor, index) => (
                               <li key={`${dimension.key}-${index}`} className="rounded-lg border border-slate-800 bg-slate-900/80 p-3">
@@ -473,22 +429,18 @@ export function Premium3DAnalyzer() {
                     <CardTitle className="text-white">Comparação com Pares</CardTitle>
                     <CardDescription className="text-slate-400">Percentil determinístico baseado em BIN + geografia.</CardDescription>
                   </CardHeader>
-                    <CardContent className="space-y-4">
-                      <div className="flex items-end justify-between gap-4">
-                        <div>
-                          <p className="text-sm text-slate-400">Percentil</p>
-                          <p className="text-4xl font-bold text-white">{analysis.peerComparison?.percentile ?? analysis.holistic.peerComparison.percentile}</p>
-                        </div>
-                        <CheckCircle2 className="h-8 w-8 text-emerald-300" />
+                  <CardContent className="space-y-4">
+                    <div className="flex items-end justify-between gap-4">
+                      <div>
+                        <p className="text-sm text-slate-400">Percentil</p>
+                        <p className="text-4xl font-bold text-white">{analysis.holistic.peerComparison.percentile}</p>
                       </div>
-                      <Progress value={analysis.peerComparison?.percentile ?? analysis.holistic.peerComparison.percentile} className="bg-slate-800" />
-                      <p className="text-sm text-slate-300">
-                        {analysis.peerComparison
-                          ? `Este BIN tem score MELHOR que ${analysis.peerComparison.betterThan}% dos pares no grupo ${analysis.peerComparison.peerGroup} (N=${analysis.peerComparison.peerCount} análises últimos 30 dias).`
-                          : analysis.holistic.peerComparison.description}
-                      </p>
-                    </CardContent>
-                  </Card>
+                      <CheckCircle2 className="h-8 w-8 text-emerald-300" />
+                    </div>
+                    <Progress value={analysis.holistic.peerComparison.percentile} className="bg-slate-800" />
+                    <p className="text-sm text-slate-300">{analysis.holistic.peerComparison.description}</p>
+                  </CardContent>
+                </Card>
 
                 <Card className="border-slate-700 bg-slate-900/70">
                   <CardHeader>
@@ -523,7 +475,7 @@ export function Premium3DAnalyzer() {
                     </div>
                     <div className="rounded-lg border border-slate-800 bg-slate-950/60 p-3">
                       <p className="text-xs text-slate-500">Explicação 3DS</p>
-                      <p>{languageMode === 'TECHNICAL' ? analysis.threeDSAnalysis.explanation.technical : analysis.threeDSAnalysis.explanation.popular}</p>
+                      <p>{languageMode === 'TECHNICAL' ? analysis.threeDSAnalysis.explanation : 'O motor estimou o caminho 3DS mais provável com base no emissor, no país e no valor da compra.'}</p>
                     </div>
                   </CardContent>
                 </Card>
@@ -553,9 +505,7 @@ export function Premium3DAnalyzer() {
                   <div key={entry.id} className="flex flex-col gap-3 rounded-xl border border-slate-800 bg-slate-950/60 p-4 sm:flex-row sm:items-center sm:justify-between">
                     <div>
                       <p className="font-mono text-sm text-white">{entry.bin}</p>
-                      <p className="text-xs text-slate-400">
-                        {getFlagEmoji(entry.country_code)} {new Date(entry.created_at).toLocaleString('pt-BR')}
-                      </p>
+                      <p className="text-xs text-slate-400">{new Date(entry.created_at).toLocaleString('pt-BR')}</p>
                     </div>
                     <div className="flex items-center gap-3">
                       {entry.brand ? <Badge variant="outline" className="border-slate-600 text-slate-200">{entry.brand}</Badge> : null}
