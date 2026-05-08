@@ -7,9 +7,10 @@ import { calculateRisk } from "./calculateRisk"
 import { calculateDataQuality } from "./calculateDataQuality"
 import { analyzeCompliance } from "./analyzeCompliance"
 import { generateRecommendation } from "./generateRecommendation"
+import type { TransactionContext } from "./holisticEngine"
 
-export function runFullBinAnalysis(binData: BinApiData): FullBinAnalysis {
-  const threeDSAnalysis = analyzeThreeDS(binData)
+export function runFullBinAnalysis(binData: BinApiData, context?: Partial<TransactionContext>): FullBinAnalysis {
+  const threeDSAnalysis = analyzeThreeDS(binData, context)
   const riskAnalysis = calculateRisk(binData, threeDSAnalysis)
   const dataQuality = calculateDataQuality(binData)
   const compliance = analyzeCompliance(binData)
@@ -47,4 +48,6 @@ export { normalizeBinApiResponse } from "./normalizeBinApiResponse"
 export { applyBinOverrides } from "./applyBinOverrides"
 export { saveBinAnalysisLog } from "./saveBinAnalysisLog"
 export { getCountryMaturity, COUNTRY_3DS_MATURITY } from "./country3dsMaturity"
+export { runHolisticAnalysis } from "./holisticEngine"
+export type { TransactionContext, HolisticScore } from "./holisticEngine"
 export type * from "./types"

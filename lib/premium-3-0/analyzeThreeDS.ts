@@ -1,112 +1,168 @@
-// lib/premium-3-0/analyzeThreeDS.ts
-// Motor de análise 3DS/VBV — inferência baseada em regras técnicas
-
-import type { BinApiData, BinThreeDSResult } from "./types"
+import threeDsByBank from "./data/threeDsByBank.json"
 import { getCountryMaturity } from "./country3dsMaturity"
+import { normalizeIssuerName } from "./enrichment/bankReputation"
+import { getCountryRiskTier } from "./enrichment/geoEnrichment"
+import type { BinApiData, BinThreeDSResult } from "./types"
 
-function scoreBrand(brand?: string): number {
-  if (!brand) return 0
-  const b = brand.toUpperCase()
-  if (["VISA", "MASTERCARD", "AMEX", "AMERICAN EXPRESS"].includes(b)) return 20
-  return 5
+type ThreeDSContextInput = {
+  amount?: number
+  currency?: string
 }
 
-function scoreType(type?: string): number {
-  if (!type) return 0
-  const t = type.toUpperCase()
-  if (t === "CREDIT") return 20
-  if (t === "DEBIT") return 5
-  if (t === "PREPAID") return -25
-  return 0
+const THREE_DS_BY_BANK = new Map<string, number>(
+  Object.entries(threeDsByBank).map(([issuer, adoption]) => [normalizeIssuerName(issuer), Number(adoption)]),
+)
+
+const EUR_EXCHANGE_RATE: Record<string, number> = {
+  EUR: 1,
+  BRL: 0.18,
+  USD: 0.92,
+  GBP: 1.16,
+  CAD: 0.67,
+  AUD: 0.6,
+  MXN: 0.05,
 }
 
-function scoreCategory(category?: string): number {
-  if (!category) return -5
-  const c = category.toUpperCase()
-  if (["GOLD", "PLATINUM", "BLACK", "INFINITE", "SIGNATURE", "WORLD", "WORLD ELITE"].some((k) => c.includes(k)))
-    return 15
-  if (["BUSINESS", "CORPORATE", "COMMERCIAL", "ENTERPRISE"].some((k) => c.includes(k))) return 10
-  if (c === "CLASSIC" || c === "STANDARD") return 0
-  return -5
+function clamp(value: number, min: number, max: number) {
+  return Math.min(Math.max(Math.round(value), min), max)
 }
 
-function scoreCountry(countryCode?: string): number {
-  if (!countryCode) return -20
-  const entry = getCountryMaturity(countryCode)
-  if (!entry) return -10
-  if (entry.maturity === "HIGH") return 25
-  if (entry.maturity === "MEDIUM") return 10
-  if (entry.maturity === "LOW") return -15
-  return -10
-}
-
-function scoreIssuer(issuer?: string | null): number {
-  if (issuer && issuer.trim().length > 0) return 10
-  return -10
+function convertAmountToEur(amountInCents?: number, currency?: string) {
+  if (typeof amountInCents !== "number") return null
+  const rate = EUR_EXCHANGE_RATE[(currency ?? "EUR").toUpperCase()] ?? 1
+  return (amountInCents / 100) * rate
 }
 
 function inferProtocol(
-  score: number,
   brand?: string,
   countryCode?: string,
+  frictionlessProbability?: number,
 ): BinThreeDSResult["protocolLikely"] {
-  const b = (brand ?? "").toUpperCase()
-  const isMainBrand = ["VISA", "MASTERCARD", "AMEX", "AMERICAN EXPRESS"].includes(b)
-  const entry = getCountryMaturity(countryCode)
-  const isHighRegulatory =
-    entry?.mandate === "PSD2_SCA" ||
-    entry?.mandate === "SCA_STRONG" ||
-    entry?.mandate === "STRONG_AUTH_REQUIRED" ||
-    entry?.mandate === "STRONG_ADOPTION"
+  const normalizedBrand = (brand ?? "").toUpperCase()
+  const maturity = getCountryMaturity(countryCode)
 
-  if (score >= 45 && isMainBrand) {
-    if (isHighRegulatory) return "EMV_3DS_2_2"
+  if (!["VISA", "MASTERCARD", "AMEX", "AMERICAN EXPRESS"].includes(normalizedBrand)) {
+    return "UNKNOWN"
+  }
+
+  if ((frictionlessProbability ?? 0) >= 70 && maturity?.maturity === "HIGH") {
+    return "EMV_3DS_2_2"
+  }
+
+  if ((frictionlessProbability ?? 0) >= 45) {
     return "EMV_3DS_2"
   }
+
   return "UNKNOWN"
 }
 
-export function analyzeThreeDS(binData: BinApiData): BinThreeDSResult {
-  const score =
-    scoreBrand(binData.brand) +
-    scoreType(binData.type) +
-    scoreCategory(binData.category) +
-    scoreCountry(binData.countryCode) +
-    scoreIssuer(binData.issuer)
+function buildExplanation(
+  binData: BinApiData,
+  confidence: BinThreeDSResult["confidence"],
+  frictionlessProbability: number,
+  challengeProbability: number,
+  applicableBypassMechanisms: BinThreeDSResult["applicableBypassMechanisms"],
+) {
+  const issuerText = binData.issuer ? `emissor ${binData.issuer}` : "emissor sem benchmark específico"
+  const countryText = binData.countryName ?? binData.countryCode ?? "país não informado"
+  const mechanismsText =
+    applicableBypassMechanisms.length > 0
+      ? ` Mecanismos aplicáveis: ${applicableBypassMechanisms.join(", ")}.`
+      : " Não há mecanismo de bypass favorável claramente aplicável."
+
+  return (
+    `Análise 3DS inferida para ${issuerText}, ${countryText}. ` +
+    `Frictionless estimado em ${frictionlessProbability}% e challenge em ${challengeProbability}% ` +
+    `com confiança ${confidence.toLowerCase()}.` +
+    mechanismsText
+  )
+}
+
+export function analyzeThreeDS(binData: BinApiData, context?: ThreeDSContextInput): BinThreeDSResult {
+  const normalizedIssuer = normalizeIssuerName(binData.issuer)
+  const issuerAdoption = THREE_DS_BY_BANK.get(normalizedIssuer)
+  const countryRiskTier = getCountryRiskTier(binData.countryCode)
+  const amountInEur = convertAmountToEur(context?.amount, context?.currency ?? binData.currency)
+
+  let frictionlessProbability = typeof issuerAdoption === "number" ? issuerAdoption * 100 : 50
+
+  if (amountInEur !== null && amountInEur < 30) {
+    frictionlessProbability += 20
+  }
+
+  if (countryRiskTier === "TIER1") {
+    frictionlessProbability += 10
+  } else if (countryRiskTier === "TIER2") {
+    frictionlessProbability += 5
+  } else if (countryRiskTier === "TIER3") {
+    frictionlessProbability -= 10
+  } else {
+    frictionlessProbability -= 20
+  }
+
+  if (binData.isPrepaid) {
+    frictionlessProbability -= 30
+  }
+
+  frictionlessProbability = clamp(frictionlessProbability, 0, 100)
+
+  let challengeProbability = clamp(100 - frictionlessProbability, 0, 100)
+  if (binData.isPrepaid) {
+    challengeProbability = clamp(challengeProbability + 10, 0, 100)
+  }
+
+  const applicableBypassMechanisms: BinThreeDSResult["applicableBypassMechanisms"] = []
+
+  if (amountInEur !== null && amountInEur < 30) {
+    applicableBypassMechanisms.push("SCA_EXEMPTION_LOW_VALUE")
+  }
+
+  if (!binData.isPrepaid && (countryRiskTier === "TIER1" || countryRiskTier === "TIER2") && frictionlessProbability >= 65) {
+    applicableBypassMechanisms.push("TRA")
+  }
+
+  const category = (binData.category ?? "").toUpperCase()
+  if (category.includes("RECURR")) {
+    applicableBypassMechanisms.push("RECURRING")
+  }
+
+  if (["BUSINESS", "CORPORATE", "COMMERCIAL"].some((entry) => category.includes(entry))) {
+    applicableBypassMechanisms.push("MIT")
+  }
+
+  if (frictionlessProbability >= 70) {
+    applicableBypassMechanisms.push("FRICTIONLESS_3DS2")
+  }
+
+  const bypassProbability = clamp(
+    frictionlessProbability - Math.round(challengeProbability * 0.25) + applicableBypassMechanisms.length * 8,
+    0,
+    100,
+  )
 
   let status: BinThreeDSResult["status"]
-  let confidence: BinThreeDSResult["confidence"]
-  let challengeLikelihood: BinThreeDSResult["challengeLikelihood"]
-
-  if (score >= 70) {
+  if (frictionlessProbability >= 70) {
     status = "LIKELY_ACTIVE"
-    confidence = "HIGH"
-    challengeLikelihood = "HIGH"
-  } else if (score >= 40) {
-    status = "LIKELY_ACTIVE"
-    confidence = "MEDIUM"
-    challengeLikelihood = "MEDIUM"
-  } else if (score >= 20) {
+  } else if (frictionlessProbability >= 45) {
     status = "UNKNOWN"
-    confidence = "LOW"
-    challengeLikelihood = "UNKNOWN"
   } else {
     status = "LIKELY_INACTIVE"
-    confidence = "LOW"
-    challengeLikelihood = "LOW"
   }
 
-  const protocolLikely = inferProtocol(score, binData.brand, binData.countryCode)
+  const confidence: BinThreeDSResult["confidence"] =
+    typeof issuerAdoption === "number" ? "HIGH" : countryRiskTier === "TIER1" || countryRiskTier === "TIER2" ? "MEDIUM" : "LOW"
 
-  const authMethodsLikely: string[] = []
-  if (status === "LIKELY_ACTIVE") {
-    authMethodsLikely.push("OTP")
-    if (confidence === "HIGH") {
-      authMethodsLikely.push("APP_PUSH", "BIOMETRIA")
-    }
-  }
+  const challengeLikelihood: BinThreeDSResult["challengeLikelihood"] =
+    challengeProbability >= 70 ? "HIGH" : challengeProbability >= 35 ? "MEDIUM" : frictionlessProbability >= 70 ? "LOW" : "UNKNOWN"
 
-  const explanation = buildExplanation(binData, status, confidence, score)
+  const protocolLikely = inferProtocol(binData.brand, binData.countryCode, frictionlessProbability)
+
+  const authMethodsLikely =
+    challengeProbability >= 60
+      ? ["OTP", "APP_PUSH", "BIOMETRIA"]
+      : challengeProbability >= 35
+        ? ["OTP", "APP_PUSH"]
+        : ["RBA", "DEVICE_BINDING"]
 
   return {
     status,
@@ -114,51 +170,17 @@ export function analyzeThreeDS(binData: BinApiData): BinThreeDSResult {
     challengeLikelihood,
     protocolLikely,
     authMethodsLikely,
-    explanation,
+    explanation: buildExplanation(
+      binData,
+      confidence,
+      frictionlessProbability,
+      challengeProbability,
+      applicableBypassMechanisms,
+    ),
     inferred: true,
+    frictionlessProbability,
+    challengeProbability,
+    bypassProbability,
+    applicableBypassMechanisms,
   }
-}
-
-function buildExplanation(
-  binData: BinApiData,
-  status: BinThreeDSResult["status"],
-  confidence: BinThreeDSResult["confidence"],
-  score: number,
-): string {
-  const parts: string[] = []
-
-  if (binData.brand) {
-    parts.push(`Bandeira ${binData.brand}`)
-  }
-  if (binData.type) {
-    parts.push(`cartão ${binData.type.toLowerCase()}`)
-  }
-  if (binData.countryName || binData.countryCode) {
-    parts.push(`emitido em ${binData.countryName ?? binData.countryCode}`)
-  }
-
-  const maturity = getCountryMaturity(binData.countryCode)
-  const maturityNote = maturity
-    ? ` ${maturity.note}`
-    : " País não identificado — maturidade 3DS desconhecida."
-
-  const statusText =
-    status === "LIKELY_ACTIVE"
-      ? "suporte provável a autenticação 3DS/VBV"
-      : status === "LIKELY_INACTIVE"
-        ? "suporte incerto ou ausente a 3DS/VBV"
-        : "status 3DS não determinado"
-
-  const confidenceText = {
-    HIGH: "com confiança alta",
-    MEDIUM: "com confiança média",
-    LOW: "com confiança baixa",
-  }[confidence]
-
-  const intro = parts.length > 0 ? `${parts.join(", ")}. ` : ""
-
-  return (
-    `${intro}Análise inferida indica ${statusText} ${confidenceText} (pontuação interna: ${score}).` +
-    `${maturityNote} Esta análise é inferida por regras técnicas — não confirmada diretamente pela API.`
-  )
 }

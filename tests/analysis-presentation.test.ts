@@ -32,6 +32,10 @@ const sampleAnalysis: FullBinAnalysis = {
     authMethodsLikely: ["APP_PUSH"],
     explanation: "PSD2 e SCA ajudam a reduzir fraude.",
     inferred: true,
+    frictionlessProbability: 86,
+    challengeProbability: 14,
+    bypassProbability: 64,
+    applicableBypassMechanisms: ["TRA", "FRICTIONLESS_3DS2"],
   },
   riskAnalysis: {
     score: 5,

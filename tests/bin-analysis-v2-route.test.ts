@@ -9,6 +9,7 @@ const {
   normalizeNeutrinoBinResponseMock,
   applyBinOverridesMock,
   runFullBinAnalysisMock,
+  runHolisticAnalysisMock,
   saveBinAnalysisLogMock,
 } = vi.hoisted(() => ({
   createClientMock: vi.fn(),
@@ -17,6 +18,7 @@ const {
   normalizeNeutrinoBinResponseMock: vi.fn(),
   applyBinOverridesMock: vi.fn(),
   runFullBinAnalysisMock: vi.fn(),
+  runHolisticAnalysisMock: vi.fn(),
   saveBinAnalysisLogMock: vi.fn(),
 }))
 
@@ -42,6 +44,7 @@ vi.mock("@/lib/premium-3-0/applyBinOverrides", () => ({
 
 vi.mock("@/lib/premium-3-0", () => ({
   runFullBinAnalysis: runFullBinAnalysisMock,
+  runHolisticAnalysis: runHolisticAnalysisMock,
 }))
 
 vi.mock("@/lib/premium-3-0/saveBinAnalysisLog", () => ({
@@ -83,6 +86,10 @@ describe("/api/bin-analysis-v2 route", () => {
         authMethodsLikely: [],
         explanation: "ok",
         inferred: true,
+        frictionlessProbability: 88,
+        challengeProbability: 12,
+        bypassProbability: 72,
+        applicableBypassMechanisms: ["FRICTIONLESS_3DS2"],
       },
       riskAnalysis: {
         score: 10,
@@ -114,6 +121,17 @@ describe("/api/bin-analysis-v2 route", () => {
     normalizeNeutrinoBinResponseMock.mockReturnValue(normalizedBinData)
     applyBinOverridesMock.mockResolvedValue({ data: normalizedBinData })
     runFullBinAnalysisMock.mockReturnValue(fullAnalysis)
+    runHolisticAnalysisMock.mockReturnValue({
+      binRisk: { score: 10, factors: [] },
+      temporalRisk: { score: 10, factors: [] },
+      behavioralRisk: { score: 40, factors: [] },
+      geographicRisk: { score: 5, factors: [] },
+      deviceRisk: { score: 15, factors: [] },
+      gatewayRisk: { score: 20, factors: [] },
+      overallScore: 15,
+      riskLevel: "LOW",
+      peerComparison: { percentile: 90, description: "Melhor que 90%." },
+    })
     saveBinAnalysisLogMock.mockResolvedValue(undefined)
     subtractCreditsMock.mockResolvedValue({ success: true, message: "ok", newBalance: 7 })
   })
@@ -126,10 +144,14 @@ describe("/api/bin-analysis-v2 route", () => {
     }) as NextRequest
 
     const response = await POST(request)
+    const payload = await response.json()
 
     expect(response.status).toBe(200)
     expect(callNeutrinoApiMock).toHaveBeenCalledTimes(1)
+    expect(runHolisticAnalysisMock).toHaveBeenCalledTimes(1)
     expect(subtractCreditsMock).toHaveBeenCalledTimes(1)
+    expect(payload.holistic.overallScore).toBe(15)
+    expect(payload.context.userAgentPresent).toBe(false)
 
     const neutrinoCallOrder = callNeutrinoApiMock.mock.invocationCallOrder[0]
     const debitCallOrder = subtractCreditsMock.mock.invocationCallOrder[0]

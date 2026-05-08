@@ -194,6 +194,17 @@ export interface AnalysisRequest {
    * Formato validado em runtime via `validateAnalysisRequest` no route handler.
    */
   bin: string
+  context?: {
+    amount?: number
+    currency?: string
+    merchantCountry?: string
+    merchantCategoryCode?: string
+    timestamp?: number
+    userAgent?: string | null
+    ipAddress?: string | null
+    ipCountryCode?: string | null
+    isFirstTransaction?: boolean
+  }
   transactionAmount?: number
   transactionCurrency?: string
   merchantCountry?: string
