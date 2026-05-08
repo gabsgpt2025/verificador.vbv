@@ -1,13 +1,11 @@
 import { createClient } from "@/lib/supabase/server"
 import { redirect } from "next/navigation"
 import type { User } from "@supabase/supabase-js"
-import { getEnv } from "@/lib/env"
+import { OPEN_ACCESS_MODE } from "@/lib/open-access-mode"
 
 // Open-access mode: when NEXT_PUBLIC_REQUIRE_AUTH is not set to "true",
 // authentication is disabled and all routes are publicly accessible.
 // To re-enable auth, set NEXT_PUBLIC_REQUIRE_AUTH=true in your environment.
-// TEMPORARY: Testing mode — all auth restrictions disabled
-const OPEN_ACCESS_MODE = getEnv().NEXT_PUBLIC_REQUIRE_AUTH !== "true"
 
 /** Minimal guest user returned in open-access mode. */
 const GUEST_USER: User = {
@@ -87,7 +85,7 @@ export async function getUserProfile(userId: string) {
 }
 
 export async function requireAdmin() {
-  // In open-access mode allow admin access for testing, returning a mock admin profile.
+  // In open-access mode allow admin access for testing, returning a guest-backed admin profile.
   if (OPEN_ACCESS_MODE) {
     return { user: GUEST_USER, profile: { ...GUEST_PROFILE, role: "admin" } }
   }

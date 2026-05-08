@@ -34,6 +34,16 @@ const envSchema = z
     }
   })
 
+const neutrinoEnvSchema = envSchema.superRefine((data, ctx) => {
+  if (data.NODE_ENV === "production" && (!data.NEUTRINO_API_KEY || !data.NEUTRINO_USER_ID)) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ["NEUTRINO_API_KEY"],
+      message: "NEUTRINO_API_KEY e NEUTRINO_USER_ID são obrigatórias em produção",
+    })
+  }
+})
+
 type ParsedEnv = z.infer<typeof envSchema>
 
 let cachedEnv: ParsedEnv | null = null
@@ -54,14 +64,15 @@ export function getEnv(): ParsedEnv {
 }
 
 export function getNeutrinoCredentials() {
-  const env = getEnv()
-  if (!env.NEUTRINO_API_KEY || !env.NEUTRINO_USER_ID) {
-    throw new Error("NEUTRINO_API_KEY e NEUTRINO_USER_ID são obrigatórias para chamadas da Neutrino API")
+  const parsed = neutrinoEnvSchema.safeParse(process.env)
+  if (!parsed.success) {
+    const details = parsed.error.issues.map((issue) => `${issue.path.join(".")}: ${issue.message}`).join("; ")
+    throw new Error(`Configuração de variáveis de ambiente inválida: ${details}`)
   }
 
   return {
-    apiKey: env.NEUTRINO_API_KEY,
-    userId: env.NEUTRINO_USER_ID,
+    apiKey: parsed.data.NEUTRINO_API_KEY!,
+    userId: parsed.data.NEUTRINO_USER_ID!,
   }
 }
 

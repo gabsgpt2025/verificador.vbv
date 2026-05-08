@@ -39,6 +39,7 @@ export function BinProHistory({ userId }: BinProHistoryProps) {
 
   const fetchHistory = async () => {
     try {
+      setLoading(true)
       setError(null)
       const response = await fetch("/api/history")
       if (!response.ok) {
@@ -126,7 +127,7 @@ export function BinProHistory({ userId }: BinProHistoryProps) {
                 </div>
                 <div className="text-right space-y-1">
                   <Badge variant={getRiskBadgeVariant(item.riskLevel)} className="font-mono text-xs">
-                    {item.riskLevel}
+                    {item.riskLevel || "UNKNOWN"}
                   </Badge>
                   <CyberText variant="caption" color="muted" className="block">
                     {item.riskScore}/100

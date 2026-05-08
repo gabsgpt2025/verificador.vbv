@@ -7,11 +7,9 @@ import { runFullBinAnalysis } from "@/lib/premium-3-0"
 import { saveBinAnalysisLog } from "@/lib/premium-3-0/saveBinAnalysisLog"
 import { callNeutrinoApi } from "@/lib/premium-3-0/neutrino-api"
 import type { BinAnalysisV2Request, BinApiData, FullBinAnalysis } from "@/lib/premium-3-0/types"
-import { getEnv } from "@/lib/env"
+import { OPEN_ACCESS_MODE } from "@/lib/open-access-mode"
 
 // Open-access mode: when NEXT_PUBLIC_REQUIRE_AUTH !== "true", allow unauthenticated BIN analysis
-// TEMPORARY: Testing mode — all auth restrictions disabled
-const OPEN_ACCESS_MODE = getEnv().NEXT_PUBLIC_REQUIRE_AUTH !== "true"
 const RATE_LIMIT_WINDOW_MS = 60_000
 const RATE_LIMIT_MAX_REQUESTS = 30
 const requestCounters = new Map<string, { count: number; windowStart: number }>()
@@ -72,13 +70,13 @@ export async function POST(request: NextRequest) {
       "anonymous"
 
     if (isRateLimited(requesterId)) {
-      return NextResponse.json({ error: "Muitas requisições. Tente novamente em instantes." }, { status: 429 })
+      return buildErrorResponse(429, "RATE_LIMITED", "Muitas requisições. Tente novamente em instantes.", requestId)
     }
 
     const { bin }: BinAnalysisV2Request = await request.json()
 
     if (!bin || bin.replace(/\s/g, "").length < 6) {
-      return NextResponse.json({ error: "BIN válido (6+ dígitos) é obrigatório" }, { status: 400 })
+      return buildErrorResponse(400, "INVALID_BIN", "BIN válido (6+ dígitos) é obrigatório", requestId)
     }
 
     const cleanBin = bin.replace(/\s/g, "").substring(0, 8)
@@ -90,7 +88,7 @@ export async function POST(request: NextRequest) {
 
     // In open-access mode, allow unauthenticated requests (skip auth & credit checks)
     if (!user && !OPEN_ACCESS_MODE) {
-      return NextResponse.json({ error: "Não autorizado" }, { status: 401 })
+      return buildErrorResponse(401, "UNAUTHORIZED", "Não autorizado", requestId)
     }
 
     // Chama API real da Neutrino para análise de BIN
@@ -133,6 +131,12 @@ export async function POST(request: NextRequest) {
           bin: cleanBin,
           error: logError instanceof Error ? logError.message : logError,
         })
+        return buildErrorResponse(
+          500,
+          "BIN_ANALYSIS_LOG_INSERT_FAILED",
+          "Falha ao registrar o histórico da análise.",
+          requestId,
+        )
       }
     }
 
@@ -140,7 +144,7 @@ export async function POST(request: NextRequest) {
     if (user) {
       const creditResult = await subtractCredits(user.id, BIN_ANALYSIS_CREDIT_COST, `VeriFiBIN 2.0 — BIN: ${cleanBin}`)
       if (!creditResult.success) {
-        return NextResponse.json({ error: creditResult.message }, { status: 400 })
+        return buildErrorResponse(400, "INSUFFICIENT_CREDITS", creditResult.message, requestId)
       }
     }
 
