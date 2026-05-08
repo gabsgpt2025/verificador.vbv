@@ -16,7 +16,7 @@ Plataforma web para análise de BIN, score antifraude e apoio operacional com in
 app/
   api/
     bin-analysis-v2/route.ts   ← endpoint principal (usa lib/premium-3-0/)
-    bin-analysis/route.ts      ← endpoint legado (usa src/lib/intelligence/)
+    bin-analysis/route.ts      ← endpoint compatível (usa lib/premium-3-0/)
     bin/verify/route.ts        ← verificação simples (legado)
     credits/                   ← balance, history, operations
   dashboard/
@@ -37,7 +37,6 @@ lib/
     index.ts                   ← runFullBinAnalysis() — orquestrador
     types.ts                   ← tipos: FullBinAnalysis, BinApiData, etc.
     neutrino-api.ts            ← cliente Neutrino API
-    mastercardClient.ts        ← cliente Mastercard
     adapters.ts                ← mapFullBinAnalysisToResponse()
     analyzeThreeDS.ts
     calculateRisk.ts
@@ -52,7 +51,6 @@ lib/
   credits/operations.ts        ← subtractCredits() via RPC atômico
   env.ts                       ← validação Zod das env vars
   auth.ts                      ← helpers de autenticação
-src/lib/intelligence/          ← motor legado (BinList.net, mantido para /api/bin-analysis)
 scripts/                       ← migrations SQL idempotentes
 ```
 

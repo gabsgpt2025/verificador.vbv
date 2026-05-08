@@ -1,9 +1,11 @@
 import { type NextRequest, NextResponse } from "next/server"
 import { createClient } from "@/lib/supabase/server"
 import { subtractCredits } from "@/lib/credits/operations"
-import { analyzeBIN } from "@/src/lib/intelligence/binAnalyzer"
-import type { RawBINApiResponse } from "@/src/lib/intelligence/types"
-import type { BINAnalysisV2Result } from "@/src/lib/intelligence/types"
+import { normalizeBinApiResponse } from "@/lib/premium-3-0/normalizeBinApiResponse"
+import { applyBinOverrides } from "@/lib/premium-3-0/applyBinOverrides"
+import { runFullBinAnalysis } from "@/lib/premium-3-0"
+import { saveBinAnalysisLog } from "@/lib/premium-3-0/saveBinAnalysisLog"
+import type { FullBinAnalysis } from "@/lib/premium-3-0/types"
 import { getEnv } from "@/lib/env"
 
 // Open-access mode: when NEXT_PUBLIC_REQUIRE_AUTH !== "true", allow unauthenticated BIN analysis
@@ -36,23 +38,17 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // Fetch BIN data from external API (BinList.net public API — no key required)
-    const rawApiResponse = await fetchBINFromAPI(bin)
+    const cleanBin = bin.replace(/\s/g, "").substring(0, 8)
+    const rawApiResponse = await fetchBINFromAPI(cleanBin)
+    const binData = normalizeBinApiResponse("BINLIST", rawApiResponse, cleanBin)
+    const binDataWithOverrides = user ? (await applyBinOverrides(supabase, binData)).data : binData
+    const analysis: FullBinAnalysis = runFullBinAnalysis(binDataWithOverrides)
 
-    // Run full anti-fraud intelligence analysis
-    const result = analyzeBIN({
-      bin: bin.trim(),
-      rawApiResponse,
-      providerName: "BINList",
-      analysisType: "advanced",
-    })
-
-    // Save to analysis logs (only for authenticated users)
     if (user) {
-      await saveAnalysisLog(user.id, result)
+      await saveBinAnalysisLog(supabase, user.id, analysis)
     }
 
-    return NextResponse.json(result)
+    return NextResponse.json(analysis)
   } catch (error) {
     console.error("[VeriFiBIN] BIN Analysis error:", error)
     return NextResponse.json({ error: "Falha na análise. Tente novamente." }, { status: 500 })
@@ -64,7 +60,7 @@ export async function POST(request: NextRequest) {
  * In production, replace with a premium provider (Neutrino, FraudLabs Pro, etc.)
  * for higher accuracy and rate limits.
  */
-async function fetchBINFromAPI(bin: string): Promise<RawBINApiResponse> {
+async function fetchBINFromAPI(bin: string): Promise<Record<string, unknown>> {
   try {
     // Strictly validate: only digits, length 6–8 (prevent SSRF via path traversal)
     const cleanBin = bin.replace(/\D/g, "").substring(0, 8)
@@ -85,7 +81,7 @@ async function fetchBINFromAPI(bin: string): Promise<RawBINApiResponse> {
 
     if (response.ok) {
       const data = await response.json()
-      return data as RawBINApiResponse
+      return data as Record<string, unknown>
     }
 
     // API unavailable — return partial data from BIN prefix heuristics
@@ -101,7 +97,7 @@ async function fetchBINFromAPI(bin: string): Promise<RawBINApiResponse> {
  * Uses BIN prefix heuristics to infer basic card brand.
  * All fields are explicitly null to indicate unavailability.
  */
-function buildFallbackResponse(bin: string): RawBINApiResponse {
+function buildFallbackResponse(bin: string): Record<string, unknown> {
   const firstDigit = bin.charAt(0)
   const firstTwo = bin.substring(0, 2)
 
@@ -121,36 +117,5 @@ function buildFallbackResponse(bin: string): RawBINApiResponse {
     prepaid: undefined,
     country: undefined,
     bank: undefined,
-  }
-}
-
-async function saveAnalysisLog(userId: string, result: BINAnalysisV2Result) {
-  try {
-    const supabase = await createClient()
-
-    await supabase.from("bin_analysis_logs").insert({
-      user_id: userId,
-      bin: result.bin,
-      bin8: result.bin.length >= 8 ? result.bin.substring(0, 8) : null,
-      issuer: result.technicalData.issuer,
-      country: result.technicalData.country,
-      country_code: result.technicalData.countryCode,
-      card_type: result.technicalData.cardType,
-      card_category: result.technicalData.cardCategory,
-      is_prepaid: result.technicalData.isPrepaid,
-      is_commercial: result.technicalData.isCommercial,
-      brand: result.technicalData.brand,
-      three_ds_status_estimated: result.threeDSAnalysis.status,
-      three_ds_confidence: result.threeDSAnalysis.confidence,
-      risk_score: result.riskAnalysis.score,
-      risk_level: result.riskAnalysis.level,
-      recommendation: result.riskAnalysis.recommendation,
-      data_quality_score: result.dataQuality.score,
-      source_api: result.source.provider,
-      model_version: result.metadata.modelVersion,
-    })
-  } catch (err) {
-    // Log save failure is non-critical — don't fail the analysis
-    console.error("[VeriFiBIN] Failed to save analysis log:", err)
   }
 }
