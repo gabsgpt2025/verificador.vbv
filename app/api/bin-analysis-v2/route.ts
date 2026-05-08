@@ -109,22 +109,29 @@ function isRateLimited(key: string): boolean {
   return false
 }
 
+function resolveMcc(payload: AnalysisRequest): string | undefined {
+  const context = payload.context ?? {}
+  // Prefer context.merchantCategoryCode (canonical field), then context.mcc (alias), then top-level mcc
+  const contextObj = context as Record<string, unknown>
+  const payloadObj = payload as unknown as Record<string, unknown>
+  const mccFromContext =
+    (context.merchantCategoryCode as string | undefined) ??
+    (contextObj.mcc as string | undefined)
+  return mccFromContext ?? (payloadObj.mcc as string | undefined)
+}
+
 function resolveTransactionContext(request: NextRequest, payload: AnalysisRequest): TransactionContext {
   const forwardedFor = request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ?? null
   const headerCountry = request.headers.get("x-vercel-ip-country") ?? null
   const userAgent = request.headers.get("user-agent") ?? null
   const context = payload.context ?? {}
 
-  // Accept mcc from context.merchantCategoryCode or top-level mcc (schema accepts both)
-  const rawBody = payload as unknown as Record<string, unknown>
-  const mcc = (context.merchantCategoryCode) ?? (rawBody.mcc as string | undefined) ?? ((context as Record<string, unknown>).mcc as string | undefined)
-
   return {
     amount: context.amount ?? payload.transactionAmount,
     currency: context.currency ?? payload.transactionCurrency ?? "BRL",
     merchantCountry: context.merchantCountry ?? payload.merchantCountry,
     merchantCategoryCode: context.merchantCategoryCode,
-    mcc,
+    mcc: resolveMcc(payload),
     timestamp: context.timestamp ?? Date.now(),
     userAgent: context.userAgent ?? userAgent,
     ipAddress: context.ipAddress ?? forwardedFor,
