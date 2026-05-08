@@ -1,13 +1,10 @@
 import { type NextRequest, NextResponse } from "next/server"
 import { createClient } from "@/lib/supabase/server"
+import { isCreditsTestingModeEnabled } from "@/lib/env"
 
-// TEMPORARY: Testing mode — return unlimited credits
-const TESTING_MODE = true
-
-export async function GET(request: NextRequest) {
+export async function GET(_request: NextRequest) {
   try {
-    // Return unlimited credits in testing mode
-    if (TESTING_MODE) {
+    if (isCreditsTestingModeEnabled()) {
       return NextResponse.json({ credits: 9999 })
     }
 

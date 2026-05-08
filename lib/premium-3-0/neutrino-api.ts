@@ -4,29 +4,7 @@
  */
 
 import { getNeutrinoCredentials } from "@/lib/env"
-
-export interface NeutrinoResponse {
-  bin?: string
-  valid?: boolean
-  card_brand?: string
-  card_type?: string
-  card_category?: string
-  issuer_name?: string
-  issuer_website?: string
-  issuer_phone?: string
-  country_code?: string
-  country_name?: string
-  country_iso3?: string
-  country_continent?: string
-  country_population?: number
-  currency_code?: string
-  currency_name?: string
-  is_commercial?: boolean
-  is_prepaid?: boolean
-  is_3d_secure?: boolean
-  risk_level?: string
-  [key: string]: unknown
-}
+import type { NeutrinoBinResponse } from "@/lib/premium-3-0/types"
 
 const NEUTRINO_BASE_URL = "https://neutrinoapi.net/bin-lookup"
 const NEUTRINO_TIMEOUT_MS = 8000
@@ -49,7 +27,7 @@ async function throttleNeutrinoCalls() {
   lastNeutrinoRequestAt = Date.now()
 }
 
-export async function callNeutrinoApi(bin: string): Promise<NeutrinoResponse> {
+export async function callNeutrinoApi(bin: string): Promise<NeutrinoBinResponse> {
   const { apiKey, userId } = getNeutrinoCredentials()
   const sanitizedBin = bin.replace(/\s/g, "").substring(0, 8)
 
@@ -82,7 +60,7 @@ export async function callNeutrinoApi(bin: string): Promise<NeutrinoResponse> {
         throw new Error(`Neutrino API error: ${response.status} - ${errorText}`)
       }
 
-      const data: NeutrinoResponse = await response.json()
+      const data: NeutrinoBinResponse = await response.json()
       return data
     } catch (error) {
       if (error instanceof Error && /^Neutrino API error: 4\d{2}/.test(error.message)) {
@@ -100,31 +78,4 @@ export async function callNeutrinoApi(bin: string): Promise<NeutrinoResponse> {
   }
 
   throw new Error("Neutrino API request failed")
-}
-
-/**
- * Converts Neutrino API response to internal BIN data format
- */
-export function convertNeutrinoResponse(data: NeutrinoResponse): Record<string, unknown> {
-  return {
-    bin: data.bin,
-    valid: data.valid ?? false,
-    brand: data.card_brand || "UNKNOWN",
-    type: data.card_type || "UNKNOWN",
-    category: data.card_category || null,
-    issuer: data.issuer_name || null,
-    issuerWebsite: data.issuer_website || null,
-    issuerPhone: data.issuer_phone || null,
-    countryCode: data.country_code || null,
-    countryName: data.country_name || null,
-    countryIso3: data.country_iso3 || null,
-    countryContinent: data.country_continent || null,
-    countryPopulation: data.country_population || null,
-    currency: data.currency_code || null,
-    currencyName: data.currency_name || null,
-    isCommercial: data.is_commercial ?? false,
-    isPrepaid: data.is_prepaid ?? false,
-    is3dSecure: data.is_3d_secure ?? false,
-    riskLevel: data.risk_level || "UNKNOWN",
-  }
 }

@@ -2,6 +2,7 @@
 // Normaliza resposta de qualquer API para BinApiData padrão
 
 import type { BinApiData } from "./types"
+import type { NeutrinoBinResponse } from "./types"
 
 type ApiProvider = "NEUTRINO" | "FRAUDLABS" | "BINLIST" | "INTERNAL" | "UNKNOWN"
 
@@ -32,6 +33,10 @@ function normalizeNeutrino(raw: Record<string, unknown>, bin: string): BinApiDat
     source: "NEUTRINO",
     raw,
   }
+}
+
+export function normalizeNeutrinoBinResponse(raw: NeutrinoBinResponse, bin: string): BinApiData {
+  return normalizeNeutrino(raw as Record<string, unknown>, bin)
 }
 
 // Normaliza resposta do FraudLabs

@@ -28,16 +28,13 @@ interface VerificationResult {
   issuer_phone: string
 }
 
-// TEMPORARY: Testing mode — credits check disabled
-const TESTING_MODE = true
-
 export function BinVerificationWidget({ userId }: BinVerificationWidgetProps) {
   const [binNumber, setBinNumber] = useState("")
   const [verificationType, setVerificationType] = useState("basic")
   const [isLoading, setIsLoading] = useState(false)
   const [result, setResult] = useState<VerificationResult | null>(null)
   const [error, setError] = useState<string | null>(null)
-  const [userCredits, setUserCredits] = useState<number>(TESTING_MODE ? 9999 : 0)
+  const [userCredits, setUserCredits] = useState<number>(0)
 
   const fetchUserCredits = async () => {
     try {
@@ -77,8 +74,7 @@ export function BinVerificationWidget({ userId }: BinVerificationWidgetProps) {
     }
 
     const cost = getVerificationCost(verificationType)
-    // TEMPORARY: Skip credit check in testing mode
-    if (!TESTING_MODE && userCredits < cost) {
+    if (userCredits < cost) {
       setError(`Insufficient credits. You need ${cost} credits for ${verificationType} verification.`)
       return
     }
@@ -190,7 +186,7 @@ export function BinVerificationWidget({ userId }: BinVerificationWidgetProps) {
 
         <Button
           type="submit"
-          disabled={isLoading || !binNumber || (!TESTING_MODE && userCredits < getVerificationCost(verificationType))}
+          disabled={isLoading || !binNumber || userCredits < getVerificationCost(verificationType)}
           className="w-full"
         >
           {isLoading ? (

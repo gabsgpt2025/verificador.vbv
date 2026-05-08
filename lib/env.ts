@@ -8,6 +8,7 @@ const envSchema = z
     NEXT_PUBLIC_SUPABASE_ANON_KEY: z.string().min(1, "NEXT_PUBLIC_SUPABASE_ANON_KEY é obrigatória").optional(),
     NEXT_PUBLIC_REQUIRE_AUTH: z.enum(["true", "false"]).default("false"),
     NEXT_PUBLIC_DEV_SUPABASE_REDIRECT_URL: z.string().url().optional(),
+    CREDITS_TESTING_MODE: z.enum(["true", "false"]).default("false"),
 
     NEUTRINO_API_KEY: z.string().min(1).optional(),
     NEUTRINO_USER_ID: z.string().min(1).optional(),
@@ -74,4 +75,13 @@ export function getSupabasePublicEnv() {
     url: env.NEXT_PUBLIC_SUPABASE_URL,
     anonKey: env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
   }
+}
+
+export function isCreditsTestingModeEnabled() {
+  const env = getEnv()
+  if (env.NODE_ENV === "production") {
+    return false
+  }
+
+  return env.CREDITS_TESTING_MODE === "true"
 }

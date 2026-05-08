@@ -1,6 +1,6 @@
 import { type NextRequest, NextResponse } from "next/server"
 import { createClient } from "@/lib/supabase/server"
-import { subtractCredits, getToolCost } from "@/lib/credits/operations"
+import type { FullBinAnalysis } from "@/lib/premium-3-0/types"
 
 interface BinVerificationResult {
   bin_number: string
@@ -14,74 +14,18 @@ interface BinVerificationResult {
   issuer_phone: string
 }
 
-interface BinlistApiResponse {
-  scheme?: string
-  type?: string
-  brand?: string
-  prepaid?: boolean
-  country?: {
-    name?: string
-    alpha2?: string
-    currency?: string
+function mapAnalysisToVerificationResult(binNumber: string, analysis: FullBinAnalysis): BinVerificationResult {
+  return {
+    bin_number: binNumber,
+    card_brand: analysis.technicalData.brand?.toUpperCase() || "UNKNOWN",
+    card_type: analysis.technicalData.type?.toUpperCase() || "UNKNOWN",
+    card_level: analysis.technicalData.category || "UNKNOWN",
+    issuer_name: analysis.technicalData.issuer || "Unknown Issuer",
+    issuer_country: analysis.technicalData.countryName || "Unknown",
+    issuer_country_code: analysis.technicalData.countryCode || "",
+    issuer_website: analysis.technicalData.issuerWebsite || "",
+    issuer_phone: analysis.technicalData.issuerPhone || "",
   }
-  bank?: {
-    name?: string
-    url?: string
-    phone?: string
-    city?: string
-  }
-}
-
-/**
- * Fetches BIN data from BinList.net (free public API, no key required).
- * Falls back to deterministic heuristics on network/timeout error.
- */
-async function fetchBinFromBinlist(bin: string): Promise<BinlistApiResponse> {
-  try {
-    // Strictly validate: only digits, length 6–8 (prevent SSRF via path traversal)
-    const cleanBin = bin.replace(/\D/g, "").substring(0, 8)
-    if (!/^\d{6,8}$/.test(cleanBin)) {
-      return buildFallbackBinlistResponse(bin)
-    }
-
-    // Safe: cleanBin is now guaranteed to be 6–8 ASCII digits only
-    const url = new URL(`https://lookup.binlist.net/${cleanBin}`)
-    const response = await fetch(url.toString(), {
-      headers: {
-        "Accept-Version": "3",
-        "User-Agent": "VeriFiBIN/2.0 AntiFraud Platform",
-      },
-      signal: AbortSignal.timeout(5000),
-    })
-
-    if (response.ok) {
-      const data = await response.json()
-      return data as BinlistApiResponse
-    }
-
-    return buildFallbackBinlistResponse(bin)
-  } catch {
-    return buildFallbackBinlistResponse(bin)
-  }
-}
-
-/**
- * Deterministic fallback using BIN prefix heuristics.
- * Never uses Math.random() — same BIN always returns the same data.
- */
-function buildFallbackBinlistResponse(bin: string): BinlistApiResponse {
-  const firstDigit = bin.charAt(0)
-  const firstTwo = bin.substring(0, 2)
-
-  let scheme: string | undefined
-  if (firstDigit === "4") scheme = "visa"
-  else if (["51", "52", "53", "54", "55"].includes(firstTwo)) scheme = "mastercard"
-  else if (["34", "37"].includes(firstTwo)) scheme = "amex"
-  else if (firstTwo === "60") scheme = "discover"
-  else if (firstDigit === "6") scheme = "elo"
-  else if (firstTwo === "35") scheme = "jcb"
-
-  return { scheme }
 }
 
 export async function POST(request: NextRequest) {
@@ -105,37 +49,27 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Invalid BIN number" }, { status: 400 })
     }
 
-    // Get tool cost based on verification type
-    const toolCost = await getToolCost(`bin_verification_${verificationType}`)
+    console.warn("[DEPRECATED] /api/bin/verify sendo chamado. Migrar para /api/bin-analysis-v2.")
 
-    // Check and subtract credits
-    const creditResult = await subtractCredits(
-      user.id,
-      toolCost,
-      `BIN verification for ${binNumber} (${verificationType})`,
-      "verification",
-    )
+    const upstreamResponse = await fetch(new URL("/api/bin-analysis-v2", request.url), {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Cookie: request.headers.get("cookie") || "",
+        "x-forwarded-for": request.headers.get("x-forwarded-for") || "",
+        "x-real-ip": request.headers.get("x-real-ip") || "",
+      },
+      body: JSON.stringify({ bin: binNumber }),
+    })
 
-    if (!creditResult.success) {
-      return NextResponse.json({ error: creditResult.message }, { status: 400 })
+    if (!upstreamResponse.ok) {
+      const upstreamError = await upstreamResponse.json().catch(() => ({ error: "Falha na análise BIN" }))
+      return NextResponse.json(upstreamError, { status: upstreamResponse.status })
     }
 
-    // Fetch real BIN data from BinList.net; falls back to deterministic heuristics on error
-    const apiData = await fetchBinFromBinlist(binNumber)
+    const analysis = (await upstreamResponse.json()) as FullBinAnalysis
+    const result = mapAnalysisToVerificationResult(binNumber, analysis)
 
-    const result: BinVerificationResult = {
-      bin_number: binNumber,
-      card_brand: apiData.scheme?.toUpperCase() || "UNKNOWN",
-      card_type: apiData.type?.toUpperCase() || "UNKNOWN",
-      card_level: apiData.brand || (verificationType === "premium" ? "PLATINUM" : "CLASSIC"),
-      issuer_name: apiData.bank?.name || "Unknown Issuer",
-      issuer_country: apiData.country?.name || "Unknown",
-      issuer_country_code: apiData.country?.alpha2 || "",
-      issuer_website: apiData.bank?.url || "",
-      issuer_phone: apiData.bank?.phone || "",
-    }
-
-    // Save verification to database
     const { data: verification, error: insertError } = await supabase
       .from("bin_verifications")
       .insert({
@@ -150,7 +84,7 @@ export async function POST(request: NextRequest) {
         issuer_website: result.issuer_website,
         issuer_phone: result.issuer_phone,
         verification_result: result,
-        credits_used: toolCost,
+        credits_used: 3,
       })
       .select()
       .single()
@@ -165,19 +99,21 @@ export async function POST(request: NextRequest) {
       user_id: user.id,
       activity_type: "bin_verification",
       activity_description: `Verified BIN ${binNumber} using ${verificationType} verification`,
-      metadata: {
-        bin_number: binNumber,
-        verification_type: verificationType,
-        credits_used: toolCost,
-        verification_id: verification.id,
-      },
-    })
+        metadata: {
+          bin_number: binNumber,
+          verification_type: verificationType,
+          credits_used: 3,
+          verification_id: verification.id,
+        },
+      })
+
+    const { data: userRow } = await supabase.from("users").select("credits").eq("id", user.id).single()
 
     return NextResponse.json({
       success: true,
       result,
-      creditsUsed: toolCost,
-      newBalance: creditResult.newBalance,
+      creditsUsed: 3,
+      newBalance: userRow?.credits ?? null,
       verificationId: verification.id,
     })
   } catch (error) {

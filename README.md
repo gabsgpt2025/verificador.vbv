@@ -16,8 +16,7 @@ Plataforma web para análise de BIN, score antifraude e apoio operacional com in
 app/
   api/
     bin-analysis-v2/route.ts   ← endpoint principal (usa lib/premium-3-0/)
-    bin-analysis/route.ts      ← endpoint legado (usa src/lib/intelligence/)
-    bin/verify/route.ts        ← verificação simples (legado)
+    bin/verify/route.ts        ← endpoint legado (proxy para /api/bin-analysis-v2)
     credits/                   ← balance, history, operations
   dashboard/
     bin-pro/                   ← página principal (Premium3DAnalyzer)
@@ -52,9 +51,13 @@ lib/
   credits/operations.ts        ← subtractCredits() via RPC atômico
   env.ts                       ← validação Zod das env vars
   auth.ts                      ← helpers de autenticação
-src/lib/intelligence/          ← motor legado (BinList.net, mantido para /api/bin-analysis)
 scripts/                       ← migrations SQL idempotentes
 ```
+
+## Rota canônica oficial
+
+- ✅ `/api/bin-analysis-v2` é o endpoint oficial de análise BIN para produção.
+- ⚠️ `/api/bin/verify` está deprecado e deve ser migrado para `/api/bin-analysis-v2`.
 
 ## Fluxo crítico de análise BIN (smoke test)
 
@@ -80,7 +83,7 @@ scripts/                       ← migrations SQL idempotentes
 5. Resposta FullBinAnalysis é adaptada para AnalysisResponse
    └── lib/premium-3-0/adapters.ts → mapFullBinAnalysisToResponse()
 
-6. Crédito é debitado atomicamente via RPC Supabase
+6. Crédito é debitado atomicamente via RPC Supabase **após sucesso real da integração**
    └── lib/credits/operations.ts → subtractCredits()
 
 7. Log de análise é salvo (somente usuários autenticados)
@@ -100,6 +103,7 @@ Use `.env.example` como referência oficial.
 | `NEXT_PUBLIC_SUPABASE_ANON_KEY` | cliente+servidor | Sim | Chave anon do Supabase |
 | `NEXT_PUBLIC_REQUIRE_AUTH` | cliente+servidor | Não | `"true"` para habilitar login; padrão: modo aberto |
 | `NEXT_PUBLIC_DEV_SUPABASE_REDIRECT_URL` | cliente | Não | URL de redirect OAuth em dev |
+| `CREDITS_TESTING_MODE` | **servidor** | Não | Apenas dev local (`true`); em produção é sempre ignorado |
 | `NEUTRINO_USER_ID` | **servidor** | Sim* | ID de usuário Neutrino API |
 | `NEUTRINO_API_KEY` | **servidor** | Sim* | Chave da Neutrino API |
 | `MASTERCARD_CONSUMER_KEY` | **servidor** | Não | Credencial Mastercard |

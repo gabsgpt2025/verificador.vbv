@@ -190,6 +190,29 @@ export interface HistoryEntry {
 // TIPOS MIGRADOS DO MOTOR lib/bin (BIN Analysis v2)
 // ============================================================================
 
+export interface NeutrinoBinResponse {
+  bin?: string
+  valid?: boolean
+  card_brand?: string
+  card_type?: string
+  card_category?: string
+  issuer_name?: string
+  issuer_website?: string
+  issuer_phone?: string
+  country_code?: string
+  country_name?: string
+  country_iso3?: string
+  country_continent?: string
+  country_population?: number
+  currency_code?: string
+  currency_name?: string
+  is_commercial?: boolean
+  is_prepaid?: boolean
+  is_3d_secure?: boolean
+  risk_level?: string
+  [key: string]: unknown
+}
+
 export type BinApiData = {
   bin: string
   binLength: number

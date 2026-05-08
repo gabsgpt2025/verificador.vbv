@@ -62,6 +62,7 @@ export function Premium3DAnalyzer({ userId }: { userId?: string } = {}) {
 
     setLoading(true);
     setError(null);
+    setAnalysis(null);
 
     try {
       const res = await fetch('/api/bin-analysis-v2', {
@@ -71,8 +72,18 @@ export function Premium3DAnalyzer({ userId }: { userId?: string } = {}) {
       });
 
       if (!res.ok) {
-        const { error: apiError } = await res.json().catch(() => ({ error: 'Erro desconhecido' }));
-        throw new Error(apiError || `HTTP ${res.status}`);
+        const payload = await res.json().catch(() => null) as
+          | { error?: string | { code?: string; message?: string; requestId?: string } }
+          | null;
+
+        const errorMessage =
+          payload && typeof payload === 'object' && 'error' in payload
+            ? typeof payload.error === 'string'
+              ? payload.error
+              : payload.error?.message
+            : 'Falha temporária na consulta do BIN. Tente novamente.';
+
+        throw new Error(errorMessage || `HTTP ${res.status}`);
       }
 
       const apiData: FullBinAnalysis = await res.json();
