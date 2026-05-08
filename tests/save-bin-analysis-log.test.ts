@@ -3,7 +3,7 @@ import { saveBinAnalysisLog } from "@/lib/premium-3-0/saveBinAnalysisLog"
 import type { FullBinAnalysis } from "@/lib/premium-3-0/types"
 
 describe("saveBinAnalysisLog", () => {
-  it("persiste risk_level e result no histórico", async () => {
+  it("persists risk_level and result in history", async () => {
     const insert = vi.fn().mockResolvedValue({ error: null })
     const supabase = {
       from: vi.fn().mockReturnValue({
