@@ -31,11 +31,13 @@ export type {
   ValidationResult,
   AnalysisRequest,
   AnalysisResponse,
+  AnalysisSourceSummary,
+  MultiSourceConsensus,
   DashboardMetrics,
   HistoryEntry,
 } from "./holisticTypes"
 import type { BypassMechanism, RiskLevel } from "./holisticTypes"
-import type { HolisticContext, HolisticRiskAnalysis } from "./holisticEngine"
+import type { HolisticDimensionScore, TransactionContext } from "./holisticEngine"
 
 // ============================================================================
 // TIPOS DE CONTEXTO INTERNO (não fazem parte do contrato público)
@@ -94,7 +96,7 @@ export type BinApiData = {
   issuerPhone?: string | null
   isCommercial?: boolean
   isPrepaid?: boolean
-  source: "NEUTRINO" | "FRAUDLABS" | "BINLIST" | "INTERNAL" | "UNKNOWN"
+  source: "NEUTRINO" | "MASTERCARD" | "FRAUDLABS" | "BINLIST" | "INTERNAL" | "UNKNOWN"
   raw?: unknown
 }
 
@@ -131,9 +133,13 @@ export type BinThreeDSResult = {
 export interface GeoContext {
   ipCountry: string | null
   ipCity: string | null
+  ipCountryCode?: string | null
   ipCountryMatch: boolean
   distanceKm: number | null
   ipCountryTier: "tier1" | "tier2" | "tier3" | "critical"
+  countryRiskTier?: string
+  score: number
+  factors: BinRiskFactor[]
 }
 
 export interface TemporalContext {
@@ -142,6 +148,8 @@ export interface TemporalContext {
   isWeekend: boolean
   isNightTime: boolean
   isBusinessHours: boolean
+  score: number
+  factors: BinRiskFactor[]
 }
 
 export interface BankReputation {
@@ -150,6 +158,7 @@ export interface BankReputation {
   threeDsAdoption: number
   threeDsMaturity: "LOW" | "MEDIUM" | "HIGH" | "VERY_HIGH"
   defaultMethod: "OTP_SMS" | "BIOMETRIC" | "APP_PUSH" | "NONE"
+  tier?: "TIER1" | "TIER2" | "TIER3"
 }
 
 export interface HistorySummary {
@@ -171,9 +180,30 @@ export interface RiskContext {
 
 export interface PeerComparison {
   percentile: number
-  peerCount: number
-  betterThan: number
-  peerGroup: string
+  description: string
+  similarCount?: number
+  cohortKey?: string
+  peerCount?: number
+  betterThan?: number
+  peerGroup?: string
+}
+
+export type HolisticContext = Partial<TransactionContext>
+
+export interface HolisticRiskAnalysis {
+  overallScore: number
+  level?: RiskLevel
+  riskLevel?: RiskLevel
+  recommendation: "APPROVE" | "REVIEW" | "REQUIRE_3DS" | "BLOCK_PREVENTIVELY" | "INSUFFICIENT_DATA"
+  ensembleConfidence: number
+  dimensions: {
+    binRisk: HolisticDimensionScore
+    temporalRisk: HolisticDimensionScore
+    behavioralRisk: HolisticDimensionScore
+    geographicRisk: HolisticDimensionScore
+    deviceRisk: HolisticDimensionScore
+    gatewayRisk: HolisticDimensionScore
+  }
 }
 
 export type BinRiskFactor = {

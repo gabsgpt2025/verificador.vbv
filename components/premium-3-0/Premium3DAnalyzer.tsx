@@ -15,8 +15,10 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
+import type { MastercardBinResult } from '@/lib/integrations/mastercard'
 import type { HolisticScore } from '@/lib/premium-3-0'
 import type { BinRiskFactor, FullBinAnalysis } from '@/lib/premium-3-0/types'
+import type { AnalysisSourceSummary, MultiSourceConsensus } from '@/lib/premium-3-0/holisticTypes'
 
 const LANGUAGE_MODES = {
   TECHNICAL: {
@@ -54,9 +56,6 @@ import type { PeerComparison } from '@/lib/premium-3-0/peerComparison'
 type PremiumAnalysisResponse = FullBinAnalysis & {
   holistic: HolisticScore
   peerComparison?: PeerComparison
-  metadata?: {
-    sourcesUsed?: string[]
-  }
   context: {
     amount?: number
     currency?: string
@@ -67,9 +66,28 @@ type PremiumAnalysisResponse = FullBinAnalysis & {
     isFirstTransaction?: boolean | null
     userAgentPresent: boolean
   }
+  sources: {
+    neutrino: AnalysisSourceSummary<FullBinAnalysis['technicalData']>
+    mastercard: AnalysisSourceSummary<MastercardBinResult>
+  }
+  consensus: MultiSourceConsensus
 }
 
-const NEUTRINO_TOOLTIP = 'Habilite NEUTRINO_X_ENABLED para esta informação'
+function getConfidenceTheme(confidence: MultiSourceConsensus['confidence']) {
+  switch (confidence) {
+    case 'HIGH':
+      return 'border-emerald-500/30 bg-emerald-950/30 text-emerald-200'
+    case 'MEDIUM':
+      return 'border-amber-500/30 bg-amber-950/30 text-amber-200'
+    case 'LOW':
+    default:
+      return 'border-orange-500/30 bg-orange-950/30 text-orange-200'
+  }
+}
+
+function formatSourceBadgeLabel(label: string, available: boolean) {
+  return `${label} ${available ? '✓' : '—'}`
+}
 
 function extractApiErrorMessage(payload: ApiErrorPayload | null, status: number) {
   if (!payload) {
@@ -132,17 +150,6 @@ function riskSummary(score: number, mode: LanguageModeKey) {
   if (score < 30) return 'Situação mais tranquila'
   if (score < 60) return 'Vale acompanhar'
   return 'Precisa de bastante cuidado'
-}
-
-function displayOptional(value: string | number | boolean | null | undefined) {
-  if (value === null || value === undefined || value === '') {
-    return (
-      <span title={NEUTRINO_TOOLTIP}>
-        —
-      </span>
-    )
-  }
-  return String(value)
 }
 
 export function Premium3DAnalyzer() {
@@ -386,6 +393,61 @@ export function Premium3DAnalyzer() {
               </Card>
             </div>
 
+            <Card className={`border ${getConfidenceTheme(analysis.consensus.confidence)}`} title={analysis.consensus.discrepancies.join(' • ') || 'As fontes concordam nos campos comparáveis.'}>
+              <CardHeader>
+                <CardTitle className="text-white">Fontes de dados</CardTitle>
+                <CardDescription className="text-slate-300">
+                  {analysis.consensus.confidence === 'HIGH'
+                    ? '🟢 Mastercard e Neutrino alinhados.'
+                    : analysis.consensus.confidence === 'MEDIUM'
+                      ? '🟡 Ambas disponíveis com divergência pontual.'
+                      : '🟠 Resultado sustentado por fonte única ou com divergência alta.'}
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="flex flex-wrap items-center gap-2">
+                <Badge variant="outline" className="border-current text-current">
+                  {formatSourceBadgeLabel('Mastercard', analysis.sources.mastercard.available)}
+                </Badge>
+                <Badge variant="outline" className="border-current text-current">
+                  {formatSourceBadgeLabel('Neutrino', analysis.sources.neutrino.available)}
+                </Badge>
+                <Badge className="bg-white/10 text-white">{analysis.consensus.confidence}</Badge>
+              </CardContent>
+            </Card>
+
+            {analysis.sources.neutrino.data && analysis.sources.mastercard.data ? (
+              <details className="rounded-xl border border-slate-700 bg-slate-900/70 p-6">
+                <summary className="cursor-pointer text-sm font-medium text-white">Detalhes das fontes</summary>
+                <div className="mt-4 grid gap-4 lg:grid-cols-2">
+                  <div className="rounded-xl border border-slate-800 bg-slate-950/60 p-4 text-sm text-slate-300">
+                    <p className="mb-3 text-sm font-semibold text-white">Neutrino</p>
+                    <div className="space-y-2">
+                      <p><span className="text-slate-500">País:</span> {analysis.sources.neutrino.data.countryName ?? analysis.sources.neutrino.data.countryCode ?? 'Não informado'}</p>
+                      <p><span className="text-slate-500">Bandeira:</span> {analysis.sources.neutrino.data.brand ?? 'Não informada'}</p>
+                      <p><span className="text-slate-500">Tipo:</span> {analysis.sources.neutrino.data.type ?? 'Não informado'}</p>
+                      <p><span className="text-slate-500">Emissor:</span> {analysis.sources.neutrino.data.issuer ?? 'Não informado'}</p>
+                      <p><span className="text-slate-500">Categoria:</span> {analysis.sources.neutrino.data.category ?? 'Não informada'}</p>
+                    </div>
+                  </div>
+                  <div className="rounded-xl border border-slate-800 bg-slate-950/60 p-4 text-sm text-slate-300">
+                    <p className="mb-3 text-sm font-semibold text-white">Mastercard</p>
+                    <div className="space-y-2">
+                      <p><span className="text-slate-500">País:</span> {analysis.sources.mastercard.data.countryName || analysis.sources.mastercard.data.countryCode || 'Não informado'}</p>
+                      <p><span className="text-slate-500">Bandeira:</span> {analysis.sources.mastercard.data.brand}</p>
+                      <p><span className="text-slate-500">Tipo:</span> {analysis.sources.mastercard.data.cardType}</p>
+                      <p><span className="text-slate-500">Emissor:</span> {analysis.sources.mastercard.data.issuerName || 'Não informado'}</p>
+                      <p><span className="text-slate-500">Produto:</span> {analysis.sources.mastercard.data.productName || analysis.sources.mastercard.data.productCode || 'Não informado'}</p>
+                    </div>
+                  </div>
+                </div>
+                {analysis.consensus.discrepancies.length > 0 ? (
+                  <div className="mt-4 rounded-lg border border-amber-500/20 bg-amber-950/20 p-3 text-xs text-amber-100">
+                    {analysis.consensus.discrepancies.join(' • ')}
+                  </div>
+                ) : null}
+              </details>
+            ) : null}
+
             <div className="grid gap-6 lg:grid-cols-[minmax(0,1.5fr)_minmax(0,1fr)]">
               <Card className="border-slate-700 bg-slate-900/70">
                 <CardHeader>
@@ -418,7 +480,7 @@ export function Premium3DAnalyzer() {
                           ) : null}
                           <Progress value={dimension.value.score} className="bg-slate-800" />
                           <ul className="space-y-2">
-                            {dimension.value.factors.map((factor, index) => (
+                            {dimension.value.factors.map((factor: BinRiskFactor, index: number) => (
                               <li key={`${dimension.key}-${index}`} className="rounded-lg border border-slate-800 bg-slate-900/80 p-3">
                                 <div className="flex items-start justify-between gap-3">
                                   <div>
@@ -490,44 +552,8 @@ export function Premium3DAnalyzer() {
                       </p>
                     </div>
                     <div className="rounded-lg border border-slate-800 bg-slate-950/60 p-3">
-                      <p className="text-xs text-slate-500">Fontes usadas com sucesso</p>
-                      <p>{analysis.metadata?.sourcesUsed?.length ? analysis.metadata.sourcesUsed.join(', ') : '—'}</p>
-                    </div>
-                    <div className="rounded-lg border border-slate-800 bg-slate-950/60 p-3">
-                      <p className="text-xs text-slate-500">Geographic (Neutrino)</p>
-                      <p>IP Country: {displayOptional(analysis.holistic.neutrinoContext?.geographic.ipCountryCode)}</p>
-                      <p>City/Region: {displayOptional(analysis.holistic.neutrinoContext?.geographic.ipCity)} / {displayOptional(analysis.holistic.neutrinoContext?.geographic.ipRegion)}</p>
-                      <p>Hosting: {displayOptional(analysis.holistic.neutrinoContext?.geographic.ipIsHosting)}</p>
-                      <p>Proxy/VPN/Tor/Bogon: {displayOptional(analysis.holistic.neutrinoContext?.geographic.ipIsProxy)} / {displayOptional(analysis.holistic.neutrinoContext?.geographic.ipIsVpn)} / {displayOptional(analysis.holistic.neutrinoContext?.geographic.ipIsTor)} / {displayOptional(analysis.holistic.neutrinoContext?.geographic.ipIsBogon)}</p>
-                      <p>Blocklist hits: {analysis.holistic.neutrinoContext?.geographic.ipBlocklistHits?.length ? analysis.holistic.neutrinoContext.geographic.ipBlocklistHits.join(', ') : <span title={NEUTRINO_TOOLTIP}>—</span>}</p>
-                    </div>
-                    <div className="rounded-lg border border-slate-800 bg-slate-950/60 p-3">
-                      <p className="text-xs text-slate-500">Device (Neutrino)</p>
-                      <p>Browser: {displayOptional(analysis.holistic.neutrinoContext?.device.browserName)} {displayOptional(analysis.holistic.neutrinoContext?.device.browserVersion)}</p>
-                      <p>OS: {displayOptional(analysis.holistic.neutrinoContext?.device.osName)} {displayOptional(analysis.holistic.neutrinoContext?.device.osVersion)}</p>
-                      <p>Device model: {displayOptional(analysis.holistic.neutrinoContext?.device.deviceManufacturer)} {displayOptional(analysis.holistic.neutrinoContext?.device.deviceModel)}</p>
-                      <p>Bot/category: {displayOptional(analysis.holistic.neutrinoContext?.device.isBot)} / {displayOptional(analysis.holistic.neutrinoContext?.device.botCategory)}</p>
-                    </div>
-                    <div className="rounded-lg border border-slate-800 bg-slate-950/60 p-3">
-                      <p className="text-xs text-slate-500">Gateway (Neutrino)</p>
-                      <p>Host reputation: {displayOptional(analysis.holistic.neutrinoContext?.gateway.hostReputation)}</p>
-                      <p>Host listed: {displayOptional(analysis.holistic.neutrinoContext?.gateway.hostListed)}</p>
-                      {analysis.holistic.neutrinoContext?.gateway.merchantHost ? (
-                        <a
-                          href={`https://${analysis.holistic.neutrinoContext.gateway.merchantHost}`}
-                          target="_blank"
-                          rel="noreferrer"
-                          className="text-blue-300 underline"
-                        >
-                          {analysis.holistic.neutrinoContext.gateway.merchantHost}
-                        </a>
-                      ) : (
-                        <span title={NEUTRINO_TOOLTIP}>—</span>
-                      )}
-                    </div>
-                    <div className="rounded-lg border border-slate-800 bg-slate-950/60 p-3">
                       <p className="text-xs text-slate-500">Explicação 3DS</p>
-                      <p>{languageMode === 'TECHNICAL' ? analysis.threeDSAnalysis.explanation.technical : 'O motor estimou o caminho 3DS mais provável com base no emissor, no país e no valor da compra.'}</p>
+                      <p>{languageMode === 'TECHNICAL' ? analysis.threeDSAnalysis.explanation.technical : analysis.threeDSAnalysis.explanation.popular}</p>
                     </div>
                   </CardContent>
                 </Card>

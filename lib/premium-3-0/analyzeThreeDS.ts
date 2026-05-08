@@ -62,7 +62,7 @@ function buildExplanation(
   frictionlessProbability: number,
   challengeProbability: number,
   applicableBypassMechanisms: BinThreeDSResult["applicableBypassMechanisms"],
-) {
+): BinThreeDSResult["explanation"] {
   const issuerText = binData.issuer ? `emissor ${binData.issuer}` : "emissor sem benchmark específico"
   const countryText = binData.countryName ?? binData.countryCode ?? "país não informado"
   const mechanismsText =
@@ -70,17 +70,18 @@ function buildExplanation(
       ? ` Mecanismos aplicáveis: ${applicableBypassMechanisms.join(", ")}.`
       : " Não há mecanismo de bypass favorável claramente aplicável."
 
-  const technical =
-    `Análise 3DS inferida para ${issuerText}, ${countryText}. ` +
-    `Frictionless estimado em ${frictionlessProbability}% e challenge em ${challengeProbability}% ` +
-    `com confiança ${confidence.toLowerCase()}.` +
-    mechanismsText
-
-  const popular =
-    `Estimativa 3DS: ${frictionlessProbability}% de passar sem desafio e ${challengeProbability}% de exigir validação adicional.` +
-    mechanismsText
-
-  return { technical, popular }
+  return {
+    technical:
+      `Análise 3DS inferida para ${issuerText}, ${countryText}. ` +
+      `Frictionless estimado em ${frictionlessProbability}% e challenge em ${challengeProbability}% ` +
+      `com confiança ${confidence.toLowerCase()}.` +
+      mechanismsText,
+    popular:
+      `O cartão tem cerca de ${frictionlessProbability}% de chance de seguir sem desafio e ${challengeProbability}% de pedir challenge 3DS. ` +
+      (applicableBypassMechanisms.length > 0
+        ? `Há sinais favoráveis para ${applicableBypassMechanisms.join(", ")}.`
+        : "Não apareceu um atalho 3DS favorável claro."),
+  }
 }
 
 export interface ThreeDSExtendedResult {

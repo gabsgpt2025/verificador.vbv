@@ -1,28 +1,25 @@
 import { beforeEach, describe, expect, it, vi } from "vitest"
 import type { NextRequest } from "next/server"
+import type { MastercardBinResult } from "@/lib/integrations/mastercard"
 import type { BinApiData, FullBinAnalysis } from "@/lib/premium-3-0/types"
 
 const {
   createClientMock,
   subtractCreditsMock,
-  fetchBinLookupDetailedMock,
-  normalizeNeutrinoBinResponseMock,
+  lookupBinMultiSourceMock,
   applyBinOverridesMock,
   runFullBinAnalysisMock,
   runHolisticAnalysisMock,
-  comparePeersMock,
-  calculateHolisticRiskMock,
+  computePeerComparisonMock,
   saveBinAnalysisLogMock,
 } = vi.hoisted(() => ({
   createClientMock: vi.fn(),
   subtractCreditsMock: vi.fn(),
-  fetchBinLookupDetailedMock: vi.fn(),
-  normalizeNeutrinoBinResponseMock: vi.fn(),
+  lookupBinMultiSourceMock: vi.fn(),
   applyBinOverridesMock: vi.fn(),
   runFullBinAnalysisMock: vi.fn(),
   runHolisticAnalysisMock: vi.fn(),
-  comparePeersMock: vi.fn(),
-  calculateHolisticRiskMock: vi.fn(),
+  computePeerComparisonMock: vi.fn(),
   saveBinAnalysisLogMock: vi.fn(),
 }))
 
@@ -34,12 +31,8 @@ vi.mock("@/lib/credits/operations", () => ({
   subtractCredits: subtractCreditsMock,
 }))
 
-vi.mock("@/lib/premium-3-0/neutrino-api", () => ({
-  fetchBinLookupDetailed: fetchBinLookupDetailedMock,
-}))
-
-vi.mock("@/lib/premium-3-0/normalizeBinApiResponse", () => ({
-  normalizeNeutrinoBinResponse: normalizeNeutrinoBinResponseMock,
+vi.mock("@/lib/premium-3-0/multiSourceLookup", () => ({
+  lookupBinMultiSource: lookupBinMultiSourceMock,
 }))
 
 vi.mock("@/lib/premium-3-0/applyBinOverrides", () => ({
@@ -49,12 +42,14 @@ vi.mock("@/lib/premium-3-0/applyBinOverrides", () => ({
 vi.mock("@/lib/premium-3-0", () => ({
   runFullBinAnalysis: runFullBinAnalysisMock,
   runHolisticAnalysis: runHolisticAnalysisMock,
-  comparePeers: comparePeersMock,
-  calculateHolisticRisk: calculateHolisticRiskMock,
 }))
 
 vi.mock("@/lib/premium-3-0/saveBinAnalysisLog", () => ({
   saveBinAnalysisLog: saveBinAnalysisLogMock,
+}))
+
+vi.mock("@/lib/premium-3-0/peerComparison", () => ({
+  computePeerComparison: computePeerComparisonMock,
 }))
 
 import { POST } from "@/app/api/bin-analysis-v2/route"
@@ -134,33 +129,53 @@ describe("/api/bin-analysis-v2 route", () => {
       },
     }
 
-    fetchBinLookupDetailedMock.mockResolvedValue({
-      data: { card_brand: "VISA" },
-      meta: { networkSuccess: true },
+    const mastercardData: MastercardBinResult = {
+      bin: "411111",
+      binLength: 6,
+      brand: "UNKNOWN",
+      productCode: "",
+      productName: "",
+      productCategory: "CONSUMER",
+      cardType: "CREDIT",
+      countryCode: "",
+      countryName: "",
+      issuerName: "",
+      issuerCountry: "",
+      acceptanceBrand: "",
+      source: "MASTERCARD",
+      raw: null,
+    }
+
+    lookupBinMultiSourceMock.mockResolvedValue({
+      primary: normalizedBinData,
+      sources: {
+        neutrino: normalizedBinData,
+        mastercard: mastercardData,
+      },
+      consensus: {
+        countryAgreement: true,
+        brandAgreement: true,
+        typeAgreement: true,
+        confidence: "HIGH",
+        discrepancies: [],
+      },
     })
-    normalizeNeutrinoBinResponseMock.mockReturnValue(normalizedBinData)
     applyBinOverridesMock.mockResolvedValue({ data: normalizedBinData })
     runFullBinAnalysisMock.mockReturnValue(fullAnalysis)
-    runHolisticAnalysisMock.mockResolvedValue({
+    runHolisticAnalysisMock.mockReturnValue({
       binRisk: { score: 10, factors: [] },
       temporalRisk: { score: 10, factors: [] },
       behavioralRisk: { score: 40, factors: [] },
       geographicRisk: { score: 5, factors: [] },
       deviceRisk: { score: 15, factors: [] },
-      gatewayRisk: { score: 20, factors: [] },
-      overallScore: 15,
-      riskLevel: "LOW",
-      peerComparison: { percentile: 90, description: "Melhor que 90%." },
-    })
-    calculateHolisticRiskMock.mockReturnValue({
-      binRisk: 10,
-      temporalRisk: 10,
-      behavioralRisk: 40,
-      geographicRisk: 5,
-      deviceRisk: 15,
-      gatewayRisk: 20,
-    })
-    comparePeersMock.mockResolvedValue({
+        gatewayRisk: { score: 20, factors: [] },
+        overallScore: 15,
+        riskLevel: "LOW",
+        peerComparison: { percentile: 90, description: "Melhor que 90%." },
+        recommendation: "APPROVE",
+        ensembleConfidence: 100,
+      })
+    computePeerComparisonMock.mockReturnValue({
       percentile: 90,
       peerCount: 42,
       betterThan: 90,
@@ -181,19 +196,21 @@ describe("/api/bin-analysis-v2 route", () => {
     const payload = await response.json()
 
     expect(response.status).toBe(200)
-    expect(fetchBinLookupDetailedMock).toHaveBeenCalledTimes(1)
+    expect(lookupBinMultiSourceMock).toHaveBeenCalledTimes(1)
     expect(runHolisticAnalysisMock).toHaveBeenCalledTimes(1)
     expect(subtractCreditsMock).toHaveBeenCalledTimes(1)
     expect(payload.holistic.overallScore).toBe(15)
     expect(payload.context.userAgentPresent).toBe(false)
+    expect(payload.sources.neutrino.available).toBe(true)
+    expect(payload.consensus.confidence).toBe("HIGH")
 
-    const neutrinoCallOrder = fetchBinLookupDetailedMock.mock.invocationCallOrder[0]
+    const neutrinoCallOrder = lookupBinMultiSourceMock.mock.invocationCallOrder[0]
     const debitCallOrder = subtractCreditsMock.mock.invocationCallOrder[0]
     expect(debitCallOrder).toBeGreaterThan(neutrinoCallOrder)
   })
 
   it("retorna 502 estruturado e não debita quando upstream falha", async () => {
-    fetchBinLookupDetailedMock.mockRejectedValue(new Error("Neutrino API error: 502 - temporary error"))
+    lookupBinMultiSourceMock.mockRejectedValue(new Error("Bin lookup failed"))
 
     const request = new Request("http://localhost/api/bin-analysis-v2", {
       method: "POST",
@@ -206,7 +223,7 @@ describe("/api/bin-analysis-v2 route", () => {
 
     expect(response.status).toBe(502)
     expect(payload.ok).toBe(false)
-    expect(payload.error.code).toBe("UPSTREAM_NEUTRINO_FAILURE")
+    expect(payload.error.code).toBe("UPSTREAM_BIN_LOOKUP_FAILURE")
     expect(typeof payload.error.requestId).toBe("string")
     expect(subtractCreditsMock).not.toHaveBeenCalled()
   })

@@ -1,13 +1,38 @@
 import type { BankReputation, BinRiskFactor } from "../types"
 
+export const BANK_SUFFIX_PATTERN = /\b(S\.?A\.?|PLC|LTD|LTDA|N\.A\.|BANK)\b/gi
+
 export function normalizeIssuerName(issuerName?: string | null) {
-  return (issuerName ?? "")
+  const normalized = (issuerName ?? "")
     .normalize("NFD")
     .replace(/[\u0300-\u036f]/g, "")
-    .toUpperCase()
-    .replace(/[^A-Z0-9 ]/g, " ")
+    .replace(/\s+/g, " ")
     .replace(/\s+/g, " ")
     .trim()
+
+  if (!normalized) {
+    return ""
+  }
+
+  if (/^itau(\s+s\.?a\.?)?$/i.test(normalized)) {
+    return "itau"
+  }
+
+  return normalized.toUpperCase()
+}
+
+function normalizeIssuerLookupKey(issuerName?: string | null) {
+  const normalized = normalizeIssuerName(issuerName)
+  if (!normalized) {
+    return ""
+  }
+
+  return normalized
+    .replace(BANK_SUFFIX_PATTERN, "")
+    .replace(/[^A-Z0-9 ]/gi, " ")
+    .replace(/\s+/g, " ")
+    .trim()
+    .toUpperCase()
 }
 
 export const BANK_REPUTATION: Record<string, BankReputation> = {
@@ -71,9 +96,11 @@ export const BANK_REPUTATION: Record<string, BankReputation> = {
 }
 
 const BANK_ENTRIES = Object.entries(BANK_REPUTATION).map(([issuerName, reputation]) => ({
-  normalizedName: normalizeIssuerName(issuerName),
+  normalizedName: normalizeIssuerLookupKey(issuerName),
   reputation,
 }))
+
+export const BANK_REPUTATION_SEED = BANK_ENTRIES.map((entry) => entry.normalizedName)
 
 const BASE_APPROVAL_TARGET = 95
 const APPROVAL_WEIGHT = 0.8
@@ -82,20 +109,53 @@ const BASE_3DS_TARGET = 90
 const ADOPTION_WEIGHT = 0.5
 
 export function lookupBank(issuerName: string): BankReputation | null {
-  const normalized = normalizeIssuerName(issuerName)
+  const normalized = normalizeIssuerLookupKey(issuerName)
   if (!normalized) return null
 
   const exactMatch = BANK_ENTRIES.find((entry) => entry.normalizedName === normalized)
   if (exactMatch) return exactMatch.reputation
 
+  const meaningfulTokens = normalized
+    .split(" ")
+    .filter((token) => token.length > 3 && !["BANCO", "BANK", "BRASIL"].includes(token))
+
   const fuzzyMatch = BANK_ENTRIES.find(
     (entry) =>
       normalized.includes(entry.normalizedName) ||
       entry.normalizedName.includes(normalized) ||
-      entry.normalizedName.split(" ").some((token) => token.length > 2 && normalized.includes(token)),
+      meaningfulTokens.some((token) => entry.normalizedName.includes(token)),
   )
 
   return fuzzyMatch?.reputation ?? null
+}
+
+function deriveTier(bank: BankReputation): NonNullable<BankReputation["tier"]> {
+  if (bank.approvalRate >= 90 && bank.fraudRate <= 4) return "TIER1"
+  if (bank.approvalRate >= 86 && bank.fraudRate <= 6) return "TIER2"
+  return "TIER3"
+}
+
+export function getBankReputation(issuerName: string) {
+  const bank = lookupBank(issuerName)
+  return bank ? { ...bank, tier: bank.tier ?? deriveTier(bank) } : null
+}
+
+export function lookupBankReputation(issuerName: string, _countryCode?: string) {
+  const bank = getBankReputation(issuerName)
+  if (!bank) {
+    return {
+      found: false,
+      score: 30,
+      tier: "TIER3" as const,
+    }
+  }
+
+  return {
+    found: true,
+    score: calculateBankRisk(issuerName).score,
+    ...bank,
+    tier: bank.tier ?? "TIER2",
+  }
 }
 
 function clamp(value: number) {
@@ -108,7 +168,7 @@ export function calculateBankRisk(issuerName: string | null) {
 
   if (!bank) {
     factors.push({
-      label: "Emissor sem benchmark",
+      label: "Base neutra para emissor sem benchmark",
       impact: 0,
       reason: "Banco não encontrado na base estática, aplicado ajuste neutro.",
     })

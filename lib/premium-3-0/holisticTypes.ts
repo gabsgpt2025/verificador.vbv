@@ -200,7 +200,6 @@ export interface AnalysisRequest {
     merchantCountry?: string
     merchantCategoryCode?: string
     mcc?: string
-    merchantHost?: string
     timestamp?: number
     userAgent?: string | null
     ipAddress?: string | null
@@ -210,12 +209,29 @@ export interface AnalysisRequest {
   transactionAmount?: number
   transactionCurrency?: string
   merchantCountry?: string
-  merchantHost?: string
+  mcc?: string
   cardholderCountry?: string
   deviceType?: "MOBILE" | "DESKTOP" | "TABLET" | "UNKNOWN"
   isNewCard?: boolean
   isFirstTransaction?: boolean
   additionalContext?: Record<string, unknown>
+}
+
+export interface AnalysisSourceSummary<T = unknown> {
+  available: boolean
+  country?: string | null
+  brand?: string | null
+  type?: string | null
+  issuer?: string | null
+  data?: T | null
+}
+
+export interface MultiSourceConsensus {
+  countryAgreement: boolean
+  brandAgreement: boolean
+  typeAgreement: boolean
+  confidence: "HIGH" | "MEDIUM" | "LOW"
+  discrepancies: string[]
 }
 
 /** Resposta do endpoint POST /api/bin-analysis-v2 (shape legado mantido para compatibilidade). */
