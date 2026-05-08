@@ -1,4 +1,5 @@
 import { type NextRequest, NextResponse } from "next/server"
+import { z } from "zod"
 import { createClient } from "@/lib/supabase/server"
 import { subtractCredits } from "@/lib/credits/operations"
 import { normalizeNeutrinoBinResponse } from "@/lib/premium-3-0/normalizeBinApiResponse"
@@ -6,8 +7,47 @@ import { applyBinOverrides } from "@/lib/premium-3-0/applyBinOverrides"
 import { runFullBinAnalysis } from "@/lib/premium-3-0"
 import { saveBinAnalysisLog } from "@/lib/premium-3-0/saveBinAnalysisLog"
 import { callNeutrinoApi } from "@/lib/premium-3-0/neutrino-api"
-import type { BinAnalysisV2Request, BinApiData, FullBinAnalysis } from "@/lib/premium-3-0/types"
+import type { BinApiData, FullBinAnalysis } from "@/lib/premium-3-0/types"
+import type { AnalysisRequest } from "@/lib/premium-3-0/holisticTypes"
 import { OPEN_ACCESS_MODE } from "@/lib/open-access-mode"
+
+// ============================================================================
+// Validação de request (AnalysisRequest)
+// ============================================================================
+
+const DEVICE_TYPE_VALUES = ["MOBILE", "DESKTOP", "TABLET", "UNKNOWN"] as const
+
+const analysisRequestSchema = z.object({
+  bin: z
+    .string()
+    .regex(/^\d{6,8}$/, "bin deve conter entre 6 e 8 dígitos numéricos"),
+  transactionAmount: z
+    .number()
+    .min(0, "transactionAmount deve ser ≥ 0")
+    .optional(),
+  transactionCurrency: z.string().optional(),
+  merchantCountry: z.string().optional(),
+  cardholderCountry: z.string().optional(),
+  deviceType: z.enum(DEVICE_TYPE_VALUES).optional(),
+  isNewCard: z.boolean().optional(),
+  isFirstTransaction: z.boolean().optional(),
+  additionalContext: z.record(z.unknown()).optional(),
+})
+
+/**
+ * Valida e converte o body recebido pelo endpoint para AnalysisRequest.
+ * Retorna o objeto tipado em caso de sucesso, ou um objeto de erro estruturado.
+ */
+function validateAnalysisRequest(
+  body: unknown,
+): { ok: true; data: AnalysisRequest } | { ok: false; error: string } {
+  const result = analysisRequestSchema.safeParse(body)
+  if (!result.success) {
+    const firstIssue = result.error.issues[0]
+    return { ok: false, error: firstIssue?.message ?? "Requisição inválida" }
+  }
+  return { ok: true, data: result.data as AnalysisRequest }
+}
 
 // Open-access mode: when NEXT_PUBLIC_REQUIRE_AUTH !== "true", allow unauthenticated BIN analysis
 const RATE_LIMIT_WINDOW_MS = 60_000
@@ -73,13 +113,14 @@ export async function POST(request: NextRequest) {
       return buildErrorResponse(429, "RATE_LIMITED", "Muitas requisições. Tente novamente em instantes.", requestId)
     }
 
-    const { bin }: BinAnalysisV2Request = await request.json()
-
-    if (!bin || bin.replace(/\s/g, "").length < 6) {
-      return buildErrorResponse(400, "INVALID_BIN", "BIN válido (6+ dígitos) é obrigatório", requestId)
+    const rawBody: unknown = await request.json()
+    const validation = validateAnalysisRequest(rawBody)
+    if (!validation.ok) {
+      return buildErrorResponse(400, "INVALID_REQUEST", validation.error, requestId)
     }
+    const { bin } = validation.data
 
-    const cleanBin = bin.replace(/\s/g, "").substring(0, 8)
+    const cleanBin = bin.substring(0, 8)
 
     const supabase = await createClient()
     const {

@@ -7,7 +7,8 @@ import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { AlertCircle, CheckCircle2, XCircle, AlertTriangle, Globe, Zap, Shield, TrendingUp, Info, Database, Lock, Eye, EyeOff, Percent, Target } from 'lucide-react';
 import { mapFullBinAnalysisToResponse } from '@/lib/premium-3-0/adapters';
-import type { AnalysisResponse, FullBinAnalysis, LanguageMode } from '@/lib/premium-3-0/types';
+import type { AnalysisResponse, LanguageMode } from '@/lib/premium-3-0/holisticTypes';
+import type { FullBinAnalysis } from '@/lib/premium-3-0/types';
 
 const LANGUAGE_MODES: Record<string, LanguageMode> = {
   TECHNICAL: {

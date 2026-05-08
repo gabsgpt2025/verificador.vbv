@@ -1,4 +1,5 @@
-import type { AnalysisResponse, FullBinAnalysis } from "@/lib/premium-3-0/types"
+import type { AnalysisResponse } from "@/lib/premium-3-0/holisticTypes"
+import type { FullBinAnalysis } from "@/lib/premium-3-0/types"
 
 type Likelihood = "VERY_LOW" | "LOW" | "MEDIUM" | "HIGH" | "VERY_HIGH"
 
@@ -179,5 +180,5 @@ export function mapFullBinAnalysisToResponse(apiData: FullBinAnalysis): Analysis
       label: "🔧 Modo Técnico",
       description: "Linguagem especializada para profissionais de segurança",
     },
-  }
+  } satisfies AnalysisResponse
 }
