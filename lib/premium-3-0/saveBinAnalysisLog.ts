@@ -28,8 +28,6 @@ export async function saveBinAnalysisLog(
     issuer: technicalData.issuer ?? null,
     card_type: technicalData.type ?? null,
     card_category: technicalData.category ?? null,
-    type: technicalData.type ?? null,
-    category: technicalData.category ?? null,
     is_prepaid: technicalData.isPrepaid ?? false,
     is_commercial: technicalData.isCommercial ?? false,
     three_ds_status_estimated: threeDSAnalysis.status,
