@@ -30,7 +30,10 @@ const sampleAnalysis: FullBinAnalysis = {
     challengeLikelihood: "LOW",
     protocolLikely: "EMV_3DS_2_2",
     authMethodsLikely: ["APP_PUSH"],
-    explanation: "PSD2 e SCA ajudam a reduzir fraude.",
+    explanation: {
+      technical: "PSD2 e SCA ajudam a reduzir fraude.",
+      popular: "PSD2 e SCA ajudam a reduzir fraude.",
+    },
     inferred: true,
     frictionlessProbability: 86,
     challengeProbability: 14,

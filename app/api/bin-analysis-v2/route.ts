@@ -4,12 +4,13 @@ import { createClient } from "@/lib/supabase/server"
 import { subtractCredits } from "@/lib/credits/operations"
 import { normalizeNeutrinoBinResponse } from "@/lib/premium-3-0/normalizeBinApiResponse"
 import { applyBinOverrides } from "@/lib/premium-3-0/applyBinOverrides"
-import { runFullBinAnalysis, runHolisticAnalysis } from "@/lib/premium-3-0"
+import { runFullBinAnalysis, runHolisticAnalysis, comparePeers, calculateHolisticRisk } from "@/lib/premium-3-0"
 import { saveBinAnalysisLog } from "@/lib/premium-3-0/saveBinAnalysisLog"
 import { callNeutrinoApi } from "@/lib/premium-3-0/neutrino-api"
 import type { BinApiData, FullBinAnalysis } from "@/lib/premium-3-0/types"
 import type { AnalysisRequest, ValidationResult } from "@/lib/premium-3-0/holisticTypes"
 import type { TransactionContext } from "@/lib/premium-3-0/holisticEngine"
+import { enrichGeo, enrichTemporal, lookupBank } from "@/lib/premium-3-0/enrichment"
 import { OPEN_ACCESS_MODE } from "@/lib/open-access-mode"
 
 // ============================================================================
@@ -121,8 +122,31 @@ function resolveTransactionContext(request: NextRequest, payload: AnalysisReques
     userAgent: context.userAgent ?? userAgent,
     ipAddress: context.ipAddress ?? forwardedFor,
     ipCountryCode: context.ipCountryCode ?? headerCountry,
+    ipCity: request.headers.get("x-vercel-ip-city"),
+    ipLatitude: request.headers.get("x-vercel-ip-latitude"),
+    ipLongitude: request.headers.get("x-vercel-ip-longitude"),
     isFirstTransaction: context.isFirstTransaction ?? payload.isFirstTransaction,
   }
+}
+
+async function loadHistorySummary(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  userId: string | undefined,
+): Promise<Array<{ bin: string; timestamp: number; countryCode?: string | null }>> {
+  if (!userId) return []
+
+  const { data } = await supabase
+    .from("bin_analysis_logs")
+    .select("bin, country_code, created_at")
+    .eq("user_id", userId)
+    .order("created_at", { ascending: false })
+    .limit(10)
+
+  return (data ?? []).map((entry) => ({
+    bin: String(entry.bin),
+    timestamp: new Date(String(entry.created_at)).getTime(),
+    countryCode: entry.country_code as string | null | undefined,
+  }))
 }
 
 function buildSafeContextEcho(context: TransactionContext) {
@@ -198,9 +222,35 @@ export async function POST(request: NextRequest) {
       ? (await applyBinOverrides(supabase, binData)).data
       : binData
 
+    const geoContext = enrichGeo(binDataWithOverrides.countryCode ?? "", request)
+    const temporalContext = enrichTemporal(resolvedContext.timestamp)
+    const bankReputation = lookupBank(binDataWithOverrides.issuer ?? "")
+    const historySummary = await loadHistorySummary(supabase, user?.id)
+
     // Executa análise completa
     const analysis: FullBinAnalysis = runFullBinAnalysis(binDataWithOverrides, resolvedContext)
-    const holistic = runHolisticAnalysis(binDataWithOverrides, resolvedContext)
+    const holistic = runHolisticAnalysis(binDataWithOverrides, {
+      ...resolvedContext,
+      geoContext,
+      temporalContext,
+      bankReputation,
+      history: historySummary,
+    })
+    const riskFactors = calculateHolisticRisk({
+      binData: binDataWithOverrides,
+      geo: geoContext,
+      temporal: temporalContext,
+      bank: bankReputation,
+      amount: resolvedContext.amount,
+      currency: resolvedContext.currency,
+      userAgent: resolvedContext.userAgent ?? undefined,
+      history: historySummary,
+    })
+    const peerComparison = await comparePeers(
+      binDataWithOverrides,
+      holistic.overallScore,
+      supabase as unknown as Parameters<typeof comparePeers>[2],
+    )
 
     // Salva log interno (somente para usuários autenticados)
     if (user) {
@@ -232,6 +282,11 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({
       ...analysis,
       holistic,
+      geoContext,
+      temporalContext,
+      bankReputation,
+      peerComparison,
+      riskFactors,
       context: buildSafeContextEcho(resolvedContext),
     })
   } catch (error) {

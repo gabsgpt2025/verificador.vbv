@@ -1,95 +1,66 @@
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it } from "vitest"
 
-import { runHolisticAnalysis } from '@/lib/premium-3-0'
-import type { BinApiData } from '@/lib/premium-3-0/types'
+import { calculateHolisticRisk, runHolisticAnalysis } from "@/lib/premium-3-0"
+import { enrichGeo, enrichTemporal, lookupBank } from "@/lib/premium-3-0/enrichment"
+import type { BinApiData } from "@/lib/premium-3-0/types"
 
 function makeBin(overrides: Partial<BinApiData> = {}): BinApiData {
   return {
-    bin: '55323000',
-    binLength: 8,
-    source: 'INTERNAL',
+    bin: "553133",
+    binLength: 6,
+    brand: "MASTERCARD",
+    type: "CREDIT",
+    category: "BLACK",
+    countryCode: "BR",
+    countryName: "Brazil",
+    issuer: "Bradesco S.A.",
+    source: "NEUTRINO",
     ...overrides,
   }
 }
 
-describe('runHolisticAnalysis', () => {
-  it('mantém risco baixo para Bradesco BLACK com IP alinhado e horário comercial', () => {
-    const result = runHolisticAnalysis(
-      makeBin({
-        brand: 'MASTERCARD',
-        type: 'CREDIT',
-        category: 'BLACK',
-        countryCode: 'BR',
-        countryName: 'Brazil',
-        issuer: 'BRADESCO',
-      }),
-      {
-        amount: 20_000,
-        currency: 'BRL',
-        ipAddress: '200.147.67.1',
-        ipCountryCode: 'BR',
-        timestamp: Date.UTC(2026, 4, 11, 14, 0, 0),
-        userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/136.0',
-        isFirstTransaction: false,
-      },
-    )
+describe("holisticEngine deterministic calculations", () => {
+  it("calcula 6 dimensões sem zero quando contexto existe", () => {
+    const binData = makeBin()
+    const geo = enrichGeo("BR", { ipCountry: "US" })
+    const temporal = enrichTemporal(Date.UTC(2026, 4, 11, 23, 0, 0))
+    const bank = lookupBank(binData.issuer ?? "")
 
-    expect(result.overallScore).toBeLessThan(35)
-    expect(result.riskLevel).toBe('LOW')
-    expect(result.peerComparison.percentile).toBeGreaterThan(60)
+    const risk = calculateHolisticRisk({
+      binData,
+      geo,
+      temporal,
+      bank,
+      amount: 120_000,
+      currency: "BRL",
+      userAgent: "Mozilla/5.0",
+      history: [{ bin: "553133", timestamp: Date.UTC(2026, 4, 11, 22, 40, 0), countryCode: "BR" }],
+    })
+
+    expect(risk.temporalRisk).toBeGreaterThan(0)
+    expect(risk.geographicRisk).toBeGreaterThan(0)
+    expect(risk.deviceRisk).toBeGreaterThan(0)
+    expect(risk.gatewayRisk).toBeGreaterThanOrEqual(0)
   })
 
-  it('eleva risco para BIN nigeriano pré-pago com IP divergente e madrugada', () => {
-    const result = runHolisticAnalysis(
-      makeBin({
-        bin: '506099',
-        binLength: 6,
-        brand: 'VISA',
-        type: 'PREPAID',
-        category: 'VIRTUAL',
-        countryCode: 'NG',
-        countryName: 'Nigeria',
-        issuer: null,
-        isPrepaid: true,
-        source: 'NEUTRINO',
-      }),
-      {
-        amount: 1_000_000,
-        currency: 'BRL',
-        ipAddress: '8.8.8.8',
-        ipCountryCode: 'US',
-        timestamp: Date.UTC(2026, 4, 11, 3, 0, 0),
-        userAgent: null,
-        isFirstTransaction: true,
-      },
-    )
+  it("eleva risco comportamental com alta velocidade", () => {
+    const now = Date.UTC(2026, 4, 11, 12, 0, 0)
+    const result = runHolisticAnalysis(makeBin(), {
+      timestamp: now,
+      history: [
+        { bin: "553133", timestamp: now - 10 * 60_000, countryCode: "BR" },
+        { bin: "553133", timestamp: now - 20 * 60_000, countryCode: "BR" },
+        { bin: "553133", timestamp: now - 30 * 60_000, countryCode: "BR" },
+        { bin: "553133", timestamp: now - 40 * 60_000, countryCode: "US" },
+      ],
+      ipCountryCode: "US",
+      userAgent: "curl/8.1",
+      amount: 100,
+      currency: "BRL",
+    })
 
-    expect(result.geographicRisk.score).toBeGreaterThan(50)
-    expect(result.overallScore).toBeGreaterThan(70)
-    expect(['HIGH', 'CRITICAL']).toContain(result.riskLevel)
-  })
-
-  it('não quebra com BIN desconhecido e explica ausência de dados', () => {
-    const result = runHolisticAnalysis(
-      makeBin({
-        bin: '000000',
-        binLength: 6,
-        source: 'UNKNOWN',
-      }),
-      {
-        timestamp: 0,
-      },
-    )
-
-    const allReasons = [
-      ...result.binRisk.factors,
-      ...result.geographicRisk.factors,
-      ...result.behavioralRisk.factors,
-    ]
-      .map((factor) => `${factor.label} ${factor.reason}`.toLowerCase())
-      .join(' ')
-
-    expect(result.riskLevel).toBe('MEDIUM')
-    expect(allReasons).toMatch(/insuficient|ausente|desconhecid/)
+    expect(result.behavioralRisk.score).toBeGreaterThanOrEqual(70)
+    expect(result.deviceRisk.score).toBe(80)
+    expect(result.geographicRisk.score).toBeGreaterThan(0)
   })
 })

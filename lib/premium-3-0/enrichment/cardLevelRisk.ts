@@ -1,53 +1,60 @@
 import type { BinApiData, BinRiskFactor } from "../types"
 
+function normalize(value?: string | null) {
+  return (value ?? "").toUpperCase()
+}
+
+export function cardLevelRiskAdjustment(level?: string, type?: string, isPrepaid?: boolean, isCommercial?: boolean): number {
+  const normalizedLevel = normalize(level)
+  const normalizedType = normalize(type)
+  let adjustment = 0
+
+  if (normalizedLevel.includes("BLACK") || normalizedLevel.includes("INFINITE")) {
+    adjustment -= 15
+  } else if (normalizedLevel.includes("PLATINUM")) {
+    adjustment -= 10
+  } else if (normalizedLevel.includes("GOLD")) {
+    adjustment -= 5
+  }
+
+  if (
+    isCommercial ||
+    normalizedLevel.includes("BUSINESS") ||
+    normalizedLevel.includes("CORPORATE") ||
+    normalizedType.includes("BUSINESS") ||
+    normalizedType.includes("CORPORATE")
+  ) {
+    adjustment += 5
+  }
+
+  if (isPrepaid) {
+    adjustment += 25
+  }
+
+  if (normalizedLevel.includes("VIRTUAL") || normalizedLevel.includes("ELECTRON") || normalizedType.includes("ELECTRON")) {
+    adjustment += 15
+  }
+
+  return adjustment
+}
+
 export function calculateCardLevelRisk(binData: BinApiData) {
-  let score = 0
   const factors: BinRiskFactor[] = []
-  const category = (binData.category ?? "").toUpperCase()
+  const adjustment = cardLevelRiskAdjustment(binData.category, binData.type, binData.isPrepaid, binData.isCommercial)
 
-  if (["BLACK", "PLATINUM", "SIGNATURE", "INFINITE", "WORLD ELITE"].some((entry) => category.includes(entry))) {
-    score -= 10
+  if (adjustment === 0) {
     factors.push({
-      label: "Cartão premium",
-      impact: -10,
-      reason: "Categorias premium costumam ter controles emissores e autenticação mais consistentes.",
-    })
-  }
-
-  if (["BUSINESS", "CORPORATE", "COMMERCIAL"].some((entry) => category.includes(entry))) {
-    score += 5
-    factors.push({
-      label: "Cartão corporativo",
-      impact: 5,
-      reason: "Cartões empresariais pedem leitura adicional do contexto de compra e do gateway.",
-    })
-  }
-
-  if (binData.isPrepaid) {
-    score += 25
-    factors.push({
-      label: "Cartão pré-pago",
-      impact: 25,
-      reason: "Produtos pré-pagos costumam apresentar maior risco operacional e menor previsibilidade.",
-    })
-  }
-
-  if (category.includes("VIRTUAL")) {
-    score += 15
-    factors.push({
-      label: "Cartão virtual",
-      impact: 15,
-      reason: "Cartões virtuais exigem atenção adicional por sua alta rotatividade em ambientes digitais.",
-    })
-  }
-
-  if (factors.length === 0) {
-    factors.push({
-      label: "Nível do cartão sem ajuste adicional",
+      label: "Card level sem ajuste adicional",
       impact: 0,
-      reason: "A categoria do cartão não ativou modificadores extras de risco neste cenário.",
+      reason: "Nível/tipo do cartão não acionou regras adicionais de risco.",
+    })
+  } else {
+    factors.push({
+      label: "Ajuste por nível/tipo do cartão",
+      impact: adjustment,
+      reason: "Ajuste aplicado por categoria premium, perfil comercial/prepaid e características virtual/electron.",
     })
   }
 
-  return { score, factors }
+  return { score: adjustment, factors }
 }

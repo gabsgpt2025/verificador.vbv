@@ -3,27 +3,30 @@ import { describe, expect, it } from 'vitest'
 import { enrichGeo } from '@/lib/premium-3-0/enrichment/geoEnrichment'
 
 describe('enrichGeo', () => {
-  it('reduz score quando BIN e IP estão no mesmo país', () => {
-    const result = enrichGeo('BR', '200.147.67.1', 'BR')
+  it('retorna match quando BIN e IP estão no mesmo país', () => {
+    const result = enrichGeo('BR', {
+      ipCountry: 'BR',
+      ipCity: 'Sao Paulo',
+      ipLatitude: '-23.55',
+      ipLongitude: '-46.63',
+    })
 
-    expect(result.ipCountryCode).toBe('BR')
+    expect(result.ipCountry).toBe('BR')
     expect(result.ipCountryMatch).toBe(true)
-    expect(result.countryRiskTier).toBe('TIER1')
-    expect(result.score).toBeLessThanOrEqual(15)
+    expect(result.ipCountryTier).toBe('tier2')
+    expect(typeof result.distanceKm === 'number' || result.distanceKm === null).toBe(true)
   })
 
-  it('aumenta score quando o país do IP diverge sem mascaramento conhecido', () => {
-    const result = enrichGeo('BR', '8.8.8.8', 'US')
+  it('marca mismatch quando o país do IP diverge', () => {
+    const result = enrichGeo('BR', { ipCountry: 'US' })
 
     expect(result.ipCountryMatch).toBe(false)
-    expect(result.score).toBeGreaterThanOrEqual(40)
-    expect(result.factors.some((factor) => factor.label.includes('difere'))).toBe(true)
+    expect(result.ipCountryTier).toBe('tier1')
   })
 
   it('classifica países críticos corretamente', () => {
-    const result = enrichGeo('NG', '8.8.8.8', 'US')
+    const result = enrichGeo('NG', { ipCountry: 'NG' })
 
-    expect(result.countryRiskTier).toBe('CRITICAL')
-    expect(result.score).toBeGreaterThanOrEqual(80)
+    expect(result.ipCountryTier).toBe('critical')
   })
 })

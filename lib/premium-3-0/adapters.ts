@@ -145,13 +145,14 @@ export function mapFullBinAnalysisToResponse(apiData: FullBinAnalysis): Analysis
       recommendedFlow,
       estimatedSuccessRate,
       explanation: {
-        technical: apiData?.threeDSAnalysis?.explanation ?? "Análise técnica indisponível.",
+        technical: apiData?.threeDSAnalysis?.explanation?.technical ?? "Análise técnica indisponível.",
         popular:
-          recommendedFlow === "CHALLENGE"
+          apiData?.threeDSAnalysis?.explanation?.popular ??
+          (recommendedFlow === "CHALLENGE"
             ? "Esta transação deve pedir uma verificação adicional para aumentar a segurança."
             : recommendedFlow === "FRICTIONLESS"
               ? "Esta transação tem alta chance de seguir sem desafio adicional."
-              : "Esta transação pode alternar entre fluxo sem desafio e verificação adicional.",
+              : "Esta transação pode alternar entre fluxo sem desafio e verificação adicional."),
       },
     },
     riskAnalysis: {

@@ -35,7 +35,10 @@ describe("saveBinAnalysisLog", () => {
         challengeLikelihood: "LOW",
         protocolLikely: "EMV_3DS_2_2",
         authMethodsLikely: [],
-        explanation: "ok",
+        explanation: {
+          technical: "ok",
+          popular: "ok",
+        },
         inferred: true,
         frictionlessProbability: 88,
         challengeProbability: 12,

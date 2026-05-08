@@ -10,6 +10,8 @@ const {
   applyBinOverridesMock,
   runFullBinAnalysisMock,
   runHolisticAnalysisMock,
+  comparePeersMock,
+  calculateHolisticRiskMock,
   saveBinAnalysisLogMock,
 } = vi.hoisted(() => ({
   createClientMock: vi.fn(),
@@ -19,6 +21,8 @@ const {
   applyBinOverridesMock: vi.fn(),
   runFullBinAnalysisMock: vi.fn(),
   runHolisticAnalysisMock: vi.fn(),
+  comparePeersMock: vi.fn(),
+  calculateHolisticRiskMock: vi.fn(),
   saveBinAnalysisLogMock: vi.fn(),
 }))
 
@@ -45,6 +49,8 @@ vi.mock("@/lib/premium-3-0/applyBinOverrides", () => ({
 vi.mock("@/lib/premium-3-0", () => ({
   runFullBinAnalysis: runFullBinAnalysisMock,
   runHolisticAnalysis: runHolisticAnalysisMock,
+  comparePeers: comparePeersMock,
+  calculateHolisticRisk: calculateHolisticRiskMock,
 }))
 
 vi.mock("@/lib/premium-3-0/saveBinAnalysisLog", () => ({
@@ -57,10 +63,18 @@ describe("/api/bin-analysis-v2 route", () => {
   beforeEach(() => {
     vi.clearAllMocks()
 
+    const historyQuery = {
+      select: vi.fn().mockReturnThis(),
+      eq: vi.fn().mockReturnThis(),
+      order: vi.fn().mockReturnThis(),
+      limit: vi.fn().mockResolvedValue({ data: [], error: null }),
+    }
+
     createClientMock.mockResolvedValue({
       auth: {
         getUser: vi.fn().mockResolvedValue({ data: { user: { id: "user-1" } } }),
       },
+      from: vi.fn().mockReturnValue(historyQuery),
     })
 
     const normalizedBinData: BinApiData = {
@@ -84,7 +98,10 @@ describe("/api/bin-analysis-v2 route", () => {
         challengeLikelihood: "LOW",
         protocolLikely: "EMV_3DS_2_2",
         authMethodsLikely: [],
-        explanation: "ok",
+        explanation: {
+          technical: "ok",
+          popular: "ok",
+        },
         inferred: true,
         frictionlessProbability: 88,
         challengeProbability: 12,
@@ -131,6 +148,20 @@ describe("/api/bin-analysis-v2 route", () => {
       overallScore: 15,
       riskLevel: "LOW",
       peerComparison: { percentile: 90, description: "Melhor que 90%." },
+    })
+    calculateHolisticRiskMock.mockReturnValue({
+      binRisk: 10,
+      temporalRisk: 10,
+      behavioralRisk: 40,
+      geographicRisk: 5,
+      deviceRisk: 15,
+      gatewayRisk: 20,
+    })
+    comparePeersMock.mockResolvedValue({
+      percentile: 90,
+      peerCount: 42,
+      betterThan: 90,
+      peerGroup: "VISA-BR-CREDIT",
     })
     saveBinAnalysisLogMock.mockResolvedValue(undefined)
     subtractCreditsMock.mockResolvedValue({ success: true, message: "ok", newBalance: 7 })

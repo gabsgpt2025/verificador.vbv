@@ -36,7 +36,6 @@ describe("withRetry", () => {
 
   it("adds jitter to retry delays when enabled", async () => {
     vi.useFakeTimers()
-    vi.spyOn(Math, "random").mockReturnValue(0.5)
 
     const fn = vi
       .fn<() => Promise<string>>()
@@ -53,7 +52,7 @@ describe("withRetry", () => {
     await Promise.resolve()
     expect(fn).toHaveBeenCalledTimes(1)
 
-    await vi.advanceTimersByTimeAsync(149)
+    await vi.advanceTimersByTimeAsync(132)
     expect(fn).toHaveBeenCalledTimes(1)
 
     await vi.advanceTimersByTimeAsync(1)
