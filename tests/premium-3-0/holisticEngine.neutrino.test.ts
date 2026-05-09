@@ -53,20 +53,25 @@ describe("holisticEngine neutrino confidence", () => {
   })
 
   it("increases ensembleConfidence when neutrino data is used", async () => {
-    enrichGeoMock.mockResolvedValue({
+    enrichGeoMock.mockReturnValue({
       score: 20,
       factors: [],
       countryRiskTier: "TIER1",
       ipCountryCode: "BR",
+      ipCountry: null,
+      ipCity: null,
+      ipCountryMatch: true,
+      ipCountryTier: "tier1" as const,
+      distanceKm: null,
       sourcesUsed: ["neutrino-ip-info"],
     })
-    enrichDeviceMock.mockResolvedValue({
+    enrichDeviceMock.mockReturnValue({
       score: 20,
       factors: [],
       deviceType: "desktop",
       sourcesUsed: ["neutrino-ua-lookup"],
     })
-    enrichGatewayMock.mockResolvedValue({
+    enrichGatewayMock.mockReturnValue({
       score: 20,
       factors: [],
       dataAvailable: true,
