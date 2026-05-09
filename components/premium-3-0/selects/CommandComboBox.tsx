@@ -1,8 +1,7 @@
 'use client'
 
-import { useMemo, useRef, useState } from 'react'
+import { useMemo, useState } from 'react'
 import { Check, ChevronsUpDown } from 'lucide-react'
-import { useVirtualizer } from '@tanstack/react-virtual'
 
 import { Button } from '@/components/ui/button'
 import { Command, CommandEmpty, CommandInput, CommandItem, CommandList } from '@/components/ui/command'
@@ -53,19 +52,6 @@ export function CommandComboBox({
   const selected = options.find((option) => option.value === value)
   const filtered = useMemo(() => filterOptions(options, query), [options, query])
 
-  const useVirtual = filtered.length > 100
-  const parentRef = useRef<HTMLDivElement | null>(null)
-
-  const virtualizer = useVirtualizer({
-    count: filtered.length,
-    getScrollElement: () => parentRef.current,
-    estimateSize: () => 42,
-    overscan: 8,
-    enabled: useVirtual,
-  })
-
-  const virtualItems = useVirtual ? virtualizer.getVirtualItems() : []
-
   return (
     <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger asChild>
@@ -79,50 +65,24 @@ export function CommandComboBox({
           <CommandInput placeholder={searchPlaceholder} value={query} onValueChange={setQuery} />
           <CommandList>
             <CommandEmpty>{emptyLabel}</CommandEmpty>
-            <div ref={parentRef} className="max-h-72 overflow-auto" aria-label={sourceLabel}>
-              {useVirtual ? (
-                <div style={{ height: `${virtualizer.getTotalSize()}px`, position: 'relative' }}>
-                  {virtualItems.map((virtualItem) => {
-                    const option = filtered[virtualItem.index]
-                    return (
-                      <CommandItem
-                        key={option.value}
-                        value={option.value}
-                        onSelect={(next) => {
-                          onChange(next)
-                          setOpen(false)
-                        }}
-                        className={cn('absolute left-0 top-0 w-full', option.highRisk && 'text-risk-high')}
-                        style={{ transform: `translateY(${virtualItem.start}px)` }}
-                      >
-                        <Check className={cn('h-4 w-4', value === option.value ? 'opacity-100' : 'opacity-0')} aria-hidden="true" />
-                        <div className="min-w-0">
-                          <p className="truncate">{option.label}</p>
-                          {option.meta ? <p className="truncate text-xs text-fg-muted">{option.meta}</p> : null}
-                        </div>
-                      </CommandItem>
-                    )
-                  })}
-                </div>
-              ) : (
-                filtered.map((option) => (
-                  <CommandItem
-                    key={option.value}
-                    value={option.value}
-                    onSelect={(next) => {
-                      onChange(next)
-                      setOpen(false)
-                    }}
-                    className={cn(option.highRisk && 'text-risk-high')}
-                  >
-                    <Check className={cn('h-4 w-4', value === option.value ? 'opacity-100' : 'opacity-0')} aria-hidden="true" />
-                    <div className="min-w-0">
-                      <p className="truncate">{option.label}</p>
-                      {option.meta ? <p className="truncate text-xs text-fg-muted">{option.meta}</p> : null}
-                    </div>
-                  </CommandItem>
-                ))
-              )}
+            <div className="max-h-72 overflow-auto" aria-label={sourceLabel}>
+              {filtered.map((option) => (
+                <CommandItem
+                  key={option.value}
+                  value={option.value}
+                  onSelect={(next) => {
+                    onChange(next)
+                    setOpen(false)
+                  }}
+                  className={cn(option.highRisk && 'text-risk-high')}
+                >
+                  <Check className={cn('h-4 w-4', value === option.value ? 'opacity-100' : 'opacity-0')} aria-hidden="true" />
+                  <div className="min-w-0">
+                    <p className="truncate">{option.label}</p>
+                    {option.meta ? <p className="truncate text-xs text-fg-muted">{option.meta}</p> : null}
+                  </div>
+                </CommandItem>
+              ))}
             </div>
           </CommandList>
         </Command>

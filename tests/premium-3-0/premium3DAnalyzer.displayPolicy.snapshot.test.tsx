@@ -64,17 +64,17 @@ function makeAnalysis(confirmed: number, total: number) {
 
 describe('Premium3DAnalyzer snapshots', () => {
   it('alta confiança', () => {
-    const html = renderToStaticMarkup(createElement(Premium3DAnalyzer, { initialAnalysis: makeAnalysis(3, 3), initialHistory: [] }))
+    const html = renderToStaticMarkup(createElement(Premium3DAnalyzer as any, { initialAnalysis: makeAnalysis(3, 3), initialHistory: [] }))
     expect(html).toMatchSnapshot()
   })
 
   it('baixa confiança', () => {
-    const html = renderToStaticMarkup(createElement(Premium3DAnalyzer, { initialAnalysis: makeAnalysis(1, 3), initialHistory: [] }))
+    const html = renderToStaticMarkup(createElement(Premium3DAnalyzer as any, { initialAnalysis: makeAnalysis(1, 3), initialHistory: [] }))
     expect(html).toMatchSnapshot()
   })
 
   it('motor degradado total', () => {
-    const html = renderToStaticMarkup(createElement(Premium3DAnalyzer, { initialAnalysis: makeAnalysis(0, 3), initialHistory: [] }))
+    const html = renderToStaticMarkup(createElement(Premium3DAnalyzer as any, { initialAnalysis: makeAnalysis(0, 3), initialHistory: [] }))
     expect(html).toMatchSnapshot()
   })
 })
