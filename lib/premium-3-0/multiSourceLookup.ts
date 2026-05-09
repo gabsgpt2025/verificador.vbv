@@ -2,6 +2,7 @@ import { lookupMastercardBin, isLikelyMastercardFamilyBin, type MastercardBinRes
 
 import { normalizeNeutrinoBinResponse } from "./normalizeBinApiResponse"
 import { callNeutrinoApi } from "./neutrino-api"
+import type { SourceDiagnostic } from "./holisticTypes"
 import type { BinApiData } from "./types"
 
 export interface MultiSourceResult {
@@ -9,13 +10,17 @@ export interface MultiSourceResult {
   sources: {
     neutrino: BinApiData | null
     mastercard: MastercardBinResult | null
+    binlist: null
   }
+  diagnostics: SourceDiagnostic[]
   consensus: {
     countryAgreement: boolean
     brandAgreement: boolean
     typeAgreement: boolean
     confidence: "HIGH" | "MEDIUM" | "LOW"
     discrepancies: string[]
+    sourcesConfirmed: number
+    sourcesTotal: number
   }
 }
 
@@ -135,8 +140,28 @@ function compareField(
   return true
 }
 
+function classifyDiagnosticError(source: SourceDiagnostic["source"], error: unknown): SourceDiagnostic {
+  const message = error instanceof Error ? error.message : String(error)
+  const lowerMessage = message.toLowerCase()
+  const isTimeout = lowerMessage.includes("timeout") || lowerMessage.includes("abort")
+
+  return {
+    source,
+    status: isTimeout ? "timeout" : "error",
+    httpStatus: null,
+    latencyMs: null,
+    message,
+    suggestedAction: isTimeout
+      ? "Aguarde alguns segundos e clique em “Tentar novamente”."
+      : "Revise credenciais e disponibilidade do provedor.",
+  }
+}
+
 export async function lookupBinMultiSource(bin: string): Promise<MultiSourceResult> {
   const sanitizedBin = bin.replace(/\D/g, "").slice(0, 8)
+
+  const neutrinoStartedAt = Date.now()
+  const mastercardStartedAt = Date.now()
 
   const [neutrinoLookup, mastercardLookup] = await Promise.allSettled([
     callNeutrinoApi(sanitizedBin).then((response) => normalizeNeutrinoBinResponse(response, sanitizedBin)),
@@ -145,6 +170,87 @@ export async function lookupBinMultiSource(bin: string): Promise<MultiSourceResu
 
   const neutrino = neutrinoLookup.status === "fulfilled" ? neutrinoLookup.value : null
   const mastercard = mastercardLookup.status === "fulfilled" ? mastercardLookup.value : null
+
+  const mastercardLikelyApplicable = isLikelyMastercardFamilyBin(sanitizedBin)
+  const mastercardEnvMissing: string[] = []
+  if (!process.env.MASTERCARD_CONSUMER_KEY?.trim()) mastercardEnvMissing.push("MASTERCARD_CONSUMER_KEY")
+  if (!process.env.MASTERCARD_PRIVATE_KEY?.trim()) mastercardEnvMissing.push("MASTERCARD_PRIVATE_KEY")
+
+  const diagnostics: SourceDiagnostic[] = []
+
+  if (neutrinoLookup.status === "fulfilled") {
+    diagnostics.push({
+      source: "neutrino",
+      status: neutrino ? "ok" : "error",
+      httpStatus: neutrino ? 200 : null,
+      latencyMs: Date.now() - neutrinoStartedAt,
+      message: neutrino ? "Resposta confirmada." : "Neutrino retornou vazio.",
+      suggestedAction: neutrino ? "Sem ação necessária." : "Tente novamente em instantes.",
+      lastSuccessAt: neutrino ? new Date().toISOString() : null,
+    })
+  } else {
+    diagnostics.push({
+      ...classifyDiagnosticError("neutrino", neutrinoLookup.reason),
+      latencyMs: Date.now() - neutrinoStartedAt,
+    })
+  }
+
+  if (mastercardLookup.status === "fulfilled") {
+    if (mastercard) {
+      diagnostics.push({
+        source: "mastercard",
+        status: "ok",
+        httpStatus: 200,
+        latencyMs: Date.now() - mastercardStartedAt,
+        message: "Resposta confirmada.",
+        suggestedAction: "Sem ação necessária.",
+        lastSuccessAt: new Date().toISOString(),
+      })
+    } else if (!mastercardLikelyApplicable) {
+      diagnostics.push({
+        source: "mastercard",
+        status: "not_applicable",
+        httpStatus: null,
+        latencyMs: Date.now() - mastercardStartedAt,
+        message: "BIN fora do range Mastercard/Maestro.",
+        suggestedAction: "Sem ação necessária para este BIN.",
+      })
+    } else if (mastercardEnvMissing.length > 0) {
+      diagnostics.push({
+        source: "mastercard",
+        status: "disabled",
+        httpStatus: null,
+        latencyMs: Date.now() - mastercardStartedAt,
+        message: "Integração Mastercard desabilitada por credenciais ausentes.",
+        missingEnvVars: mastercardEnvMissing,
+        suggestedAction: `Defina ${mastercardEnvMissing.join(", ")} e tente novamente.`,
+      })
+    } else {
+      diagnostics.push({
+        source: "mastercard",
+        status: "error",
+        httpStatus: null,
+        latencyMs: Date.now() - mastercardStartedAt,
+        message: "Mastercard não respondeu com dados para este BIN.",
+        suggestedAction: "Verifique credenciais e limites de rate.",
+      })
+    }
+  } else {
+    diagnostics.push({
+      ...classifyDiagnosticError("mastercard", mastercardLookup.reason),
+      latencyMs: Date.now() - mastercardStartedAt,
+      missingEnvVars: mastercardEnvMissing.length > 0 ? mastercardEnvMissing : undefined,
+    })
+  }
+
+  diagnostics.push({
+    source: "binlist",
+    status: "disabled",
+    httpStatus: null,
+    latencyMs: null,
+    message: "BinList não está habilitado no endpoint canônico /api/bin-analysis-v2.",
+    suggestedAction: "Use integração canônica (Neutrino/Mastercard) ou habilite BinList na camada de backend.",
+  })
 
   if (!neutrino && !mastercard) {
     const reason =
@@ -185,18 +291,25 @@ export async function lookupBinMultiSource(bin: string): Promise<MultiSourceResu
           : "LOW"
       : "LOW"
 
+  const sourcesConfirmed = [neutrino, mastercard, null].filter(Boolean).length
+  const sourcesTotal = 3
+
   return {
     primary: buildPrimaryBinData(sanitizedBin, neutrino, mastercard),
     sources: {
       neutrino,
       mastercard,
+      binlist: null,
     },
+    diagnostics,
     consensus: {
       countryAgreement,
       brandAgreement,
       typeAgreement,
       confidence,
       discrepancies,
+      sourcesConfirmed,
+      sourcesTotal,
     },
   }
 }

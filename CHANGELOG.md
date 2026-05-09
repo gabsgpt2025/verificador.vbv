@@ -1,5 +1,13 @@
 # Changelog
 
+## 2026-05-09
+
+- v3.2.1: política de exibição de score em `lib/scoring/displayPolicy.ts` (exact/range/qualitative/hidden) alinhada à confiança de fontes.
+- Formulário de contexto avançado migrado para combobox com busca (`CurrencySelect`, `CountrySelect`, `MccSelect`) com datasets versionados em `lib/data/`.
+- Autopreenchimento por BIN: moeda e país sugeridos automaticamente com possibilidade de sobrescrita.
+- Banner sticky de degradação quando fontes estão parciais, com modal de status técnico por fonte e ação de retry/report.
+- Cards de score agora exibem transparência metodológica com botão “Como calculamos isto?” + seção “Sobre este BIN”.
+
 ## 2026-05-08
 
 ### Breaking changes

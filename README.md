@@ -156,3 +156,10 @@ O workflow `.github/workflows/ci.yml` roda `lint → typecheck → build` em tod
 |---|---|
 | [`docs/VERIFIBIN-3.0-RELATORIO-TECNICO.md`](docs/VERIFIBIN-3.0-RELATORIO-TECNICO.md) | Relatório técnico completo (v3.0.1) — alinhado ao código real |
 | [`docs/CONFORMIDADE-AUDITORIA.md`](docs/CONFORMIDADE-AUDITORIA.md) | Auditoria de conformidade: doc original vs. código real (✅/⚠️/❌/➕) |
+| [`docs/SCORE_TRANSPARENCY.md`](docs/SCORE_TRANSPARENCY.md) | Política de exibição de score por nível de confiança |
+| [`docs/DATA_INPUTS.md`](docs/DATA_INPUTS.md) | Fontes e regras do formulário de contexto avançado |
+
+## Capturas da nova UX (Fase pós-2)
+
+- Formulário avançado com autopreenchimento: `docs/screenshots/contexto-avancado-autofill.png`
+- Banner de degradação de fontes: `docs/screenshots/banner-degradacao.png`

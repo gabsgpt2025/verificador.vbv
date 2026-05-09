@@ -5,7 +5,6 @@ import React, { useCallback, useEffect, useMemo, useState } from 'react'
 import {
   AlertCircle,
   AlertTriangle,
-  CheckCircle2,
   Clock3,
   Cpu,
   Globe2,
@@ -14,7 +13,6 @@ import {
   Inbox,
   MapPinned,
   Minus,
-  OctagonAlert,
   Plus,
   ShieldQuestion,
   Shield,
@@ -34,6 +32,7 @@ import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog'
 import { EmptyState } from '@/components/ui/empty-state'
 import { Input } from '@/components/ui/input'
 import { Progress } from '@/components/ui/progress'
@@ -43,6 +42,7 @@ import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
 import { toast } from 'sonner'
 
+import ConfidenceBadge from '@/components/premium-3-0/ConfidenceBadge'
 import RiskRadarChart, { type RadarDimension } from '@/components/premium-3-0/RiskRadarChart'
 import TransactionContextForm, {
   buildTransactionContextForRequest,
@@ -50,8 +50,10 @@ import TransactionContextForm, {
 } from '@/components/premium-3-0/TransactionContextForm'
 import { maskBin } from '@/lib/format'
 import type { MastercardBinResult } from '@/lib/integrations/mastercard'
+import { applyBinAutofill } from '@/lib/scoring/autofill'
+import { getScoreDisplayPolicy, shouldMutePercentages, type DisplayConfidence } from '@/lib/scoring/displayPolicy'
 import type { HolisticScore } from '@/lib/premium-3-0'
-import type { AnalysisSourceSummary, MultiSourceConsensus } from '@/lib/premium-3-0/holisticTypes'
+import type { AnalysisSourceSummary, MultiSourceConsensus, SourceDiagnostic } from '@/lib/premium-3-0/holisticTypes'
 import type { PeerComparison } from '@/lib/premium-3-0/peerComparison'
 import type { BinRiskFactor, FullBinAnalysis } from '@/lib/premium-3-0/types'
 import { getRiskLevel } from '@/lib/risk'
@@ -104,8 +106,10 @@ type PremiumAnalysisResponse = FullBinAnalysis & {
   sources?: {
     neutrino: AnalysisSourceSummary<FullBinAnalysis['technicalData']>
     mastercard: AnalysisSourceSummary<MastercardBinResult>
+    binlist?: AnalysisSourceSummary<null>
   }
   consensus?: MultiSourceConsensus
+  sourceDiagnostics?: SourceDiagnostic[]
   multiSource?: {
     sources?: {
       neutrino?: unknown
@@ -186,6 +190,29 @@ function clampPercentile(value: number) {
   return Math.min(Math.max(value, 0), 100)
 }
 
+function normalizeDisplayConfidence(confirmedSources: number, totalSources: number): DisplayConfidence {
+  if (confirmedSources <= 0) return 'unavailable'
+  const ratio = confirmedSources / Math.max(totalSources, 1)
+  if (ratio >= 0.75) return 'high'
+  if (ratio >= 0.5) return 'medium'
+  return 'low'
+}
+
+function mapDisplayConfidenceToBadge(confidence: DisplayConfidence) {
+  if (confidence === 'high') return 'HIGH' as const
+  if (confidence === 'medium') return 'MEDIUM' as const
+  if (confidence === 'low') return 'LOW' as const
+  return 'UNAVAILABLE' as const
+}
+
+function formatSourceStatus(status: SourceDiagnostic['status']) {
+  if (status === 'ok') return 'OK'
+  if (status === 'timeout') return 'timeout'
+  if (status === 'disabled') return 'desabilitada'
+  if (status === 'not_applicable') return 'não aplicável'
+  return 'erro'
+}
+
 function capitalizeWords(label: string) {
   return label
     .toLowerCase()
@@ -197,21 +224,6 @@ function getFactorSource(factor: BinRiskFactor) {
     (factor as BinRiskFactor & { source?: string; dataSource?: string }).source ??
     (factor as BinRiskFactor & { source?: string; dataSource?: string }).dataSource
   return source ? source.trim() : null
-}
-
-function getRiskStatusIcon(level: string) {
-  switch (level) {
-    case 'LOW':
-      return { Icon: CheckCircle2, className: 'text-status-success', label: 'Status de risco baixo' }
-    case 'MEDIUM':
-      return { Icon: AlertCircle, className: 'text-status-warning', label: 'Status de risco moderado' }
-    case 'HIGH':
-      return { Icon: AlertTriangle, className: 'text-risk-high', label: 'Status de risco alto' }
-    case 'CRITICAL':
-      return { Icon: OctagonAlert, className: 'text-risk-critical', label: 'Status de risco crítico' }
-    default:
-      return { Icon: AlertCircle, className: 'text-fg-muted', label: 'Status de risco' }
-  }
 }
 
 function getFactorIcon(impact: number) {
@@ -249,11 +261,15 @@ export function Premium3DAnalyzer({ initialAnalysis = null, initialHistory = [] 
   const [cardNumber, setCardNumber] = useState('')
   const [contextValues, setContextValues] = useState<TransactionContextFormValue>({
     amount: '',
-    currency: 'BRL',
-    merchantCountry: 'OUTROS',
+    currency: '',
+    merchantCountry: '',
     mcc: '',
     isFirstTransaction: true,
   })
+  const [suggestedCurrency, setSuggestedCurrency] = useState('')
+  const [suggestedMerchantCountry, setSuggestedMerchantCountry] = useState('')
+  const [userEditedCurrency, setUserEditedCurrency] = useState(false)
+  const [userEditedMerchantCountry, setUserEditedMerchantCountry] = useState(false)
   const [analysis, setAnalysis] = useState<PremiumAnalysisResponse | null>(initialAnalysis)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -290,6 +306,18 @@ export function Premium3DAnalyzer({ initialAnalysis = null, initialHistory = [] 
   useEffect(() => {
     void fetchHistory()
   }, [fetchHistory])
+
+  const handleContextChange = useCallback((next: TransactionContextFormValue) => {
+    if (next.currency !== contextValues.currency && suggestedCurrency && next.currency !== suggestedCurrency) {
+      setUserEditedCurrency(true)
+    }
+
+    if (next.merchantCountry !== contextValues.merchantCountry && suggestedMerchantCountry && next.merchantCountry !== suggestedMerchantCountry) {
+      setUserEditedMerchantCountry(true)
+    }
+
+    setContextValues(next)
+  }, [contextValues, suggestedCurrency, suggestedMerchantCountry])
 
   const analyzeBin = useCallback(async (inputBin?: string) => {
     const cleanBin = (inputBin ?? cardNumber).replace(/\D/g, '').slice(0, 8)
@@ -337,6 +365,19 @@ export function Premium3DAnalyzer({ initialAnalysis = null, initialHistory = [] 
       const payload = (await response.json()) as PremiumAnalysisResponse
       setAnalysis(payload)
       setCardNumber(cleanBin)
+
+      const autofill = applyBinAutofill({
+        context: contextValues,
+        issuerCountryCode: payload.technicalData.countryCode,
+        issuerCurrencyCode: payload.technicalData.currency,
+        userEditedCurrency,
+        userEditedMerchantCountry,
+      })
+      setContextValues(autofill.value)
+      setSuggestedCurrency(autofill.suggestedCurrency ?? '')
+      setSuggestedMerchantCountry(autofill.suggestedMerchantCountry ?? '')
+      if (autofill.currencySuggested) setUserEditedCurrency(false)
+      if (autofill.merchantCountrySuggested) setUserEditedMerchantCountry(false)
       toast.success('Análise concluída')
       void fetchHistory()
     } catch (analyzeError) {
@@ -344,7 +385,7 @@ export function Premium3DAnalyzer({ initialAnalysis = null, initialHistory = [] 
     } finally {
       setLoading(false)
     }
-  }, [cardNumber, contextValues, fetchHistory, router])
+  }, [cardNumber, contextValues, fetchHistory, router, userEditedCurrency, userEditedMerchantCountry])
 
   const riskDimensions = useMemo(() => {
     if (!analysis) return [] as RadarDimension[]
@@ -363,12 +404,29 @@ export function Premium3DAnalyzer({ initialAnalysis = null, initialHistory = [] 
   const peerComparison = analysis?.peerComparison ?? analysis?.holistic.peerComparison
 
   const sourceAvailability = {
-    neutrino: analysis?.sources?.neutrino.available ?? Boolean(analysis?.multiSource?.sources?.neutrino),
-    mastercard: analysis?.sources?.mastercard.available ?? Boolean(analysis?.multiSource?.sources?.mastercard),
-    binlist: Boolean(analysis?.multiSource?.sources?.binlist),
+    neutrino: analysis?.sources?.neutrino.available ?? false,
+    mastercard: analysis?.sources?.mastercard.available ?? false,
+    binlist: analysis?.sources?.binlist?.available ?? false,
   }
 
-  const confirmedSources = Object.values(sourceAvailability).filter(Boolean).length
+  const confirmedSources = consensus?.sourcesConfirmed ?? Object.values(sourceAvailability).filter(Boolean).length
+  const totalSources = consensus?.sourcesTotal ?? 3
+  const displayConfidence = normalizeDisplayConfidence(confirmedSources, totalSources)
+  const scoreDisplayPolicy = analysis
+    ? getScoreDisplayPolicy({
+      score: analysis.holistic.overallScore,
+      confidence: displayConfidence,
+      sourcesConfirmed: confirmedSources,
+      sourcesTotal: totalSources,
+    })
+    : null
+  const muteSubPercentages = scoreDisplayPolicy ? shouldMutePercentages(scoreDisplayPolicy.precision) : false
+  const sourceDiagnostics = analysis?.sourceDiagnostics ?? []
+  const degradationMode = confirmedSources < totalSources
+
+  const aboutBinText = analysis
+    ? `O BIN ${analysis.bin} pertence a ${analysis.technicalData.issuer ?? 'emissor não informado'} (${analysis.technicalData.countryName ?? analysis.technicalData.countryCode ?? 'país não informado'}), bandeira ${analysis.technicalData.brand ?? 'não informada'}, cartão ${analysis.technicalData.type ?? 'tipo não informado'}. Para uma transação de ${analysis.context.amount ? `${(analysis.context.amount / 100).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ${analysis.context.currency ?? ''}` : 'valor não informado'} num merchant no ${analysis.context.merchantCountry ?? 'país não informado'} (categoria ${analysis.context.mcc ?? 'não informada'}), o motor identificou ${scoreDisplayPolicy?.displayValue ?? 'resultado indisponível'} com base em ${confirmedSources} de ${totalSources} fontes confirmadas.${displayConfidence !== 'high' ? ' A análise é preliminar e pode mudar com novas fontes.' : ''}`
+    : ''
 
   return (
     <div className="mx-auto w-full max-w-7xl space-y-6 px-4 py-10 font-sans text-fg">
@@ -429,7 +487,13 @@ export function Premium3DAnalyzer({ initialAnalysis = null, initialHistory = [] 
             Informe entre 6 e 8 dígitos para análise.
           </p>
 
-          <TransactionContextForm value={contextValues} onChange={setContextValues} />
+          <TransactionContextForm
+            value={contextValues}
+            onChange={handleContextChange}
+            suggestedCurrency={suggestedCurrency}
+            suggestedMerchantCountry={suggestedMerchantCountry}
+            issuerCountryCode={analysis?.technicalData.countryCode}
+          />
 
           {error ? (
             <Alert variant="destructive">
@@ -470,24 +534,141 @@ export function Premium3DAnalyzer({ initialAnalysis = null, initialHistory = [] 
 
         {analysis ? (
         <div className="space-y-6">
+          {degradationMode ? (
+            <div className="sticky top-4 z-20 rounded-lg border border-status-warning/40 bg-status-warning/10 p-4">
+              <p className="text-sm font-medium text-status-warning">
+                ⚠️ Análise em modo parcial — {confirmedSources} de {totalSources} fontes respondeu.
+              </p>
+              <p className="mt-1 text-xs text-fg-muted">A precisão dos scores está reduzida.</p>
+              <div className="mt-3 flex flex-wrap gap-2">
+                <Button size="sm" variant="outline" onClick={() => void analyzeBin()}>Tentar novamente</Button>
+                <Dialog>
+                  <DialogTrigger>
+                    <Button size="sm" variant="outline">Ver detalhes</Button>
+                  </DialogTrigger>
+                  <DialogContent className="max-w-2xl">
+                    <DialogHeader>
+                      <DialogTitle>Status técnico das fontes</DialogTitle>
+                      <DialogDescription>Detalhes sanitizados para troubleshooting operacional.</DialogDescription>
+                    </DialogHeader>
+                    <div className="space-y-2 text-sm">
+                      {sourceDiagnostics.map((diagnostic) => (
+                        <div key={diagnostic.source} className="rounded-md border border-border-subtle p-3">
+                          <p className="font-medium">{diagnostic.source} — {formatSourceStatus(diagnostic.status)}</p>
+                          <p className="text-xs text-fg-muted">HTTP {diagnostic.httpStatus ?? 'n/a'} · latência {diagnostic.latencyMs ?? 'n/a'}ms</p>
+                          <p className="mt-1 text-xs">{diagnostic.message}</p>
+                          {diagnostic.missingEnvVars && diagnostic.missingEnvVars.length > 0 ? (
+                            <p className="mt-1 text-xs text-status-warning">Env ausentes: {diagnostic.missingEnvVars.join(', ')}</p>
+                          ) : null}
+                          {diagnostic.suggestedAction ? <p className="mt-1 text-xs">Ação sugerida: {diagnostic.suggestedAction}</p> : null}
+                        </div>
+                      ))}
+                    </div>
+                  </DialogContent>
+                </Dialog>
+                <a className="inline-flex items-center rounded-md border border-border px-3 py-1.5 text-sm hover:bg-bg-surface-hover" href="mailto:suporte@verifibin.local?subject=Reportar%20degrada%C3%A7%C3%A3o">Reportar</a>
+              </div>
+            </div>
+          ) : null}
+
+          <Card className="border-border bg-card">
+            <CardHeader>
+              <CardTitle className="text-lg font-semibold">Sobre este BIN</CardTitle>
+              <CardDescription>Resumo textual determinístico com rastreabilidade das afirmações.</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              <p className="text-sm text-fg-muted">{aboutBinText}</p>
+              <div className="flex flex-wrap gap-2">
+                <TooltipProvider>
+                  <Tooltip>
+                    <TooltipTrigger><Badge variant="outline">BIN / emissor</Badge></TooltipTrigger>
+                    <TooltipContent>Fonte: technicalData (Neutrino/Mastercard).</TooltipContent>
+                  </Tooltip>
+                  <Tooltip>
+                    <TooltipTrigger><Badge variant="outline">Contexto transação</Badge></TooltipTrigger>
+                    <TooltipContent>Fonte: dados enviados no contexto avançado.</TooltipContent>
+                  </Tooltip>
+                  <Tooltip>
+                    <TooltipTrigger><Badge variant="outline">Score</Badge></TooltipTrigger>
+                    <TooltipContent>Fonte: motor holístico + política de exibição.</TooltipContent>
+                  </Tooltip>
+                </TooltipProvider>
+              </div>
+            </CardContent>
+          </Card>
+
           <div className="grid gap-4 lg:grid-cols-4">
             <Card className={`border ${getRiskTone(analysis.holistic.riskLevel)}`}>
               <CardHeader>
                 <CardDescription>Score geral</CardDescription>
-                <CardTitle className="text-2xl font-bold">{analysis.holistic.overallScore}/100</CardTitle>
+                <div className="flex items-start justify-between gap-2">
+                  <CardTitle className="text-2xl font-bold">{scoreDisplayPolicy?.displayValue ?? `${analysis.holistic.overallScore}/100`}</CardTitle>
+                  <Dialog>
+                  <DialogTrigger>
+                    <Button size="sm" variant="outline">
+                      <Info className="mr-1 h-3.5 w-3.5" aria-hidden="true" />
+                      Como calculamos isto?
+                    </Button>
+                  </DialogTrigger>
+                    <DialogContent className="max-w-2xl">
+                      <DialogHeader>
+                        <DialogTitle>Score geral — metodologia</DialogTitle>
+                        <DialogDescription>Fórmula simplificada, contribuições e fontes reais usadas.</DialogDescription>
+                      </DialogHeader>
+                      <div className="space-y-3 text-sm">
+                        <div className="rounded-md border border-border-subtle bg-bg-surface-elevated p-3">
+                          <p className="font-medium">Score = 0.3*BIN + 0.2*Geo + 0.15*Comportamental + 0.1*Temporal + 0.15*Dispositivo + 0.1*Gateway</p>
+                        </div>
+                        <div className="overflow-auto rounded-md border border-border-subtle">
+                          <table className="w-full text-left text-xs">
+                            <thead className="bg-bg-surface-elevated text-fg-muted">
+                              <tr>
+                                <th className="px-2 py-2">Fator</th>
+                                <th className="px-2 py-2">Peso</th>
+                                <th className="px-2 py-2">Valor</th>
+                                <th className="px-2 py-2">Contribuição</th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {[
+                                { label: 'BIN', weight: analysis.holistic.binRisk.weight, value: analysis.holistic.binRisk.score },
+                                { label: 'Geo', weight: analysis.holistic.geographicRisk.weight, value: analysis.holistic.geographicRisk.score },
+                                { label: 'Comportamental', weight: analysis.holistic.behavioralRisk.weight, value: analysis.holistic.behavioralRisk.score },
+                                { label: 'Temporal', weight: analysis.holistic.temporalRisk.weight, value: analysis.holistic.temporalRisk.score },
+                                { label: 'Dispositivo', weight: analysis.holistic.deviceRisk.weight, value: analysis.holistic.deviceRisk.score },
+                                { label: 'Gateway', weight: analysis.holistic.gatewayRisk.weight, value: analysis.holistic.gatewayRisk.score },
+                              ].map((factor) => (
+                                <tr key={factor.label} className="border-t border-border-subtle">
+                                  <td className="px-2 py-2">{factor.label}</td>
+                                  <td className="px-2 py-2">{factor.weight}</td>
+                                  <td className="px-2 py-2">{factor.value}</td>
+                                  <td className="px-2 py-2">{Math.round(factor.value * factor.weight)}</td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        </div>
+                        <div className="rounded-md border border-border-subtle bg-bg-surface-elevated p-3 text-xs">
+                          <p className="font-medium">Fontes usadas</p>
+                          <ul className="mt-2 space-y-1">
+                            {sourceDiagnostics.map((diagnostic) => (
+                              <li key={diagnostic.source}>
+                                {diagnostic.source}: {formatSourceStatus(diagnostic.status)} · HTTP {diagnostic.httpStatus ?? 'n/a'} · {diagnostic.latencyMs ?? 'n/a'}ms
+                              </li>
+                            ))}
+                          </ul>
+                          <p className="mt-2">Versão do ruleset: engine v3.2.0 / ruleset v12</p>
+                          <a href="/metodologia" className="text-ds-accent underline">Ver metodologia completa</a>
+                        </div>
+                      </div>
+                    </DialogContent>
+                  </Dialog>
+                </div>
               </CardHeader>
               <CardContent className="space-y-2">
-                <Badge variant="outline" className="border-current text-current">
-                  {(() => {
-                    const { Icon, className, label } = getRiskStatusIcon(analysis.holistic.riskLevel)
-                    return (
-                      <>
-                        <Icon className={`h-3.5 w-3.5 ${className}`} aria-label={label} />
-                        {analysis.holistic.riskLevel}
-                      </>
-                    )
-                  })()}
-                </Badge>
+                <Badge variant="outline" className="border-current text-current">{analysis.holistic.riskLevel}</Badge>
+                <ConfidenceBadge confidence={mapDisplayConfidenceToBadge(displayConfidence)} />
+                {scoreDisplayPolicy?.warning ? <p className="text-xs text-fg-muted">{scoreDisplayPolicy.warning}</p> : null}
                 <RiskIndicator
                   level={getRiskLevel(analysis.holistic.overallScore)}
                   score={analysis.holistic.overallScore}
@@ -500,29 +681,29 @@ export function Premium3DAnalyzer({ initialAnalysis = null, initialHistory = [] 
             <Card className="border-border bg-card">
               <CardHeader>
                 <CardDescription>Frictionless</CardDescription>
-                <CardTitle className="text-2xl font-bold">{analysis.threeDSAnalysis.frictionlessProbability}%</CardTitle>
+                <CardTitle className="text-2xl font-bold">{muteSubPercentages ? 'Estimativa preliminar' : `${analysis.threeDSAnalysis.frictionlessProbability}%`}</CardTitle>
               </CardHeader>
-              <CardContent>
-                <Progress value={analysis.threeDSAnalysis.frictionlessProbability} />
+              <CardContent className={muteSubPercentages ? 'opacity-60' : ''}>
+                {muteSubPercentages ? <p className="text-xs text-fg-muted">Precisão exata oculta devido à confiança baixa.</p> : <Progress value={analysis.threeDSAnalysis.frictionlessProbability} />}
               </CardContent>
             </Card>
 
             <Card className="border-border bg-card">
               <CardHeader>
                 <CardDescription>Challenge 3DS</CardDescription>
-                <CardTitle className="text-2xl font-bold">{analysis.threeDSAnalysis.challengeProbability}%</CardTitle>
+                <CardTitle className="text-2xl font-bold">{muteSubPercentages ? 'Estimativa preliminar' : `${analysis.threeDSAnalysis.challengeProbability}%`}</CardTitle>
               </CardHeader>
-              <CardContent>
-                <Progress value={analysis.threeDSAnalysis.challengeProbability} />
+              <CardContent className={muteSubPercentages ? 'opacity-60' : ''}>
+                {muteSubPercentages ? <p className="text-xs text-fg-muted">Precisão exata oculta devido à confiança baixa.</p> : <Progress value={analysis.threeDSAnalysis.challengeProbability} />}
               </CardContent>
             </Card>
 
             <Card className="border-border bg-card">
               <CardHeader>
                 <CardDescription>Bypass aplicável</CardDescription>
-                <CardTitle className="text-2xl font-bold">{analysis.threeDSAnalysis.bypassProbability}%</CardTitle>
+                <CardTitle className="text-2xl font-bold">{muteSubPercentages ? 'Estimativa preliminar' : `${analysis.threeDSAnalysis.bypassProbability}%`}</CardTitle>
               </CardHeader>
-              <CardContent className="flex flex-wrap gap-2">
+              <CardContent className={`flex flex-wrap gap-2 ${muteSubPercentages ? 'opacity-60' : ''}`}>
                 {analysis.threeDSAnalysis.applicableBypassMechanisms.length > 0 ? (
                   analysis.threeDSAnalysis.applicableBypassMechanisms.map((mechanism) => (
                     <Badge key={mechanism} variant="outline">{mechanism}</Badge>
@@ -538,7 +719,7 @@ export function Premium3DAnalyzer({ initialAnalysis = null, initialHistory = [] 
             <Card className={`border ${getConfidenceTone(consensus?.confidence)}`}>
               <CardHeader>
                 <CardTitle className="text-lg font-semibold">Multi-Source Consensus</CardTitle>
-                <CardDescription>Dados confirmados por {confirmedSources} de 3 fontes.</CardDescription>
+                <CardDescription>Dados confirmados por {confirmedSources} de {totalSources} fontes.</CardDescription>
               </CardHeader>
               <CardContent className="space-y-3">
                 <div className="flex flex-wrap items-center gap-2">
@@ -551,9 +732,7 @@ export function Premium3DAnalyzer({ initialAnalysis = null, initialHistory = [] 
                   <Badge variant="outline" className={sourceAvailability.binlist ? 'border-primary/40 text-primary' : 'text-muted-foreground'}>
                     BinList {sourceAvailability.binlist ? '✓' : '—'}
                   </Badge>
-                  <Badge variant="outline" className={getConfidenceTone(consensus?.confidence)}>
-                    Confiança: {consensus?.confidence ?? 'LOW'}
-                  </Badge>
+                  <ConfidenceBadge confidence={mapDisplayConfidenceToBadge(displayConfidence)} />
                 </div>
 
                 {consensus?.discrepancies && consensus.discrepancies.length > 0 ? (

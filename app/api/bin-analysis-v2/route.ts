@@ -8,7 +8,7 @@ import { saveBinAnalysisLog } from "@/lib/premium-3-0/saveBinAnalysisLog"
 import { computePeerComparison } from "@/lib/premium-3-0/peerComparison"
 import { lookupBinMultiSource } from "@/lib/premium-3-0/multiSourceLookup"
 import type { BinApiData, FullBinAnalysis } from "@/lib/premium-3-0/types"
-import type { AnalysisRequest, AnalysisSourceSummary, MultiSourceConsensus, ValidationResult } from "@/lib/premium-3-0/holisticTypes"
+import type { AnalysisRequest, AnalysisSourceSummary, MultiSourceConsensus, SourceDiagnostic, ValidationResult } from "@/lib/premium-3-0/holisticTypes"
 import type { MastercardBinResult } from "@/lib/integrations/mastercard"
 import type { TransactionContext } from "@/lib/premium-3-0/holisticEngine"
 import { OPEN_ACCESS_MODE } from "@/lib/open-access-mode"
@@ -219,16 +219,23 @@ export async function POST(request: NextRequest) {
     let sourceSummaries: {
       neutrino: AnalysisSourceSummary<BinApiData>
       mastercard: AnalysisSourceSummary<MastercardBinResult>
+      binlist: AnalysisSourceSummary<null>
     }
     let consensus: MultiSourceConsensus
+    let sourceDiagnostics: SourceDiagnostic[]
     try {
       const multiSource = await lookupBinMultiSource(cleanBin)
       binData = multiSource.primary
       sourceSummaries = {
         neutrino: buildNeutrinoSourceSummary(multiSource.sources.neutrino),
         mastercard: buildMastercardSourceSummary(multiSource.sources.mastercard),
+        binlist: {
+          available: false,
+          data: null,
+        },
       }
       consensus = multiSource.consensus
+      sourceDiagnostics = multiSource.diagnostics
 
       if (consensus.discrepancies.length > 0) {
         console.info("[bin-analysis-v2] Multi-source discrepancies detected", {
@@ -298,6 +305,7 @@ export async function POST(request: NextRequest) {
       context: buildSafeContextEcho(resolvedContext),
       sources: sourceSummaries,
       consensus,
+      sourceDiagnostics,
     })
   } catch (error) {
     console.error("[bin-analysis-v2] Unexpected error", {
