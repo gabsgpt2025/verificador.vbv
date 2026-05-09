@@ -13,27 +13,40 @@ function makeBin(overrides: Partial<BinApiData> = {}): BinApiData {
 }
 
 describe('computePeerComparison', () => {
-  it('retorna percentil entre 1 e 99', () => {
-    const result = computePeerComparison(makeBin({ countryCode: 'BR', brand: 'MASTERCARD' }))
+  // Sem Supabase, usa fallback heurístico (dataSource: HEURISTIC_ESTIMATE)
+  it('retorna percentil entre 1 e 99', async () => {
+    const result = await computePeerComparison(makeBin({ countryCode: 'BR', brand: 'MASTERCARD' }))
     expect(result.percentile).toBeGreaterThanOrEqual(1)
     expect(result.percentile).toBeLessThanOrEqual(99)
   })
 
-  it('cartão TIER1 tem percentil maior que CRITICAL', () => {
-    const tier1Result = computePeerComparison(makeBin({ countryCode: 'US', brand: 'VISA' }))
-    const criticalResult = computePeerComparison(makeBin({ countryCode: 'NG', brand: 'VISA' }))
+  it('cartão TIER1 tem percentil maior que CRITICAL', async () => {
+    const tier1Result = await computePeerComparison(makeBin({ countryCode: 'US', brand: 'VISA' }))
+    const criticalResult = await computePeerComparison(makeBin({ countryCode: 'NG', brand: 'VISA' }))
     expect(tier1Result.percentile).toBeGreaterThan(criticalResult.percentile)
   })
 
-  it('cartão pré-pago tem percentil menor que cartão crédito standard do mesmo país', () => {
-    const standardResult = computePeerComparison(makeBin({ countryCode: 'BR', brand: 'VISA' }))
-    const prepaidResult = computePeerComparison(makeBin({ countryCode: 'BR', brand: 'VISA', isPrepaid: true }))
+  it('cartão pré-pago tem percentil menor que cartão crédito standard do mesmo país', async () => {
+    const standardResult = await computePeerComparison(makeBin({ countryCode: 'BR', brand: 'VISA' }))
+    const prepaidResult = await computePeerComparison(makeBin({ countryCode: 'BR', brand: 'VISA', isPrepaid: true }))
     expect(prepaidResult.percentile).toBeLessThan(standardResult.percentile)
   })
 
-  it('inclui descrição textual adequada ao percentil', () => {
-    const result = computePeerComparison(makeBin({ countryCode: 'US', brand: 'MASTERCARD', category: 'BLACK' }))
+  it('inclui descrição textual adequada ao percentil', async () => {
+    const result = await computePeerComparison(makeBin({ countryCode: 'US', brand: 'MASTERCARD', category: 'BLACK' }))
     expect(typeof result.description).toBe('string')
     expect(result.description.length).toBeGreaterThan(0)
+  })
+
+  it('sem supabase, retorna dataSource HEURISTIC_ESTIMATE', async () => {
+    const result = await computePeerComparison(makeBin({ countryCode: 'US' }))
+    expect(result.dataSource).toBe('HEURISTIC_ESTIMATE')
+    expect(result.peerCount).toBe(0)
+  })
+
+  it('riskScore baixo melhora o percentil heurístico', async () => {
+    const lowRisk = await computePeerComparison(makeBin({ countryCode: 'US', brand: 'VISA' }), null, 20)
+    const highRisk = await computePeerComparison(makeBin({ countryCode: 'US', brand: 'VISA' }), null, 80)
+    expect(lowRisk.percentile).toBeGreaterThan(highRisk.percentile)
   })
 })

@@ -52,6 +52,15 @@ vi.mock("@/lib/premium-3-0/peerComparison", () => ({
   computePeerComparison: computePeerComparisonMock,
 }))
 
+vi.mock("@/lib/premium-3-0/services/exchangeRateService", () => ({
+  getExchangeRates: vi.fn().mockResolvedValue({
+    base: "USD",
+    rates: { USD: 1, EUR: 0.92, BRL: 5.65, GBP: 0.79 },
+    source: "CACHE",
+    lastUpdated: "2026-05-09T00:00:00Z",
+  }),
+}))
+
 import { POST } from "@/app/api/bin-analysis-v2/route"
 
 describe("/api/bin-analysis-v2 route", () => {
@@ -175,11 +184,12 @@ describe("/api/bin-analysis-v2 route", () => {
         recommendation: "APPROVE",
         ensembleConfidence: 100,
       })
-    computePeerComparisonMock.mockReturnValue({
+    computePeerComparisonMock.mockResolvedValue({
       percentile: 90,
       peerCount: 42,
       betterThan: 90,
       peerGroup: "VISA-BR-CREDIT",
+      dataSource: "HEURISTIC_ESTIMATE",
     })
     saveBinAnalysisLogMock.mockResolvedValue(undefined)
     subtractCreditsMock.mockResolvedValue({ success: true, message: "ok", newBalance: 7 })

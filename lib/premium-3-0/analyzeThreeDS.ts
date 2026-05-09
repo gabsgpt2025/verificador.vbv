@@ -2,6 +2,7 @@ import threeDsByBank from "./data/threeDsByBank.json"
 import { getCountryMaturity } from "./country3dsMaturity"
 import { normalizeIssuerName } from "./enrichment/bankReputation"
 import { getCountryRiskTier } from "./enrichment/geoEnrichment"
+import { convertCentsToEurSync } from "./services/exchangeRateService"
 import type { BinApiData, BinThreeDSResult } from "./types"
 
 type ThreeDSContextInput = {
@@ -13,24 +14,8 @@ const THREE_DS_BY_BANK = new Map<string, number>(
   Object.entries(threeDsByBank).map(([issuer, adoption]) => [normalizeIssuerName(issuer), Number(adoption)]),
 )
 
-const EUR_EXCHANGE_RATE: Record<string, number> = {
-  EUR: 1,
-  BRL: 0.18,
-  USD: 0.92,
-  GBP: 1.16,
-  CAD: 0.67,
-  AUD: 0.6,
-  MXN: 0.05,
-}
-
 function clamp(value: number, min: number, max: number) {
   return Math.min(Math.max(Math.round(value), min), max)
-}
-
-function convertAmountToEur(amountInCents?: number, currency?: string) {
-  if (typeof amountInCents !== "number") return null
-  const rate = EUR_EXCHANGE_RATE[(currency ?? "EUR").toUpperCase()] ?? 1
-  return (amountInCents / 100) * rate
 }
 
 function inferProtocol(
@@ -107,7 +92,7 @@ export function analyzeThreeDS(binData: BinApiData, context?: ThreeDSContextInpu
   const normalizedIssuer = normalizeIssuerName(binData.issuer)
   const issuerAdoption = THREE_DS_BY_BANK.get(normalizedIssuer)
   const countryRiskTier = getCountryRiskTier(binData.countryCode)
-  const amountInEur = convertAmountToEur(context?.amount, context?.currency ?? binData.currency)
+  const amountInEur = convertCentsToEurSync(context?.amount, context?.currency ?? binData.currency)
 
   let frictionlessProbability = typeof issuerAdoption === "number" ? issuerAdoption * 100 : 50
 
