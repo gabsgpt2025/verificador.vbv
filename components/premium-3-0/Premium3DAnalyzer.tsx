@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { AlertCircle, CheckCircle2, XCircle, AlertTriangle, Globe, Zap, Shield, TrendingUp, Info, Database, Lock, Eye, EyeOff, Percent, Target } from 'lucide-react';
-import type { AnalysisRequest, AnalysisResponse, LanguageMode } from '@/lib/premium-3-0/types';
+import type { AnalysisRequest, AnalysisResponse, BINAnalysisResult, LanguageMode, RiskEngineResult, ThreeDSAnalysis } from '@/lib/premium-3-0/types';
 
 const LANGUAGE_MODES: Record<string, LanguageMode> = {
   TECHNICAL: {
@@ -80,25 +80,30 @@ function getDayOfWeek() {
   return days[new Date().getDay()] as 'MONDAY' | 'TUESDAY' | 'WEDNESDAY' | 'THURSDAY' | 'FRIDAY' | 'SATURDAY' | 'SUNDAY';
 }
 
-function analyzeBIN(bin: string) {
+function analyzeBIN(bin: string): BINAnalysisResult {
   return {
     bin,
     binData: {
+      bin,
       issuerName: 'Não informado',
       country: 'Não informado',
-      issuingNetwork: 'Não informado',
-      productType: 'Não informado',
-      cardLevel: 'Não informado',
+      issuingNetwork: 'OTHER',
+      productType: 'UNKNOWN',
+      cardLevel: 'UNKNOWN',
       isReloadable: false,
+      lastUpdated: new Date().toISOString(),
     },
     riskScore: 50,
+    riskLevel: 'MEDIUM',
     bypassMechanism: 'UNKNOWN',
     frictionlessLikelihood: 'MEDIUM',
+    alerts: [],
     recommendations: [] as string[],
   };
 }
 
-function analyze3DS(..._args: unknown[]) {
+// Compatibilidade temporária: assinatura preservada para o componente legado.
+function analyze3DS(..._unusedArgs: unknown[]): ThreeDSAnalysis {
   return {
     frictionlessLikelihood: 'MEDIUM',
     challengeLikelihood: 'MEDIUM',
@@ -111,7 +116,7 @@ function analyze3DS(..._args: unknown[]) {
   };
 }
 
-function calculateRisk(request: AnalysisRequest) {
+function calculateRisk(request: AnalysisRequest): RiskEngineResult {
   const amount = typeof request.transactionAmount === 'number' ? request.transactionAmount : 0;
   const overallRiskScore = Math.min(100, Math.max(0, Math.round(40 + amount / 100)));
   const riskLevel = overallRiskScore >= 80 ? 'CRITICAL' : overallRiskScore >= 60 ? 'HIGH' : overallRiskScore >= 30 ? 'MEDIUM' : 'LOW';
@@ -119,12 +124,23 @@ function calculateRisk(request: AnalysisRequest) {
   return {
     overallRiskScore,
     riskLevel,
+    riskFactors: {
+      binRisk: overallRiskScore,
+      temporalRisk: overallRiskScore,
+      behavioralRisk: overallRiskScore,
+      geographicRisk: overallRiskScore,
+      deviceRisk: overallRiskScore,
+      gatewayRisk: overallRiskScore,
+    },
     recommendations: {
+      action: riskLevel === 'LOW' ? 'APPROVE' : riskLevel === 'CRITICAL' ? 'DECLINE' : 'REVIEW',
+      confidence: 60,
       reasoning: {
         technical: 'Score calculado por regras heurísticas de fallback.',
         popular: 'Análise estimada com base nos dados informados.',
       },
     },
+    alerts: [],
   };
 }
 
@@ -134,7 +150,7 @@ type Premium3DAnalyzerProps = {
   initialHistory?: unknown[];
 };
 
-export function Premium3DAnalyzer({ userId, initialAnalysis }: Premium3DAnalyzerProps = {}) {
+export function Premium3DAnalyzer({ userId: _userId, initialAnalysis }: Premium3DAnalyzerProps = {}) {
   const [languageMode, setLanguageMode] = useState<'TECHNICAL' | 'POPULAR'>('TECHNICAL');
   const [cardNumber, setCardNumber] = useState('');
   const [analysis, setAnalysis] = useState<AnalysisResponse | null>(initialAnalysis ?? null);
@@ -186,14 +202,14 @@ export function Premium3DAnalyzer({ userId, initialAnalysis }: Premium3DAnalyzer
 
       const threeDSAnalysis = analyze3DS(threeDSContext, binAnalysis.riskScore, binAnalysis.frictionlessLikelihood);
 
-      const response = {
+      const response: AnalysisResponse = {
         requestId: `req_${Date.now()}`,
         timestamp: new Date().toISOString(),
         binAnalysis,
         threeDSAnalysis,
         riskAnalysis,
         languageMode: LANGUAGE_MODES[languageMode],
-      } as AnalysisResponse;
+      };
 
       setAnalysis(response);
     } catch (err) {
@@ -446,7 +462,8 @@ export function Premium3DAnalyzer({ userId, initialAnalysis }: Premium3DAnalyzer
               </div>
               <div className="bg-white/10 rounded p-4 backdrop-blur">
                 <p className="text-white text-lg">
-                  {analysis.riskAnalysis.recommendations.reasoning[languageMode.toLowerCase() as keyof typeof analysis.riskAnalysis.recommendations.reasoning]}
+                  {analysis.riskAnalysis.recommendations?.reasoning?.[languageMode.toLowerCase() as keyof typeof analysis.riskAnalysis.recommendations.reasoning] ??
+                    'Sem justificativa disponível.'}
                 </p>
               </div>
             </div>
