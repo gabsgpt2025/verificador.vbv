@@ -1,67 +1,63 @@
 'use client'
 
-import { useRouter } from 'next/navigation'
 import React, { useCallback, useEffect, useMemo, useState } from 'react'
 import {
   AlertCircle,
-  AlertTriangle,
-  CheckCircle2,
   Clock3,
   Cpu,
   Globe2,
   History,
-  Info,
   Inbox,
   MapPinned,
-  Minus,
-  OctagonAlert,
-  Plus,
-  ShieldQuestion,
   Shield,
   Target,
-  TrendingDown,
-  TrendingUp,
-  Users,
   Wallet,
-  Wrench,
   Zap,
 } from 'lucide-react'
 import { formatDistanceToNow } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
 
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion'
-import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
-import { EmptyState } from '@/components/ui/empty-state'
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import { Progress } from '@/components/ui/progress'
-import { RiskIndicator } from '@/components/ui/risk-indicator'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
-import { toast } from 'sonner'
 
-import RiskRadarChart, { type RadarDimension } from '@/components/premium-3-0/RiskRadarChart'
+import {
+  ComplianceHeatmap,
+  DataSourceBadges,
+  FraudSparkline,
+  PeerComparisonBar,
+  RiskGauge,
+  RiskRadar,
+  ScoreComposition,
+  type ComplianceRow,
+  type FraudPoint,
+  type PeerDistributionBin,
+  type RiskRadarDimension,
+  type ScoreCompositionEntry,
+} from '@/components/charts'
 import TransactionContextForm, {
   buildTransactionContextForRequest,
   type TransactionContextFormValue,
 } from '@/components/premium-3-0/TransactionContextForm'
-import { maskBin } from '@/lib/format'
+import type { ConfidenceBadgeInput } from '@/components/ui/ConfidenceBadge'
 import type { MastercardBinResult } from '@/lib/integrations/mastercard'
 import type { HolisticScore } from '@/lib/premium-3-0'
 import type { AnalysisSourceSummary, MultiSourceConsensus } from '@/lib/premium-3-0/holisticTypes'
 import type { PeerComparison } from '@/lib/premium-3-0/peerComparison'
 import type { BinRiskFactor, FullBinAnalysis } from '@/lib/premium-3-0/types'
-import { getRiskLevel } from '@/lib/risk'
 
 const LANGUAGE_MODES = {
-  technical: {
+  TECHNICAL: {
     label: 'Modo Técnico',
     description: 'Explicações com termos de risco, autenticação e contexto transacional.',
   },
-  popular: {
+  POPULAR: {
     label: 'Modo Popular',
     description: 'Explicações curtas e simples para leitura rápida.',
   },
@@ -164,14 +160,14 @@ function formatImpact(impact: number) {
 }
 
 function formatFactorText(factor: BinRiskFactor, mode: LanguageModeKey) {
-  if (mode === 'technical') return factor.reason
+  if (mode === 'TECHNICAL') return factor.reason
   if (factor.impact > 0) return `${factor.label}. Isso aumenta a atenção necessária nesta compra.`
   if (factor.impact < 0) return `${factor.label}. Isso ajuda a reduzir a suspeita geral.`
   return `${factor.label}. Esse ponto sozinho não muda muito o resultado.`
 }
 
 function riskSummary(score: number, mode: LanguageModeKey) {
-  if (mode === 'technical') {
+  if (mode === 'TECHNICAL') {
     if (score < 30) return 'Baixo risco'
     if (score < 60) return 'Risco moderado'
     return 'Risco elevado'
@@ -180,48 +176,6 @@ function riskSummary(score: number, mode: LanguageModeKey) {
   if (score < 30) return 'Situação mais tranquila'
   if (score < 60) return 'Vale acompanhar'
   return 'Precisa de bastante cuidado'
-}
-
-function clampPercentile(value: number) {
-  return Math.min(Math.max(value, 0), 100)
-}
-
-function capitalizeWords(label: string) {
-  return label
-    .toLowerCase()
-    .replace(/\b\w/g, (char) => char.toUpperCase())
-}
-
-function getFactorSource(factor: BinRiskFactor) {
-  const source =
-    (factor as BinRiskFactor & { source?: string; dataSource?: string }).source ??
-    (factor as BinRiskFactor & { source?: string; dataSource?: string }).dataSource
-  return source ? source.trim() : null
-}
-
-function getRiskStatusIcon(level: string) {
-  switch (level) {
-    case 'LOW':
-      return { Icon: CheckCircle2, className: 'text-status-success', label: 'Status de risco baixo' }
-    case 'MEDIUM':
-      return { Icon: AlertCircle, className: 'text-status-warning', label: 'Status de risco moderado' }
-    case 'HIGH':
-      return { Icon: AlertTriangle, className: 'text-risk-high', label: 'Status de risco alto' }
-    case 'CRITICAL':
-      return { Icon: OctagonAlert, className: 'text-risk-critical', label: 'Status de risco crítico' }
-    default:
-      return { Icon: AlertCircle, className: 'text-fg-muted', label: 'Status de risco' }
-  }
-}
-
-function getFactorIcon(impact: number) {
-  if (impact > 0) {
-    return { Icon: Plus, className: 'text-risk-high', label: 'Fator aumenta risco' }
-  }
-  if (impact < 0) {
-    return { Icon: Minus, className: 'text-status-success', label: 'Fator reduz risco' }
-  }
-  return { Icon: Info, className: 'text-status-info', label: 'Fator neutro' }
 }
 
 function toRelativeTime(dateString: string) {
@@ -244,8 +198,7 @@ export function buildAnalysisRequestBody(bin: string, contextValues: Transaction
 }
 
 export function Premium3DAnalyzer({ initialAnalysis = null, initialHistory = [] }: Premium3DAnalyzerProps) {
-  const router = useRouter()
-  const [languageMode, setLanguageMode] = useState<LanguageModeKey>('popular')
+  const [languageMode, setLanguageMode] = useState<LanguageModeKey>('TECHNICAL')
   const [cardNumber, setCardNumber] = useState('')
   const [contextValues, setContextValues] = useState<TransactionContextFormValue>({
     amount: '',
@@ -320,43 +273,80 @@ export function Premium3DAnalyzer({ initialAnalysis = null, initialHistory = [] 
 
       if (!response.ok) {
         const payload = (await response.json().catch(() => null)) as ApiErrorPayload | null
-        const errorCode = typeof payload?.error === 'string' ? undefined : payload?.error?.code
-        if (errorCode === 'INSUFFICIENT_CREDITS') {
-          toast.warning('Crédito insuficiente', {
-            action: {
-              label: 'Ir para créditos',
-              onClick: () => router.push('/dashboard/credits'),
-            },
-          })
-        } else {
-          toast.error('Falha na análise. Tente novamente.')
-        }
         throw new Error(extractApiErrorMessage(payload, response.status))
       }
 
       const payload = (await response.json()) as PremiumAnalysisResponse
       setAnalysis(payload)
       setCardNumber(cleanBin)
-      toast.success('Análise concluída')
       void fetchHistory()
     } catch (analyzeError) {
       setError(analyzeError instanceof Error ? analyzeError.message : 'Erro ao analisar o cartão. Tente novamente.')
     } finally {
       setLoading(false)
     }
-  }, [cardNumber, contextValues, fetchHistory, router])
+  }, [cardNumber, contextValues, fetchHistory])
 
   const riskDimensions = useMemo(() => {
-    if (!analysis) return [] as RadarDimension[]
+    if (!analysis) return [] as RiskRadarDimension[]
 
     return [
-      { key: 'binRisk', label: 'BIN', score: analysis.holistic.binRisk.score, dataAvailable: analysis.holistic.binRisk.dataAvailable },
-      { key: 'geographicRisk', label: 'Geográfico', score: analysis.holistic.geographicRisk.score, dataAvailable: analysis.holistic.geographicRisk.dataAvailable },
-      { key: 'behavioralRisk', label: 'Comportamental', score: analysis.holistic.behavioralRisk.score, dataAvailable: analysis.holistic.behavioralRisk.dataAvailable },
-      { key: 'gatewayRisk', label: 'Gateway', score: analysis.holistic.gatewayRisk.score, dataAvailable: analysis.holistic.gatewayRisk.dataAvailable },
-      { key: 'temporalRisk', label: 'Temporal', score: analysis.holistic.temporalRisk.score, dataAvailable: analysis.holistic.temporalRisk.dataAvailable },
-      { key: 'deviceRisk', label: 'Dispositivo', score: analysis.holistic.deviceRisk.score, dataAvailable: analysis.holistic.deviceRisk.dataAvailable },
-    ] satisfies RadarDimension[]
+      {
+        key: 'binRisk',
+        label: 'BIN',
+        score: analysis.holistic.binRisk.score,
+        dataAvailable: analysis.holistic.binRisk.dataAvailable,
+        explanation: analysis.holistic.binRisk.explanation[languageMode === 'TECHNICAL' ? 'technical' : 'popular'],
+      },
+      {
+        key: 'geographicRisk',
+        label: 'Geográfico',
+        score: analysis.holistic.geographicRisk.score,
+        dataAvailable: analysis.holistic.geographicRisk.dataAvailable,
+        explanation: analysis.holistic.geographicRisk.explanation[languageMode === 'TECHNICAL' ? 'technical' : 'popular'],
+      },
+      {
+        key: 'behavioralRisk',
+        label: 'Comportamental',
+        score: analysis.holistic.behavioralRisk.score,
+        dataAvailable: analysis.holistic.behavioralRisk.dataAvailable,
+        explanation: analysis.holistic.behavioralRisk.explanation[languageMode === 'TECHNICAL' ? 'technical' : 'popular'],
+      },
+      {
+        key: 'gatewayRisk',
+        label: 'Esquema',
+        score: analysis.holistic.gatewayRisk.score,
+        dataAvailable: analysis.holistic.gatewayRisk.dataAvailable,
+        explanation: analysis.holistic.gatewayRisk.explanation[languageMode === 'TECHNICAL' ? 'technical' : 'popular'],
+      },
+      {
+        key: 'temporalRisk',
+        label: 'Temporal',
+        score: analysis.holistic.temporalRisk.score,
+        dataAvailable: analysis.holistic.temporalRisk.dataAvailable,
+        explanation: analysis.holistic.temporalRisk.explanation[languageMode === 'TECHNICAL' ? 'technical' : 'popular'],
+      },
+      {
+        key: 'deviceRisk',
+        label: 'Dispositivo',
+        score: analysis.holistic.deviceRisk.score,
+        dataAvailable: analysis.holistic.deviceRisk.dataAvailable,
+        explanation: analysis.holistic.deviceRisk.explanation[languageMode === 'TECHNICAL' ? 'technical' : 'popular'],
+      },
+    ] satisfies RiskRadarDimension[]
+  }, [analysis, languageMode])
+
+  const compositionEntries = useMemo(() => {
+    if (!analysis) return [] as ScoreCompositionEntry[]
+
+    return [
+      { key: 'binRisk', label: 'BIN', weight: analysis.holistic.binRisk.weight },
+      { key: 'geographicRisk', label: 'Geográfico', weight: analysis.holistic.geographicRisk.weight },
+      { key: 'behavioralRisk', label: 'Comportamental', weight: analysis.holistic.behavioralRisk.weight },
+      { key: 'gatewayRisk', label: 'Esquema', weight: analysis.holistic.gatewayRisk.weight },
+      { key: 'temporalRisk', label: 'Temporal', weight: analysis.holistic.temporalRisk.weight },
+      { key: 'deviceRisk', label: 'Dispositivo', weight: analysis.holistic.deviceRisk.weight },
+    ]
   }, [analysis])
 
   const consensus = analysis?.consensus ?? (analysis?.multiSource?.consensus as MultiSourceConsensus | undefined)
@@ -369,43 +359,101 @@ export function Premium3DAnalyzer({ initialAnalysis = null, initialHistory = [] 
   }
 
   const confirmedSources = Object.values(sourceAvailability).filter(Boolean).length
+  const computedAt = analysis ? new Date(analysis.context.timestamp).toISOString() : null
+  const verifiedSource = analysis?.source?.provider
+  const overallConfidence: ConfidenceBadgeInput = {
+    level: verifiedSource ? 'VERIFIED' : 'UNAVAILABLE',
+    source: verifiedSource ?? null,
+  }
+
+  const peerDistribution = useMemo(() => [] as PeerDistributionBin[], [])
+
+  const fraudSeries = useMemo(() => {
+    if (!analysis) return null
+    const sameBinHistory = history.filter((entry) => entry.bin === analysis.bin)
+    if (sameBinHistory.length < 2) return null
+
+    return sameBinHistory
+      .map((entry) => ({
+        date: new Date(entry.created_at).toISOString().slice(0, 10),
+        value: entry.risk_score,
+      }))
+      .sort((a, b) => a.date.localeCompare(b.date))
+      .slice(-90)
+      .map((entry, index, all) => ({ ...entry, isToday: index === all.length - 1 })) as FraudPoint[]
+  }, [analysis, history])
+
+  const complianceRows = useMemo(() => {
+    if (!analysis) return [] as ComplianceRow[]
+    return [
+      { framework: 'PCI-DSS 4.0', status: 'not_applicable', lastCheckedAt: computedAt, source: analysis.compliance.regulatoryRegion },
+      { framework: 'LGPD', status: analysis.compliance.regulatoryRegion === 'BR' ? 'partial' : 'not_applicable', lastCheckedAt: computedAt, source: analysis.compliance.regulatoryRegion },
+      { framework: '3DS 2.2', status: analysis.compliance.threeDSMandateLevel === 'MANDATORY' ? 'partial' : 'not_applicable', lastCheckedAt: computedAt, source: analysis.compliance.regulationNote },
+      { framework: 'EMV 3DS', status: analysis.compliance.threeDSMandateLevel === 'MANDATORY' ? 'partial' : 'not_applicable', lastCheckedAt: computedAt, source: analysis.compliance.regulationNote },
+      { framework: 'PSD2 SCA', status: analysis.compliance.regulatoryRegion === 'EU' ? 'partial' : 'not_applicable', lastCheckedAt: computedAt, source: analysis.compliance.regulationNote },
+      { framework: 'Bacen Resolução X', status: analysis.compliance.regulatoryRegion === 'BR' ? 'partial' : 'not_applicable', lastCheckedAt: computedAt, source: analysis.compliance.regulationNote },
+    ] satisfies ComplianceRow[]
+  }, [analysis, computedAt])
+
+  const dataSources = useMemo(() => {
+    if (!analysis) return []
+    return [
+      {
+        name: 'Neutrino',
+        status: sourceAvailability.neutrino ? ('ok' as const) : ('warning' as const),
+        summary: analysis.sources?.neutrino,
+        responseTimestamp: computedAt,
+        note: sourceAvailability.neutrino ? undefined : 'timeout',
+      },
+      {
+        name: 'Mastercard BIN',
+        status: sourceAvailability.mastercard ? ('ok' as const) : ('warning' as const),
+        summary: analysis.sources?.mastercard,
+        responseTimestamp: computedAt,
+        note: sourceAvailability.mastercard ? undefined : 'timeout',
+      },
+      {
+        name: 'BinList',
+        status: sourceAvailability.binlist ? ('ok' as const) : ('neutral' as const),
+        responseTimestamp: computedAt,
+        note: sourceAvailability.binlist ? undefined : 'não consultado',
+      },
+    ]
+  }, [analysis, computedAt, sourceAvailability.binlist, sourceAvailability.mastercard, sourceAvailability.neutrino])
 
   return (
-    <div className="mx-auto w-full max-w-7xl space-y-6 px-4 py-10 font-sans text-fg">
+    <div className="mx-auto w-full max-w-7xl space-y-6 px-4 py-10 text-foreground">
       <div className="space-y-2 text-center">
-        <div className="inline-flex items-center gap-2 rounded-full border border-border-subtle bg-bg-surface px-4 py-2 text-sm text-fg-muted">
-          <Zap className="h-4 w-4 text-ds-accent" aria-hidden="true" />
+        <div className="inline-flex items-center gap-2 rounded-full border border-border bg-card px-4 py-2 text-sm text-muted-foreground">
+          <Zap className="h-4 w-4 text-primary" />
           VeriFiBIN Premium 3.0
         </div>
-        <h1 className="text-2xl font-bold text-fg">Motor Holístico Multidimensional</h1>
-        <p className="text-sm text-fg-muted">Análise 6D com contexto transacional, múltiplas fontes e explicações em dois modos.</p>
+        <h1 className="text-2xl font-bold">Motor holístico multidimensional</h1>
+        <p className="text-sm text-muted-foreground">Análise 6D com contexto transacional, múltiplas fontes e explicações em dois modos.</p>
       </div>
 
-      <Card variant="surface">
+      <Card className="border-border bg-card">
         <CardHeader>
           <CardTitle className="flex items-center gap-2 text-lg font-semibold">
-            <Globe2 className="h-5 w-5 text-ds-accent" aria-hidden="true" />
+            <Globe2 className="h-5 w-5 text-primary" />
             Modo de explicação
           </CardTitle>
           <CardDescription>{LANGUAGE_MODES[languageMode].description}</CardDescription>
         </CardHeader>
         <CardContent className="flex flex-col gap-3 sm:flex-row">
-          <Tabs value={languageMode} onValueChange={(value) => setLanguageMode(value as LanguageModeKey)} className="w-fit">
+          <Tabs value={languageMode} onValueChange={(value) => setLanguageMode(value as LanguageModeKey)} className="w-full">
             <TabsList>
-              <TabsTrigger value="popular">
-                <Users className="mr-2 h-4 w-4" aria-hidden="true" />
-                Modo Popular
-              </TabsTrigger>
-              <TabsTrigger value="technical">
-                <Wrench className="mr-2 h-4 w-4" aria-hidden="true" />
-                Modo Técnico
-              </TabsTrigger>
+              {(Object.keys(LANGUAGE_MODES) as LanguageModeKey[]).map((mode) => (
+                <TabsTrigger key={mode} value={mode} aria-label={LANGUAGE_MODES[mode].label}>
+                  {LANGUAGE_MODES[mode].label}
+                </TabsTrigger>
+              ))}
             </TabsList>
           </Tabs>
         </CardContent>
       </Card>
 
-      <Card variant="surface">
+      <Card className="border-border bg-card">
         <CardHeader>
           <CardTitle className="text-lg font-semibold">Analisar BIN com contexto</CardTitle>
           <CardDescription>Preencha o BIN e, se quiser, complemente com contexto transacional opcional.</CardDescription>
@@ -419,259 +467,190 @@ export function Premium3DAnalyzer({ initialAnalysis = null, initialHistory = [] 
               onChange={(event) => setCardNumber(event.target.value.replace(/\D/g, '').slice(0, 8))}
               maxLength={8}
               className="text-sm"
-              aria-describedby="bin-validation-message"
             />
-            <Button onClick={() => void analyzeBin()} disabled={loading} loading={loading} loadingText="Analisando..." aria-busy={loading}>
-              Analisar
+            <Button onClick={() => void analyzeBin()} disabled={loading}>
+              {loading ? 'Analisando...' : 'Analisar'}
             </Button>
           </div>
-          <p id="bin-validation-message" className="text-xs text-fg-muted">
-            Informe entre 6 e 8 dígitos para análise.
-          </p>
 
           <TransactionContextForm value={contextValues} onChange={setContextValues} />
 
           {error ? (
-            <Alert variant="destructive">
-              <AlertTitle className="flex items-center gap-2">
-                <AlertCircle className="h-4 w-4" aria-hidden="true" />
-                Falha na análise
-              </AlertTitle>
-              <AlertDescription className="space-y-3">
-                <p>{error}</p>
-                <Button type="button" variant="destructive" size="sm" onClick={() => void analyzeBin()}>
-                  Tentar novamente
-                </Button>
-              </AlertDescription>
-            </Alert>
+            <div className="flex items-start gap-3 rounded-lg border border-destructive/30 bg-destructive/10 p-4 text-sm text-destructive">
+              <AlertCircle className="mt-0.5 h-4 w-4 flex-shrink-0" />
+              <span>{error}</span>
+            </div>
           ) : null}
         </CardContent>
       </Card>
 
-      <div aria-live="polite">
-        {loading ? (
-          <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
-            {[1, 2, 3, 4, 5, 6].map((item) => (
-              <Card key={item} variant="surface">
-                <CardHeader><Skeleton className="h-6 w-32" /></CardHeader>
-                <CardContent><Skeleton className="h-24 w-full" /></CardContent>
-              </Card>
-            ))}
-          </div>
-        ) : null}
+      {loading ? (
+        <Card className="border-border bg-card">
+          <CardHeader>
+            <CardTitle className="text-lg font-semibold">Analisando BIN...</CardTitle>
+            <CardDescription>Consolidando sinais holísticos e fontes externas.</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="grid gap-4 lg:grid-cols-4">
+              {Array.from({ length: 4 }).map((_, index) => (
+                <Skeleton key={index} className="h-24 w-full" />
+              ))}
+            </div>
+            <Skeleton className="h-72 w-full" />
+            <div className="grid gap-3">
+              {Array.from({ length: 4 }).map((_, index) => (
+                <Skeleton key={`line-${index}`} className="h-12 w-full" />
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+      ) : null}
 
-        {!loading && !analysis ? (
-          <EmptyState
-            icon={<ShieldQuestion className="h-8 w-8" />}
-            title="Pronto para analisar"
-            description="Digite um BIN acima para iniciar a análise multidimensional"
-          />
-        ) : null}
-
-        {analysis ? (
+      {analysis ? (
         <div className="space-y-6">
-          <div className="grid gap-4 lg:grid-cols-4">
-            <Card className={`border ${getRiskTone(analysis.holistic.riskLevel)}`}>
+          <section className="grid gap-4 lg:grid-cols-3">
+            <div className="lg:col-span-1">
+              <RiskGauge
+                score={analysis.holistic.overallScore}
+                confirmedSources={confirmedSources}
+                totalSources={3}
+                source={verifiedSource}
+                computedAt={computedAt}
+                confidence={overallConfidence}
+              />
+            </div>
+            <Card className="border-border bg-card lg:col-span-2">
               <CardHeader>
-                <CardDescription>Score geral</CardDescription>
-                <CardTitle className="text-2xl font-bold">{analysis.holistic.overallScore}/100</CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-2">
-                <Badge variant="outline" className="border-current text-current">
-                  {(() => {
-                    const { Icon, className, label } = getRiskStatusIcon(analysis.holistic.riskLevel)
-                    return (
-                      <>
-                        <Icon className={`h-3.5 w-3.5 ${className}`} aria-label={label} />
-                        {analysis.holistic.riskLevel}
-                      </>
-                    )
-                  })()}
-                </Badge>
-                <RiskIndicator
-                  level={getRiskLevel(analysis.holistic.overallScore)}
-                  score={analysis.holistic.overallScore}
-                  size="sm"
-                  tooltip="Pontuação consolidada do radar 6D."
-                />
-              </CardContent>
-            </Card>
-
-            <Card className="border-border bg-card">
-              <CardHeader>
-                <CardDescription>Frictionless</CardDescription>
-                <CardTitle className="text-2xl font-bold">{analysis.threeDSAnalysis.frictionlessProbability}%</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <Progress value={analysis.threeDSAnalysis.frictionlessProbability} />
-              </CardContent>
-            </Card>
-
-            <Card className="border-border bg-card">
-              <CardHeader>
-                <CardDescription>Challenge 3DS</CardDescription>
-                <CardTitle className="text-2xl font-bold">{analysis.threeDSAnalysis.challengeProbability}%</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <Progress value={analysis.threeDSAnalysis.challengeProbability} />
-              </CardContent>
-            </Card>
-
-            <Card className="border-border bg-card">
-              <CardHeader>
-                <CardDescription>Bypass aplicável</CardDescription>
-                <CardTitle className="text-2xl font-bold">{analysis.threeDSAnalysis.bypassProbability}%</CardTitle>
-              </CardHeader>
-              <CardContent className="flex flex-wrap gap-2">
-                {analysis.threeDSAnalysis.applicableBypassMechanisms.length > 0 ? (
-                  analysis.threeDSAnalysis.applicableBypassMechanisms.map((mechanism) => (
-                    <Badge key={mechanism} variant="outline">{mechanism}</Badge>
-                  ))
-                ) : (
-                  <span className="text-sm text-muted-foreground">Nenhum mecanismo favorável detectado.</span>
-                )}
-              </CardContent>
-            </Card>
-          </div>
-
-          {(analysis.sources || analysis.consensus || analysis.multiSource) ? (
-            <Card className={`border ${getConfidenceTone(consensus?.confidence)}`}>
-              <CardHeader>
-                <CardTitle className="text-lg font-semibold">Multi-Source Consensus</CardTitle>
-                <CardDescription>Dados confirmados por {confirmedSources} de 3 fontes.</CardDescription>
+                <CardTitle className="text-lg font-semibold">Resumo do BIN analisado</CardTitle>
+                <CardDescription>
+                  {analysis.technicalData.issuer ?? 'Emissor não informado'} · {analysis.technicalData.countryName ?? analysis.technicalData.countryCode ?? 'País não informado'} ·{' '}
+                  {analysis.technicalData.brand ?? 'Bandeira não informada'}
+                </CardDescription>
               </CardHeader>
               <CardContent className="space-y-3">
+                <DataSourceBadges sources={dataSources} />
                 <div className="flex flex-wrap items-center gap-2">
-                  <Badge variant="outline" className={sourceAvailability.neutrino ? 'border-primary/40 text-primary' : 'text-muted-foreground'}>
-                    Neutrino {sourceAvailability.neutrino ? '✓' : '—'}
-                  </Badge>
-                  <Badge variant="outline" className={sourceAvailability.mastercard ? 'border-primary/40 text-primary' : 'text-muted-foreground'}>
-                    Mastercard {sourceAvailability.mastercard ? '✓' : '—'}
-                  </Badge>
-                  <Badge variant="outline" className={sourceAvailability.binlist ? 'border-primary/40 text-primary' : 'text-muted-foreground'}>
-                    BinList {sourceAvailability.binlist ? '✓' : '—'}
-                  </Badge>
+                  <Badge variant="outline">Fontes confirmadas: {confirmedSources}/3</Badge>
                   <Badge variant="outline" className={getConfidenceTone(consensus?.confidence)}>
-                    Confiança: {consensus?.confidence ?? 'LOW'}
+                    Confiança geral: {consensus?.confidence ?? 'LOW'}
                   </Badge>
+                  <Dialog>
+                    <DialogTrigger asChild>
+                      <Button variant="outline" size="sm" type="button">
+                        Ver metodologia
+                      </Button>
+                    </DialogTrigger>
+                    <DialogContent>
+                      <DialogHeader>
+                        <DialogTitle>Metodologia (prévia)</DialogTitle>
+                        <DialogDescription>
+                          Esta visualização mostra apenas um resumo. A metodologia completa com fórmula e pesos detalhados será liberada na Fase 3.
+                        </DialogDescription>
+                      </DialogHeader>
+                    </DialogContent>
+                  </Dialog>
                 </div>
 
                 {consensus?.discrepancies && consensus.discrepancies.length > 0 ? (
                   <ul className="space-y-2 rounded-lg border border-destructive/30 bg-destructive/10 p-3 text-sm text-destructive">
                     {consensus.discrepancies.map((entry) => (
-                      <li key={entry} className="flex items-center gap-2">
-                        <AlertTriangle className="h-4 w-4 text-risk-high" aria-hidden="true" />
-                        {formatDiscrepancyMessage(entry)}
-                      </li>
+                      <li key={entry}>⚠️ {formatDiscrepancyMessage(entry)}</li>
                     ))}
                   </ul>
                 ) : null}
               </CardContent>
             </Card>
-          ) : null}
+          </section>
 
-          {peerComparison ? (
-            <Card className="border-border bg-card">
-              <CardHeader>
-                <CardTitle className="text-lg font-semibold">Comparação com Pares</CardTitle>
-                <CardDescription>{peerComparison.percentile > 50 ? 'Top de risco mais alto na coorte.' : 'Posição favorável na coorte.'}</CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-3">
-                <div className="flex items-center justify-between gap-3">
-                  <p className="text-sm text-muted-foreground">Percentil de risco: {clampPercentile(peerComparison.percentile)}/100 entre BINs comparáveis</p>
-                  {peerComparison.percentile > 50 ? (
-                    <TrendingUp className="h-5 w-5 text-destructive" aria-hidden="true" />
-                  ) : (
-                    <TrendingDown className="h-5 w-5 text-primary" aria-hidden="true" />
-                  )}
-                </div>
-                <Progress value={peerComparison.percentile} />
-                <p className="text-sm text-muted-foreground">{peerComparison.description}</p>
-              </CardContent>
-            </Card>
-          ) : null}
+          <section className="grid gap-4 lg:grid-cols-3">
+            <div className="lg:col-span-2">
+              <RiskRadar
+                dimensions={riskDimensions}
+                medianPeer={peerComparison?.percentile}
+                source={analysis.source.provider}
+                computedAt={computedAt}
+                confidence={overallConfidence}
+              />
+            </div>
+            <div className="lg:col-span-1">
+              <ScoreComposition entries={compositionEntries} rulesetVersion="v3.x.x" confidence={{ level: 'CALCULATED', source: analysis.source.provider }} />
+            </div>
+          </section>
+
+          <section className="grid gap-4 lg:grid-cols-2">
+            <PeerComparisonBar
+              percentile={peerComparison?.percentile ?? null}
+              distribution={peerDistribution}
+              sampleSize={0}
+              confidence={overallConfidence}
+            />
+            <FraudSparkline
+              points={fraudSeries}
+              source={analysis.source.provider}
+              computedAt={computedAt}
+              confidence={{ level: fraudSeries ? 'CALCULATED' : 'UNAVAILABLE', source: fraudSeries ? analysis.source.provider : null }}
+            />
+          </section>
+
+          <section>
+            <ComplianceHeatmap rows={complianceRows} confidence={{ level: 'ESTIMATED', source: analysis.source.provider, margin: '±8' }} />
+          </section>
 
           <Card className="border-border bg-card">
             <CardHeader>
-              <CardTitle className="text-lg font-semibold">Análise Detalhada de Fatores de Risco</CardTitle>
-              <CardDescription>Radar 6D consolidado e fatores explicáveis por dimensão.</CardDescription>
+              <CardTitle className="text-lg font-semibold">Fatores detalhados</CardTitle>
+              <CardDescription>Explanação por dimensão com contexto técnico e modo popular.</CardDescription>
             </CardHeader>
             <CardContent className="space-y-6">
-              <RiskIndicator
-                level={getRiskLevel(analysis.holistic.overallScore)}
-                score={analysis.holistic.overallScore}
-                variant="card"
-                tooltip="Pontuação calculada a partir da composição das dimensões de risco do BIN identificado."
-              />
-              <RiskRadarChart dimensions={riskDimensions} overallScore={analysis.holistic.overallScore} />
-
               <Accordion type="multiple" className="w-full">
                 {[
                   { key: 'binRisk', label: 'Risco de BIN', icon: Shield, value: analysis.holistic.binRisk },
                   { key: 'geographicRisk', label: 'Risco Geográfico', icon: MapPinned, value: analysis.holistic.geographicRisk },
                   { key: 'behavioralRisk', label: 'Risco Comportamental', icon: Target, value: analysis.holistic.behavioralRisk },
-                  { key: 'gatewayRisk', label: 'Risco de Gateway', icon: Wallet, value: analysis.holistic.gatewayRisk },
+                  { key: 'gatewayRisk', label: 'Risco de Esquema', icon: Wallet, value: analysis.holistic.gatewayRisk },
                   { key: 'temporalRisk', label: 'Risco Temporal', icon: Clock3, value: analysis.holistic.temporalRisk },
                   { key: 'deviceRisk', label: 'Risco de Dispositivo', icon: Cpu, value: analysis.holistic.deviceRisk },
                 ].map((dimension) => {
                   const Icon = dimension.icon
-                  const dimExplanation = languageMode === 'technical'
-                    ? dimension.value.explanation.technical
-                    : dimension.value.explanation.popular
+                  const dimExplanation =
+                    languageMode === 'TECHNICAL' ? dimension.value.explanation.technical : dimension.value.explanation.popular
 
                   return (
                     <AccordionItem key={dimension.key} value={dimension.key}>
                       <AccordionTrigger>
                         <div className="flex w-full items-center justify-between gap-3 pr-2">
                           <div className="flex items-center gap-2">
-                            <Icon className="h-4 w-4 text-ds-accent" aria-hidden="true" />
+                            <Icon className="h-4 w-4 text-primary" />
                             <div className="text-left">
                               <p className="text-sm font-semibold">{dimension.label}</p>
-                              <p className="text-xs text-fg-muted">{riskSummary(dimension.value.score, languageMode)}</p>
+                              <p className="text-xs text-muted-foreground">{riskSummary(dimension.value.score, languageMode)}</p>
                             </div>
                           </div>
-                          <RiskIndicator
-                            level={getRiskLevel(dimension.value.score)}
-                            score={dimension.value.score}
-                            size="sm"
-                            tooltip={`Pontuação calculada para ${dimension.label}.`}
-                          />
+                          <div className="text-right">
+                            <p className="text-sm font-semibold">{dimension.value.score}/100</p>
+                            <p className="text-xs text-muted-foreground">{dimension.value.dataAvailable ? 'Dados disponíveis' : 'Sem dados (não pontua)'}</p>
+                          </div>
                         </div>
                       </AccordionTrigger>
                       <AccordionContent className="space-y-3">
-                        <p className="text-sm text-fg-muted">{dimExplanation}</p>
+                        <p className="text-sm text-muted-foreground">{dimExplanation}</p>
                         <Progress value={dimension.value.score} />
                         <ul className="space-y-2">
                           {dimension.value.factors.map((factor, index) => (
                             <li key={`${dimension.key}-${index}`} className="rounded-md border border-border bg-background p-3">
-                              {(() => {
-                                const source = getFactorSource(factor)
-                                const { Icon: FactorIcon, className, label } = getFactorIcon(factor.impact)
-                                return (
-                                  <div className="flex items-start justify-between gap-3">
-                                    <div className="space-y-1">
-                                      <div className="flex items-center gap-2">
-                                        <TooltipProvider>
-                                          <Tooltip>
-                                            <TooltipTrigger asChild>
-                                              <span>
-                                                <FactorIcon className={`h-4 w-4 ${className}`} aria-label={label} />
-                                              </span>
-                                            </TooltipTrigger>
-                                            <TooltipContent>{formatFactorText(factor, languageMode)}</TooltipContent>
-                                          </Tooltip>
-                                        </TooltipProvider>
-                                        <p className="text-sm font-medium">{capitalizeWords(factor.label)}</p>
-                                        {source ? <Badge variant="info">{source}</Badge> : null}
-                                      </div>
-                                  <p className="text-xs text-fg-muted">{formatFactorText(factor, languageMode)}</p>
+                              <div className="flex items-start justify-between gap-3">
+                                <div>
+                                  <p className="text-sm font-medium">{factor.label}</p>
+                                  <p className="mt-1 text-xs text-muted-foreground">{formatFactorText(factor, languageMode)}</p>
                                 </div>
-                                <span className={`text-sm font-semibold ${factor.impact > 0 ? 'text-destructive' : factor.impact < 0 ? 'text-primary' : 'text-muted-foreground'}`}>
+                                <span
+                                  className={`text-sm font-semibold ${
+                                    factor.impact > 0 ? 'text-destructive' : factor.impact < 0 ? 'text-primary' : 'text-muted-foreground'
+                                  }`}
+                                >
                                   {formatImpact(factor.impact)}
                                 </span>
-                                  </div>
-                                )
-                              })()}
+                              </div>
                             </li>
                           ))}
                         </ul>
@@ -683,10 +662,10 @@ export function Premium3DAnalyzer({ initialAnalysis = null, initialHistory = [] 
             </CardContent>
           </Card>
 
-            <Card variant="surface">
-              <CardHeader>
-                <CardTitle className="text-lg font-semibold">Resumo técnico do BIN</CardTitle>
-              </CardHeader>
+          <Card className="border-border bg-card">
+            <CardHeader>
+              <CardTitle className="text-lg font-semibold">Resumo técnico do BIN</CardTitle>
+            </CardHeader>
             <CardContent className="space-y-3 text-sm text-muted-foreground">
               <div className="grid grid-cols-2 gap-3">
                 <div className="rounded-md border border-border bg-background p-3">
@@ -715,18 +694,17 @@ export function Premium3DAnalyzer({ initialAnalysis = null, initialHistory = [] 
               </div>
               <div className="rounded-md border border-border bg-background p-3">
                 <p className="text-xs">Explicação 3DS</p>
-                <p className="text-foreground">{languageMode === 'technical' ? analysis.threeDSAnalysis.explanation.technical : analysis.threeDSAnalysis.explanation.popular}</p>
+                <p className="text-foreground">{languageMode === 'TECHNICAL' ? analysis.threeDSAnalysis.explanation.technical : analysis.threeDSAnalysis.explanation.popular}</p>
               </div>
             </CardContent>
           </Card>
         </div>
       ) : null}
-      </div>
 
       <Card className="border-border bg-card">
         <CardHeader>
           <CardTitle className="flex items-center gap-2 text-lg font-semibold">
-            <History className="h-5 w-5 text-primary" aria-hidden="true" />
+            <History className="h-5 w-5 text-primary" />
             Histórico de análises
           </CardTitle>
           <CardDescription>Últimas 10 análises carregadas do endpoint real.</CardDescription>
@@ -740,7 +718,7 @@ export function Premium3DAnalyzer({ initialAnalysis = null, initialHistory = [] 
             </div>
           ) : history.length === 0 ? (
             <div className="space-y-3 rounded-xl border border-dashed border-border bg-background p-6 text-center">
-              <Inbox className="mx-auto h-8 w-8 text-muted-foreground" aria-hidden="true" />
+              <Inbox className="mx-auto h-8 w-8 text-muted-foreground" />
               <p className="text-sm text-muted-foreground">{historyMessage ?? 'Nenhum registro disponível no momento.'}</p>
               <p className="text-sm font-medium text-foreground">Faça sua primeira análise</p>
             </div>
@@ -755,7 +733,7 @@ export function Premium3DAnalyzer({ initialAnalysis = null, initialHistory = [] 
                   className="flex w-full flex-col gap-3 rounded-xl border border-border bg-background p-4 text-left transition hover:border-primary/40 sm:flex-row sm:items-center sm:justify-between"
                 >
                   <div>
-                    <p className="font-mono text-sm text-foreground">{maskBin(entry.bin)}</p>
+                    <p className="font-mono text-sm text-foreground">{entry.bin}</p>
                     <p className="text-xs text-muted-foreground">{toRelativeTime(entry.created_at)}</p>
                   </div>
                   <div className="flex items-center gap-3">
