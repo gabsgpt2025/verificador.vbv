@@ -54,7 +54,12 @@ describe("/api/bin-analysis route", () => {
     mockGetUser.mockResolvedValue({ data: { user: null } })
     mockNormalizeBinApiResponse.mockReturnValue({ bin: "405708", source: "BINLIST", binLength: 6 })
     mockApplyBinOverrides.mockResolvedValue({ data: { bin: "405708", source: "BINLIST", binLength: 6 } })
-    mockRunFullBinAnalysis.mockReturnValue({ bin: "405708", riskAnalysis: { score: 12 } })
+    mockRunFullBinAnalysis.mockResolvedValue({
+      analysis: { bin: "405708", riskAnalysis: { score: 12 } },
+      holistic: { overallScore: 12 },
+      enrichedAnalysis: null,
+      peerComparison: { percentile: 50, description: "na média" },
+    })
     mockSaveBinAnalysisLog.mockResolvedValue(undefined)
     mockSubtractCredits.mockResolvedValue({ success: true })
 
@@ -87,6 +92,11 @@ describe("/api/bin-analysis route", () => {
     expect(res.status).toBe(200)
     expect(mockNormalizeBinApiResponse).toHaveBeenCalledWith("BINLIST", expect.any(Object), "405708")
     expect(mockRunFullBinAnalysis).toHaveBeenCalledTimes(1)
+    expect(mockRunFullBinAnalysis).toHaveBeenCalledWith(
+      { bin: "405708", source: "BINLIST", binLength: 6 },
+      {},
+      expect.any(Object),
+    )
     expect(body).toEqual({ bin: "405708", riskAnalysis: { score: 12 } })
     expect(mockSubtractCredits).not.toHaveBeenCalled()
     expect(mockSaveBinAnalysisLog).not.toHaveBeenCalled()
@@ -95,7 +105,12 @@ describe("/api/bin-analysis route", () => {
   it("applies overrides, charges credits, and logs when user is authenticated", async () => {
     mockGetUser.mockResolvedValueOnce({ data: { user: { id: "user-1" } } })
     mockApplyBinOverrides.mockResolvedValueOnce({ data: { bin: "40570812", source: "BINLIST", binLength: 8 } })
-    mockRunFullBinAnalysis.mockReturnValueOnce({ bin: "40570812", riskAnalysis: { score: 20 } })
+    mockRunFullBinAnalysis.mockResolvedValueOnce({
+      analysis: { bin: "40570812", riskAnalysis: { score: 20 } },
+      holistic: { overallScore: 20 },
+      enrichedAnalysis: null,
+      peerComparison: { percentile: 60, description: "acima" },
+    })
 
     const req = new NextRequest("http://localhost/api/bin-analysis", {
       method: "POST",
@@ -113,7 +128,11 @@ describe("/api/bin-analysis route", () => {
       "VeriFiBIN 2.0 — Análise Antifraude (BIN: 4057081234)",
     )
     expect(mockApplyBinOverrides).toHaveBeenCalledTimes(1)
-    expect(mockRunFullBinAnalysis).toHaveBeenCalledWith({ bin: "40570812", source: "BINLIST", binLength: 8 })
+    expect(mockRunFullBinAnalysis).toHaveBeenCalledWith(
+      { bin: "40570812", source: "BINLIST", binLength: 8 },
+      {},
+      expect.any(Object),
+    )
     expect(mockSaveBinAnalysisLog).toHaveBeenCalledWith(expect.any(Object), "user-1", {
       bin: "40570812",
       riskAnalysis: { score: 20 },

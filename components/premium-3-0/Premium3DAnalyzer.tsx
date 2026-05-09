@@ -6,7 +6,8 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { AlertCircle, CheckCircle2, XCircle, AlertTriangle, Globe, Zap, Shield, TrendingUp, Info, Database, Lock, Eye, EyeOff, Percent, Target } from 'lucide-react';
-import type { AnalysisRequest, AnalysisResponse, LanguageMode } from '@/lib/premium-3-0/types';
+import { mapFullBinAnalysisToResponse } from '@/lib/premium-3-0/adapters';
+import type { AnalysisRequest, AnalysisResponse, LanguageMode, FullBinAnalysis } from '@/lib/premium-3-0/types';
 
 const LANGUAGE_MODES: Record<string, LanguageMode> = {
   TECHNICAL: {
@@ -92,13 +93,14 @@ export function Premium3DAnalyzer({ userId }: { userId?: string } = {}) {
 
       const data = await res.json();
 
-      // Mapeia resposta da API para o shape esperado pelo UI
+      // A rota v2 retorna o shape canônico (FullBinAnalysis no topo + extras).
+      // Convertendo para AnalysisResponse legado usado por este componente.
+      const baseResponse = mapFullBinAnalysisToResponse(data as FullBinAnalysis);
+
       const response: AnalysisResponse = {
-        requestId: data.requestId ?? `req_${Date.now()}`,
-        timestamp: data.timestamp ?? new Date().toISOString(),
-        binAnalysis: data.binAnalysis ?? data,
-        threeDSAnalysis: data.threeDSAnalysis ?? data,
-        riskAnalysis: data.riskAnalysis ?? data,
+        ...baseResponse,
+        requestId: data.requestId ?? baseResponse.requestId ?? `req_${Date.now()}`,
+        timestamp: data.timestamp ?? baseResponse.timestamp ?? new Date().toISOString(),
         languageMode: LANGUAGE_MODES[languageMode],
         holistic: data.holistic,
         peerComparison: data.peerComparison,
