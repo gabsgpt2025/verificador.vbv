@@ -65,7 +65,7 @@ export function FraudSparkline({
                 <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border-subtle))" />
                 <XAxis dataKey="date" tick={{ fontSize: 10 }} minTickGap={28} />
                 <YAxis tick={{ fontSize: 10 }} />
-                <Tooltip formatter={(value: number) => [`${value}`, 'Índice de fraude']} />
+                <Tooltip formatter={(value) => [`${value ?? ''}`, 'Índice de fraude']} />
                 <Area type="monotone" dataKey="value" stroke="#2563eb" fill="url(#sparklineArea)" />
                 {peak ? <ReferenceDot x={peak.date} y={peak.value} r={4} fill="#ef4444" stroke="none" /> : null}
                 {today ? <ReferenceDot x={today.date} y={today.value} r={4} fill="#22c55e" stroke="none" /> : null}

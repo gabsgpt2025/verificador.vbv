@@ -100,13 +100,13 @@ function createMockAnalysis(overrides: Record<string, unknown> = {}) {
 
 describe('Premium3DAnalyzer smoke', () => {
   it('snapshot do layout de resultado com dados completos', () => {
-    const html = renderToStaticMarkup(createElement(Premium3DAnalyzer, { initialAnalysis: createMockAnalysis(), initialHistory: [] }))
+    const html = renderToStaticMarkup(createElement(Premium3DAnalyzer as any, { initialAnalysis: createMockAnalysis(), initialHistory: [] }))
     expect(html).toMatchSnapshot()
   })
 
   it('snapshot do layout com dados parciais', () => {
     const html = renderToStaticMarkup(
-      createElement(Premium3DAnalyzer, {
+      createElement(Premium3DAnalyzer as any, {
         initialAnalysis: createMockAnalysis({
           sources: {
             neutrino: { available: true },
@@ -127,7 +127,7 @@ describe('Premium3DAnalyzer smoke', () => {
   })
 
   it('snapshot do layout sem dados', () => {
-    const html = renderToStaticMarkup(createElement(Premium3DAnalyzer, { initialAnalysis: null, initialHistory: [] }))
+    const html = renderToStaticMarkup(createElement(Premium3DAnalyzer as any, { initialAnalysis: null, initialHistory: [] }))
     expect(html).toMatchSnapshot()
   })
 
