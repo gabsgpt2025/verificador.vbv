@@ -2,12 +2,11 @@
 
 ## 2026-05-09
 
-- Fase 2 de visualização premium: nova biblioteca de gráficos em `components/charts/` (Gauge, Radar 6D, Donut, Sparkline, Peer Comparison, Compliance Heatmap e Source Badges).
-- Novo `ConfidenceBadge` reutilizável com níveis Verificado/Calculado/Estimado/Indisponível e salvaguarda para evitar "Verificado" sem `source`.
-- Reorganização da tela de resultado do `Premium3DAnalyzer` em layout de painéis (hero + grid de gráficos + compliance + fatores detalhados).
-- Nova rota de QA visual: `/dev/charts` (somente não-produção) com cenários de fixtures.
-- Testes adicionados para charts, compliance e confidence badge, além de snapshots de layout no smoke test do `Premium3DAnalyzer`.
-- Documentação adicionada: `docs/CHARTS.md` e `docs/CONFIDENCE_SYSTEM.md`.
+- v3.2.1: política de exibição de score em `lib/scoring/displayPolicy.ts` (exact/range/qualitative/hidden) alinhada à confiança de fontes.
+- Formulário de contexto avançado migrado para combobox com busca (`CurrencySelect`, `CountrySelect`, `MccSelect`) com datasets versionados em `lib/data/`.
+- Autopreenchimento por BIN: moeda e país sugeridos automaticamente com possibilidade de sobrescrita.
+- Banner sticky de degradação quando fontes estão parciais, com modal de status técnico por fonte e ação de retry/report.
+- Cards de score agora exibem transparência metodológica com botão “Como calculamos isto?” + seção “Sobre este BIN”.
 
 ## 2026-05-08
 

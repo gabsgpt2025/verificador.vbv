@@ -156,13 +156,10 @@ O workflow `.github/workflows/ci.yml` roda `lint → typecheck → build` em tod
 |---|---|
 | [`docs/VERIFIBIN-3.0-RELATORIO-TECNICO.md`](docs/VERIFIBIN-3.0-RELATORIO-TECNICO.md) | Relatório técnico completo (v3.0.1) — alinhado ao código real |
 | [`docs/CONFORMIDADE-AUDITORIA.md`](docs/CONFORMIDADE-AUDITORIA.md) | Auditoria de conformidade: doc original vs. código real (✅/⚠️/❌/➕) |
-| [`docs/CHARTS.md`](docs/CHARTS.md) | Catálogo dos componentes de gráfico da Fase 2 |
-| [`docs/CONFIDENCE_SYSTEM.md`](docs/CONFIDENCE_SYSTEM.md) | Sistema de confiança visual (Verificado/Calculado/Estimado/Indisponível) |
+| [`docs/SCORE_TRANSPARENCY.md`](docs/SCORE_TRANSPARENCY.md) | Política de exibição de score por nível de confiança |
+| [`docs/DATA_INPUTS.md`](docs/DATA_INPUTS.md) | Fontes e regras do formulário de contexto avançado |
 
-## Screenshots — Fase 2 (Visualização Profissional)
+## Capturas da nova UX (Fase pós-2)
 
-> Capturas obtidas na página `/dev/charts` para revisão visual dos painéis.
-
-![Gauge + Hero](docs/images/fase2-gauge-hero.png)
-![Radar + Donut](docs/images/fase2-radar-donut.png)
-![Compliance Heatmap](docs/images/fase2-compliance-heatmap.png)
+- Formulário avançado com autopreenchimento: `docs/screenshots/contexto-avancado-autofill.png`
+- Banner de degradação de fontes: `docs/screenshots/banner-degradacao.png`

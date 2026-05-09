@@ -33,6 +33,7 @@ export type {
   AnalysisResponse,
   AnalysisSourceSummary,
   MultiSourceConsensus,
+  SourceDiagnostic,
   DashboardMetrics,
   HistoryEntry,
 } from "./holisticTypes"

@@ -232,6 +232,19 @@ export interface MultiSourceConsensus {
   typeAgreement: boolean
   confidence: "HIGH" | "MEDIUM" | "LOW"
   discrepancies: string[]
+  sourcesConfirmed?: number
+  sourcesTotal?: number
+}
+
+export interface SourceDiagnostic {
+  source: "neutrino" | "mastercard" | "binlist"
+  status: "ok" | "error" | "timeout" | "disabled" | "not_applicable"
+  httpStatus?: number | null
+  latencyMs?: number | null
+  message: string
+  missingEnvVars?: string[]
+  suggestedAction?: string
+  lastSuccessAt?: string | null
 }
 
 /** Resposta do endpoint POST /api/bin-analysis-v2 (shape legado mantido para compatibilidade). */

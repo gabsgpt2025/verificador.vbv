@@ -14,8 +14,8 @@ describe('TransactionContextForm', () => {
       createElement(TransactionContextForm, {
         value: {
           amount: '',
-          currency: 'BRL',
-          merchantCountry: 'OUTROS',
+          currency: '',
+          merchantCountry: '',
           mcc: '',
           isFirstTransaction: true,
         },
