@@ -36,6 +36,17 @@ export type {
   SourceDiagnostic,
   DashboardMetrics,
   HistoryEntry,
+  // FASE 2: novos tipos de enriquecimento
+  SessionRiskSummary,
+  FraudLabsSummary,
+  MastercardEnhancedSummary,
+  MastercardIdentityInsightsSummary,
+  MastercardFraudScoreSummary,
+  DataProvenanceSummary,
+  ApiDiagnosticEntry,
+  HolisticScoreSummary,
+  HolisticDimensionSummary,
+  PeerComparisonSummary,
 } from "./holisticTypes"
 import type { BypassMechanism, RiskLevel } from "./holisticTypes"
 import type { HolisticDimensionScore, TransactionContext } from "./holisticEngine"
