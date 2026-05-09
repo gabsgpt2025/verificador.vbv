@@ -3,13 +3,11 @@ import { z } from "zod"
 import { createClient } from "@/lib/supabase/server"
 import { subtractCredits } from "@/lib/credits/operations"
 import { applyBinOverrides } from "@/lib/premium-3-0/applyBinOverrides"
-import { runFullBinAnalysis, runHolisticAnalysis } from "@/lib/premium-3-0"
+import { runFullBinAnalysis } from "@/lib/premium-3-0"
 import { saveBinAnalysisLog } from "@/lib/premium-3-0/saveBinAnalysisLog"
-import { computePeerComparison } from "@/lib/premium-3-0/peerComparison"
 import { lookupBinMultiSource } from "@/lib/premium-3-0/multiSourceLookup"
 import { getExchangeRates } from "@/lib/premium-3-0/services/exchangeRateService"
-import { runEnrichedAnalysis } from "@/lib/premium-3-0/services/enrichedAnalysisService"
-import type { BinApiData, FullBinAnalysis } from "@/lib/premium-3-0/types"
+import type { BinApiData } from "@/lib/premium-3-0/types"
 import type { AnalysisRequest, AnalysisSourceSummary, MultiSourceConsensus, SourceDiagnostic, ValidationResult } from "@/lib/premium-3-0/holisticTypes"
 import type { MastercardBinResult } from "@/lib/integrations/mastercard"
 import type { TransactionContext } from "@/lib/premium-3-0/holisticEngine"
@@ -273,34 +271,22 @@ export async function POST(request: NextRequest) {
       ? (await applyBinOverrides(supabase, binData)).data
       : binData
 
-    // ── FASE 2: Enriquecimento via APIs externas (paralelo ao fluxo principal) ──
-    // Executa Neutrino (ip-info, ip-blocklist, ip-probe, ua-lookup, host-reputation),
-    // FraudLabs Pro, e Mastercard (Identity, Fraud Score) em paralelo.
-    // Todas as chamadas são fail-safe — falha em qualquer uma não bloqueia a análise.
-    const enrichedAnalysis = await runEnrichedAnalysis({
-      bin: cleanBin,
-      ip: resolvedContext.ipAddress,
-      userAgent: resolvedContext.userAgent,
-      amount: resolvedContext.amount,
-      currency: resolvedContext.currency,
-      merchantCountry: resolvedContext.merchantCountry,
-      countryCode: binDataWithOverrides.countryCode ?? undefined,
-    }).catch((error) => {
-      console.warn("[bin-analysis-v2] Enriched analysis failed (non-blocking)", {
-        requestId,
-        error: error instanceof Error ? error.message : String(error),
-      })
-      return null
-    })
-
-    // Executa análise completa
-    const analysis: FullBinAnalysis = runFullBinAnalysis(binDataWithOverrides, resolvedContext)
-    // Passa enrichedAnalysis para o motor holístico (FASE 2)
-    const holistic = runHolisticAnalysis(binDataWithOverrides, resolvedContext, enrichedAnalysis ?? undefined)
-    const peerComparison = await computePeerComparison(
+    // ── Orquestração centralizada: runFullBinAnalysis executa TODO o fluxo ──
+    // Inclui: 3DS, risco, qualidade, compliance, enriquecimento via APIs externas
+    // (FASE 2: Neutrino, FraudLabs, Mastercard), motor holístico e peer comparison.
+    const { analysis, holistic, enrichedAnalysis, peerComparison } = await runFullBinAnalysis(
       binDataWithOverrides,
+      resolvedContext,
       supabase,
-      analysis.riskAnalysis?.score,
+      {
+        bin: cleanBin,
+        ip: resolvedContext.ipAddress,
+        userAgent: resolvedContext.userAgent,
+        amount: resolvedContext.amount,
+        currency: resolvedContext.currency,
+        merchantCountry: resolvedContext.merchantCountry,
+        countryCode: binDataWithOverrides.countryCode ?? undefined,
+      },
     )
 
     // Salva log interno (somente para usuários autenticados)

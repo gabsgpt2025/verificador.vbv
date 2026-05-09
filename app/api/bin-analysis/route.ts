@@ -42,7 +42,7 @@ export async function POST(request: NextRequest) {
     const rawApiResponse = await fetchBINFromAPI(cleanBin)
     const binData = normalizeBinApiResponse("BINLIST", rawApiResponse, cleanBin)
     const binDataWithOverrides = user ? (await applyBinOverrides(supabase, binData)).data : binData
-    const analysis: FullBinAnalysis = runFullBinAnalysis(binDataWithOverrides)
+    const { analysis } = await runFullBinAnalysis(binDataWithOverrides, {}, supabase)
 
     if (user) {
       await saveBinAnalysisLog(supabase, user.id, analysis)
