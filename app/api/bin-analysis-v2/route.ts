@@ -7,6 +7,7 @@ import { runFullBinAnalysis, runHolisticAnalysis } from "@/lib/premium-3-0"
 import { saveBinAnalysisLog } from "@/lib/premium-3-0/saveBinAnalysisLog"
 import { computePeerComparison } from "@/lib/premium-3-0/peerComparison"
 import { lookupBinMultiSource } from "@/lib/premium-3-0/multiSourceLookup"
+import { getExchangeRates } from "@/lib/premium-3-0/services/exchangeRateService"
 import type { BinApiData, FullBinAnalysis } from "@/lib/premium-3-0/types"
 import type { AnalysisRequest, AnalysisSourceSummary, MultiSourceConsensus, SourceDiagnostic, ValidationResult } from "@/lib/premium-3-0/holisticTypes"
 import type { MastercardBinResult } from "@/lib/integrations/mastercard"
@@ -202,6 +203,11 @@ export async function POST(request: NextRequest) {
     const { bin } = validation.data
     const resolvedContext = resolveTransactionContext(request, validation.data)
 
+    // Pré-carrega taxas de câmbio reais no cache (non-blocking se falhar)
+    // Isso garante que as funções síncronas (analyzeThreeDS, enrichGateway)
+    // tenham taxas atualizadas no cache em memória do ExchangeRateService.
+    const exchangeRateInfo = await getExchangeRates().catch(() => null)
+
     const cleanBin = bin.substring(0, 8)
 
     const supabase = await createClient()
@@ -306,6 +312,9 @@ export async function POST(request: NextRequest) {
       sources: sourceSummaries,
       consensus,
       sourceDiagnostics,
+      exchangeRatesUsed: exchangeRateInfo
+        ? { source: exchangeRateInfo.source, lastUpdated: exchangeRateInfo.lastUpdated }
+        : null,
     })
   } catch (error) {
     console.error("[bin-analysis-v2] Unexpected error", {

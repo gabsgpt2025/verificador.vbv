@@ -1,42 +1,11 @@
 import type { BinRiskFactor } from "../types"
+import { convertCentsToEurSync, convertCentsToBrlSync } from "../services/exchangeRateService"
 
 /** MCC codes that carry elevated gateway risk */
 const HIGH_RISK_MCC = new Set(["7995", "6051"])
 
-const EUR_EXCHANGE_RATE: Record<string, number> = {
-  EUR: 1,
-  BRL: 0.18,
-  USD: 0.92,
-  GBP: 1.16,
-  CAD: 0.67,
-  AUD: 0.6,
-  MXN: 0.05,
-}
-
-const BRL_EXCHANGE_RATE: Record<string, number> = {
-  BRL: 1,
-  EUR: 6,
-  USD: 5.45,
-  GBP: 6.9,
-  CAD: 4.0,
-  AUD: 3.6,
-  MXN: 0.29,
-}
-
 function clamp(value: number, min: number, max: number) {
   return Math.min(Math.max(Math.round(value), min), max)
-}
-
-function convertAmountToEur(amountInCents?: number, currency?: string) {
-  if (typeof amountInCents !== "number") return null
-  const rate = EUR_EXCHANGE_RATE[(currency ?? "EUR").toUpperCase()] ?? 1
-  return (amountInCents / 100) * rate
-}
-
-function convertAmountToBrl(amountInCents?: number, currency?: string) {
-  if (typeof amountInCents !== "number") return null
-  const rate = BRL_EXCHANGE_RATE[(currency ?? "BRL").toUpperCase()] ?? 1
-  return (amountInCents / 100) * rate
 }
 
 export interface GatewayContext {
@@ -66,8 +35,8 @@ export function enrichGateway({ amount, currency, mcc, merchantHost }: GatewayCo
   }
 
   let score = 30
-  const amountInBrl = convertAmountToBrl(amount, currency)
-  const amountInEur = convertAmountToEur(amount, currency)
+  const amountInBrl = convertCentsToBrlSync(amount, currency)
+  const amountInEur = convertCentsToEurSync(amount, currency)
 
   if (hasAmount) {
     factors.push({

@@ -1,5 +1,13 @@
 // lib/premium-3-0/currencyConverter.ts
-// TODO: Implement real exchange rate API (e.g., Open Exchange Rates, Fixer.io) — current version returns static rates
+// Conversor de moedas — agora delegando ao ExchangeRateService SSOT
+// Mantém interface pública compatível para não quebrar consumidores existentes
+
+import {
+  getRatesSync,
+  convertCurrency as convertCurrencyAsync,
+  getExchangeRates,
+  type ExchangeRates,
+} from "./services/exchangeRateService"
 
 export interface ConversionRecord {
   id: string
@@ -11,139 +19,98 @@ export interface ConversionRecord {
   timestamp: string
 }
 
+const CURRENCY_INFO: { [key: string]: { name: string; symbol: string; flag: string } } = {
+  USD: { name: "US Dollar", symbol: "$", flag: "🇺🇸" },
+  EUR: { name: "Euro", symbol: "€", flag: "🇪🇺" },
+  GBP: { name: "British Pound", symbol: "£", flag: "🇬🇧" },
+  JPY: { name: "Japanese Yen", symbol: "¥", flag: "🇯🇵" },
+  CAD: { name: "Canadian Dollar", symbol: "C$", flag: "🇨🇦" },
+  AUD: { name: "Australian Dollar", symbol: "A$", flag: "🇦🇺" },
+  CHF: { name: "Swiss Franc", symbol: "CHF", flag: "🇨🇭" },
+  CNY: { name: "Chinese Yuan", symbol: "¥", flag: "🇨🇳" },
+  SEK: { name: "Swedish Krona", symbol: "kr", flag: "🇸🇪" },
+  NZD: { name: "New Zealand Dollar", symbol: "NZ$", flag: "🇳🇿" },
+  MXN: { name: "Mexican Peso", symbol: "$", flag: "🇲🇽" },
+  SGD: { name: "Singapore Dollar", symbol: "S$", flag: "🇸🇬" },
+  HKD: { name: "Hong Kong Dollar", symbol: "HK$", flag: "🇭🇰" },
+  NOK: { name: "Norwegian Krone", symbol: "kr", flag: "🇳🇴" },
+  TRY: { name: "Turkish Lira", symbol: "₺", flag: "🇹🇷" },
+  BRL: { name: "Brazilian Real", symbol: "R$", flag: "🇧🇷" },
+  INR: { name: "Indian Rupee", symbol: "₹", flag: "🇮🇳" },
+  KRW: { name: "South Korean Won", symbol: "₩", flag: "🇰🇷" },
+  ZAR: { name: "South African Rand", symbol: "R", flag: "🇿🇦" },
+  RUB: { name: "Russian Ruble", symbol: "₽", flag: "🇷🇺" },
+}
+
 export class CurrencyConverter {
-  private static readonly SUPPORTED_CURRENCIES = [
-    "USD",
-    "EUR",
-    "GBP",
-    "JPY",
-    "CAD",
-    "AUD",
-    "CHF",
-    "CNY",
-    "SEK",
-    "NZD",
-    "MXN",
-    "SGD",
-    "HKD",
-    "NOK",
-    "TRY",
-    "BRL",
-    "INR",
-    "KRW",
-    "ZAR",
-    "RUB",
-    "PLN",
-    "CZK",
-    "HUF",
-    "ILS",
-    "THB",
-    "MYR",
-    "PHP",
-    "IDR",
-    "VND",
-    "EGP",
-  ]
-
-  private static readonly EXCHANGE_RATES: { [key: string]: number } = {
-    USD: 1.0,
-    EUR: 0.85,
-    GBP: 0.73,
-    JPY: 110.0,
-    CAD: 1.25,
-    AUD: 1.35,
-    CHF: 0.92,
-    CNY: 6.45,
-    SEK: 8.75,
-    NZD: 1.42,
-    MXN: 20.5,
-    SGD: 1.35,
-    HKD: 7.8,
-    NOK: 8.9,
-    TRY: 8.5,
-    BRL: 5.2,
-    INR: 74.5,
-    KRW: 1180.0,
-    ZAR: 14.8,
-    RUB: 73.2,
-    PLN: 3.9,
-    CZK: 21.5,
-    HUF: 295.0,
-    ILS: 3.2,
-    THB: 31.5,
-    MYR: 4.1,
-    PHP: 50.2,
-    IDR: 14250.0,
-    VND: 22800.0,
-    EGP: 15.7,
-  }
-
-  private static readonly CURRENCY_INFO: { [key: string]: { name: string; symbol: string; flag: string } } = {
-    USD: { name: "US Dollar", symbol: "$", flag: "🇺🇸" },
-    EUR: { name: "Euro", symbol: "€", flag: "🇪🇺" },
-    GBP: { name: "British Pound", symbol: "£", flag: "🇬🇧" },
-    JPY: { name: "Japanese Yen", symbol: "¥", flag: "🇯🇵" },
-    CAD: { name: "Canadian Dollar", symbol: "C$", flag: "🇨🇦" },
-    AUD: { name: "Australian Dollar", symbol: "A$", flag: "🇦🇺" },
-    CHF: { name: "Swiss Franc", symbol: "CHF", flag: "🇨🇭" },
-    CNY: { name: "Chinese Yuan", symbol: "¥", flag: "🇨🇳" },
-    SEK: { name: "Swedish Krona", symbol: "kr", flag: "🇸🇪" },
-    NZD: { name: "New Zealand Dollar", symbol: "NZ$", flag: "🇳🇿" },
-    MXN: { name: "Mexican Peso", symbol: "$", flag: "🇲🇽" },
-    SGD: { name: "Singapore Dollar", symbol: "S$", flag: "🇸🇬" },
-    HKD: { name: "Hong Kong Dollar", symbol: "HK$", flag: "🇭🇰" },
-    NOK: { name: "Norwegian Krone", symbol: "kr", flag: "🇳🇴" },
-    TRY: { name: "Turkish Lira", symbol: "₺", flag: "🇹🇷" },
-    BRL: { name: "Brazilian Real", symbol: "R$", flag: "🇧🇷" },
-    INR: { name: "Indian Rupee", symbol: "₹", flag: "🇮🇳" },
-    KRW: { name: "South Korean Won", symbol: "₩", flag: "🇰🇷" },
-    ZAR: { name: "South African Rand", symbol: "R", flag: "🇿🇦" },
-    RUB: { name: "Russian Ruble", symbol: "₽", flag: "🇷🇺" },
-  }
-
+  /**
+   * Converte valor entre moedas usando taxas reais do ExchangeRateService.
+   * Versão síncrona usa cache em memória / fallback estático.
+   */
   static convertAmount(amount: number, fromCurrency: string, toCurrency: string): number {
-    const fromRate = this.EXCHANGE_RATES[fromCurrency] || 1
-    const toRate = this.EXCHANGE_RATES[toCurrency] || 1
+    const from = fromCurrency.toUpperCase()
+    const to = toCurrency.toUpperCase()
+    if (from === to) return amount
+
+    const { rates } = getRatesSync()
+    const fromRate = rates[from] || 1
+    const toRate = rates[to] || 1
 
     const usdAmount = amount / fromRate
     return Number.parseFloat((usdAmount * toRate).toFixed(2))
   }
 
+  /**
+   * Converte valor entre moedas usando taxas REAIS da API (async).
+   */
+  static async convertAmountAsync(
+    amount: number,
+    fromCurrency: string,
+    toCurrency: string,
+  ): Promise<{ result: number; rate: number; source: ExchangeRates["source"] }> {
+    return convertCurrencyAsync(amount, fromCurrency, toCurrency)
+  }
+
   static convertToMultipleCurrencies(amount: number, baseCurrency: string): { [currency: string]: number } {
+    const { rates } = getRatesSync()
     const conversions: { [currency: string]: number } = {}
 
-    this.SUPPORTED_CURRENCIES.forEach((currency) => {
-      if (currency !== baseCurrency) {
+    for (const currency of Object.keys(rates)) {
+      if (currency !== baseCurrency.toUpperCase()) {
         conversions[currency] = this.convertAmount(amount, baseCurrency, currency)
       }
-    })
+    }
 
     return conversions
   }
 
   static getSupportedCurrencies(): string[] {
-    return [...this.SUPPORTED_CURRENCIES]
+    const { rates } = getRatesSync()
+    return Object.keys(rates).sort()
   }
 
-  // TODO: Implement real exchange rate API (e.g., Open Exchange Rates, Fixer.io) — current version returns static rates
   static getRealtimeRate(
     fromCurrency: string,
     toCurrency: string,
-  ): { rate: number; change: number; timestamp: string } {
-    const baseRate = this.EXCHANGE_RATES[toCurrency] / this.EXCHANGE_RATES[fromCurrency]
+  ): { rate: number; change: number; timestamp: string; source: ExchangeRates["source"] } {
+    const { rates, source, lastUpdated } = getRatesSync()
+    const fromRate = rates[fromCurrency.toUpperCase()] || 1
+    const toRate = rates[toCurrency.toUpperCase()] || 1
 
     return {
-      rate: baseRate,
+      rate: toRate / fromRate,
       change: 0,
-      timestamp: new Date().toISOString(),
+      timestamp: lastUpdated,
+      source,
     }
   }
 
   static getCurrencyInfo(currency: string) {
-    return this.CURRENCY_INFO[currency] || { name: currency, symbol: currency, flag: "🌍" }
+    return CURRENCY_INFO[currency.toUpperCase()] || { name: currency, symbol: currency, flag: "🌍" }
   }
 
   static getPopularPairs(): Array<{ from: string; to: string; rate: number }> {
+    const { rates } = getRatesSync()
     const pairs = [
       { from: "USD", to: "EUR" },
       { from: "USD", to: "GBP" },
@@ -151,11 +118,12 @@ export class CurrencyConverter {
       { from: "EUR", to: "GBP" },
       { from: "USD", to: "CAD" },
       { from: "USD", to: "AUD" },
+      { from: "USD", to: "BRL" },
     ]
 
     return pairs.map((pair) => ({
       ...pair,
-      rate: this.EXCHANGE_RATES[pair.to] / this.EXCHANGE_RATES[pair.from],
+      rate: (rates[pair.to] || 1) / (rates[pair.from] || 1),
     }))
   }
 
@@ -170,7 +138,6 @@ export class CurrencyConverter {
       timestamp: new Date().toISOString(),
     }
 
-    // In production, save to database
     if (typeof window !== "undefined") {
       const history = JSON.parse(localStorage.getItem("currency_conversions") || "[]")
       history.unshift(conversion)
