@@ -275,7 +275,11 @@ export async function POST(request: NextRequest) {
     // Executa análise completa
     const analysis: FullBinAnalysis = runFullBinAnalysis(binDataWithOverrides, resolvedContext)
     const holistic = runHolisticAnalysis(binDataWithOverrides, resolvedContext)
-    const peerComparison = computePeerComparison(binDataWithOverrides)
+    const peerComparison = await computePeerComparison(
+      binDataWithOverrides,
+      supabase,
+      analysis.riskAnalysis?.score,
+    )
 
     // Salva log interno (somente para usuários autenticados)
     if (user) {
