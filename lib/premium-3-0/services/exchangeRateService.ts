@@ -55,13 +55,17 @@ const REDIS_TTL_SECS = 3600 // 1 hora
 
 // ---------------------------------------------------------------------------
 // Upstash Redis (opcional — degrada graciosamente se não configurado)
+// Singleton para evitar instanciar um novo cliente a cada chamada.
 // ---------------------------------------------------------------------------
 
+let _redisClient: Redis | null | undefined = undefined
+
 function getRedisClient(): Redis | null {
+  if (_redisClient !== undefined) return _redisClient
   const url = process.env.UPSTASH_REDIS_REST_URL
   const token = process.env.UPSTASH_REDIS_REST_TOKEN
-  if (!url || !token) return null
-  return new Redis({ url, token })
+  _redisClient = url && token ? new Redis({ url, token }) : null
+  return _redisClient
 }
 
 // ---------------------------------------------------------------------------
@@ -189,7 +193,7 @@ export async function getExchangeRates(): Promise<ExchangeRates> {
     if (redis) {
       const raw = await redis.get<string>(REDIS_CACHE_KEY)
       if (raw) {
-        const parsed: CacheEntry = typeof raw === "string" ? JSON.parse(raw) : raw
+        const parsed: CacheEntry = JSON.parse(raw)
         if (parsed && isCacheFresh(parsed)) {
           // Popula cache em memória para requests subsequentes
           memoryCache = parsed
