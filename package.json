@@ -4,10 +4,12 @@
   "private": true,
   "scripts": {
     "build": "next build",
+    "branches:cleanup": "git branch -r --merged origin/main | grep -v 'origin/main' | grep -v 'origin/HEAD' | sed 's|origin/||' | xargs -I {} git push origin --delete {}",
     "dev": "next dev",
     "lint": "eslint .",
     "start": "next start",
-    "test": "vitest run"
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit"
   },
   "dependencies": {
     "@ai-sdk/xai": "3.0.89",
