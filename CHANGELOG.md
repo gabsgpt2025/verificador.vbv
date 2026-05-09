@@ -1,5 +1,14 @@
 # Changelog
 
+## 2026-05-09
+
+- Fase 2 de visualização premium: nova biblioteca de gráficos em `components/charts/` (Gauge, Radar 6D, Donut, Sparkline, Peer Comparison, Compliance Heatmap e Source Badges).
+- Novo `ConfidenceBadge` reutilizável com níveis Verificado/Calculado/Estimado/Indisponível e salvaguarda para evitar "Verificado" sem `source`.
+- Reorganização da tela de resultado do `Premium3DAnalyzer` em layout de painéis (hero + grid de gráficos + compliance + fatores detalhados).
+- Nova rota de QA visual: `/dev/charts` (somente não-produção) com cenários de fixtures.
+- Testes adicionados para charts, compliance e confidence badge, além de snapshots de layout no smoke test do `Premium3DAnalyzer`.
+- Documentação adicionada: `docs/CHARTS.md` e `docs/CONFIDENCE_SYSTEM.md`.
+
 ## 2026-05-08
 
 ### Breaking changes

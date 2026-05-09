@@ -11,8 +11,6 @@ import {
   MapPinned,
   Shield,
   Target,
-  TrendingDown,
-  TrendingUp,
   Wallet,
   Zap,
 } from 'lucide-react'
@@ -23,16 +21,31 @@ import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import { Progress } from '@/components/ui/progress'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 
-import RiskRadarChart, { type RadarDimension } from '@/components/premium-3-0/RiskRadarChart'
+import {
+  ComplianceHeatmap,
+  DataSourceBadges,
+  FraudSparkline,
+  PeerComparisonBar,
+  RiskGauge,
+  RiskRadar,
+  ScoreComposition,
+  type ComplianceRow,
+  type FraudPoint,
+  type PeerDistributionBin,
+  type RiskRadarDimension,
+  type ScoreCompositionEntry,
+} from '@/components/charts'
 import TransactionContextForm, {
   buildTransactionContextForRequest,
   type TransactionContextFormValue,
 } from '@/components/premium-3-0/TransactionContextForm'
+import type { ConfidenceBadgeInput } from '@/components/ui/ConfidenceBadge'
 import type { MastercardBinResult } from '@/lib/integrations/mastercard'
 import type { HolisticScore } from '@/lib/premium-3-0'
 import type { AnalysisSourceSummary, MultiSourceConsensus } from '@/lib/premium-3-0/holisticTypes'
@@ -165,10 +178,6 @@ function riskSummary(score: number, mode: LanguageModeKey) {
   return 'Precisa de bastante cuidado'
 }
 
-function clampPercentile(value: number) {
-  return Math.min(Math.max(value, 0), 100)
-}
-
 function toRelativeTime(dateString: string) {
   const parsed = new Date(dateString)
   if (Number.isNaN(parsed.getTime())) return 'data inválida'
@@ -279,16 +288,65 @@ export function Premium3DAnalyzer({ initialAnalysis = null, initialHistory = [] 
   }, [cardNumber, contextValues, fetchHistory])
 
   const riskDimensions = useMemo(() => {
-    if (!analysis) return [] as RadarDimension[]
+    if (!analysis) return [] as RiskRadarDimension[]
 
     return [
-      { key: 'binRisk', label: 'BIN', score: analysis.holistic.binRisk.score, dataAvailable: analysis.holistic.binRisk.dataAvailable },
-      { key: 'geographicRisk', label: 'Geográfico', score: analysis.holistic.geographicRisk.score, dataAvailable: analysis.holistic.geographicRisk.dataAvailable },
-      { key: 'behavioralRisk', label: 'Comportamental', score: analysis.holistic.behavioralRisk.score, dataAvailable: analysis.holistic.behavioralRisk.dataAvailable },
-      { key: 'gatewayRisk', label: 'Gateway', score: analysis.holistic.gatewayRisk.score, dataAvailable: analysis.holistic.gatewayRisk.dataAvailable },
-      { key: 'temporalRisk', label: 'Temporal', score: analysis.holistic.temporalRisk.score, dataAvailable: analysis.holistic.temporalRisk.dataAvailable },
-      { key: 'deviceRisk', label: 'Dispositivo', score: analysis.holistic.deviceRisk.score, dataAvailable: analysis.holistic.deviceRisk.dataAvailable },
-    ] satisfies RadarDimension[]
+      {
+        key: 'binRisk',
+        label: 'BIN',
+        score: analysis.holistic.binRisk.score,
+        dataAvailable: analysis.holistic.binRisk.dataAvailable,
+        explanation: analysis.holistic.binRisk.explanation[languageMode === 'TECHNICAL' ? 'technical' : 'popular'],
+      },
+      {
+        key: 'geographicRisk',
+        label: 'Geográfico',
+        score: analysis.holistic.geographicRisk.score,
+        dataAvailable: analysis.holistic.geographicRisk.dataAvailable,
+        explanation: analysis.holistic.geographicRisk.explanation[languageMode === 'TECHNICAL' ? 'technical' : 'popular'],
+      },
+      {
+        key: 'behavioralRisk',
+        label: 'Comportamental',
+        score: analysis.holistic.behavioralRisk.score,
+        dataAvailable: analysis.holistic.behavioralRisk.dataAvailable,
+        explanation: analysis.holistic.behavioralRisk.explanation[languageMode === 'TECHNICAL' ? 'technical' : 'popular'],
+      },
+      {
+        key: 'gatewayRisk',
+        label: 'Esquema',
+        score: analysis.holistic.gatewayRisk.score,
+        dataAvailable: analysis.holistic.gatewayRisk.dataAvailable,
+        explanation: analysis.holistic.gatewayRisk.explanation[languageMode === 'TECHNICAL' ? 'technical' : 'popular'],
+      },
+      {
+        key: 'temporalRisk',
+        label: 'Temporal',
+        score: analysis.holistic.temporalRisk.score,
+        dataAvailable: analysis.holistic.temporalRisk.dataAvailable,
+        explanation: analysis.holistic.temporalRisk.explanation[languageMode === 'TECHNICAL' ? 'technical' : 'popular'],
+      },
+      {
+        key: 'deviceRisk',
+        label: 'Dispositivo',
+        score: analysis.holistic.deviceRisk.score,
+        dataAvailable: analysis.holistic.deviceRisk.dataAvailable,
+        explanation: analysis.holistic.deviceRisk.explanation[languageMode === 'TECHNICAL' ? 'technical' : 'popular'],
+      },
+    ] satisfies RiskRadarDimension[]
+  }, [analysis, languageMode])
+
+  const compositionEntries = useMemo(() => {
+    if (!analysis) return [] as ScoreCompositionEntry[]
+
+    return [
+      { key: 'binRisk', label: 'BIN', weight: analysis.holistic.binRisk.weight },
+      { key: 'geographicRisk', label: 'Geográfico', weight: analysis.holistic.geographicRisk.weight },
+      { key: 'behavioralRisk', label: 'Comportamental', weight: analysis.holistic.behavioralRisk.weight },
+      { key: 'gatewayRisk', label: 'Esquema', weight: analysis.holistic.gatewayRisk.weight },
+      { key: 'temporalRisk', label: 'Temporal', weight: analysis.holistic.temporalRisk.weight },
+      { key: 'deviceRisk', label: 'Dispositivo', weight: analysis.holistic.deviceRisk.weight },
+    ]
   }, [analysis])
 
   const consensus = analysis?.consensus ?? (analysis?.multiSource?.consensus as MultiSourceConsensus | undefined)
@@ -301,6 +359,67 @@ export function Premium3DAnalyzer({ initialAnalysis = null, initialHistory = [] 
   }
 
   const confirmedSources = Object.values(sourceAvailability).filter(Boolean).length
+  const computedAt = analysis ? new Date(analysis.context.timestamp).toISOString() : null
+  const verifiedSource = analysis?.source?.provider
+  const overallConfidence: ConfidenceBadgeInput = {
+    level: verifiedSource ? 'VERIFIED' : 'UNAVAILABLE',
+    source: verifiedSource ?? null,
+  }
+
+  const peerDistribution = useMemo(() => [] as PeerDistributionBin[], [])
+
+  const fraudSeries = useMemo(() => {
+    if (!analysis) return null
+    const sameBinHistory = history.filter((entry) => entry.bin === analysis.bin)
+    if (sameBinHistory.length < 2) return null
+
+    return sameBinHistory
+      .map((entry) => ({
+        date: new Date(entry.created_at).toISOString().slice(0, 10),
+        value: entry.risk_score,
+      }))
+      .sort((a, b) => a.date.localeCompare(b.date))
+      .slice(-90)
+      .map((entry, index, all) => ({ ...entry, isToday: index === all.length - 1 })) as FraudPoint[]
+  }, [analysis, history])
+
+  const complianceRows = useMemo(() => {
+    if (!analysis) return [] as ComplianceRow[]
+    return [
+      { framework: 'PCI-DSS 4.0', status: 'not_applicable', lastCheckedAt: computedAt, source: analysis.compliance.regulatoryRegion },
+      { framework: 'LGPD', status: analysis.compliance.regulatoryRegion === 'BR' ? 'partial' : 'not_applicable', lastCheckedAt: computedAt, source: analysis.compliance.regulatoryRegion },
+      { framework: '3DS 2.2', status: analysis.compliance.threeDSMandateLevel === 'MANDATORY' ? 'partial' : 'not_applicable', lastCheckedAt: computedAt, source: analysis.compliance.regulationNote },
+      { framework: 'EMV 3DS', status: analysis.compliance.threeDSMandateLevel === 'MANDATORY' ? 'partial' : 'not_applicable', lastCheckedAt: computedAt, source: analysis.compliance.regulationNote },
+      { framework: 'PSD2 SCA', status: analysis.compliance.regulatoryRegion === 'EU' ? 'partial' : 'not_applicable', lastCheckedAt: computedAt, source: analysis.compliance.regulationNote },
+      { framework: 'Bacen Resolução X', status: analysis.compliance.regulatoryRegion === 'BR' ? 'partial' : 'not_applicable', lastCheckedAt: computedAt, source: analysis.compliance.regulationNote },
+    ] satisfies ComplianceRow[]
+  }, [analysis, computedAt])
+
+  const dataSources = useMemo(() => {
+    if (!analysis) return []
+    return [
+      {
+        name: 'Neutrino',
+        status: sourceAvailability.neutrino ? ('ok' as const) : ('warning' as const),
+        summary: analysis.sources?.neutrino,
+        responseTimestamp: computedAt,
+        note: sourceAvailability.neutrino ? undefined : 'timeout',
+      },
+      {
+        name: 'Mastercard BIN',
+        status: sourceAvailability.mastercard ? ('ok' as const) : ('warning' as const),
+        summary: analysis.sources?.mastercard,
+        responseTimestamp: computedAt,
+        note: sourceAvailability.mastercard ? undefined : 'timeout',
+      },
+      {
+        name: 'BinList',
+        status: sourceAvailability.binlist ? ('ok' as const) : ('neutral' as const),
+        responseTimestamp: computedAt,
+        note: sourceAvailability.binlist ? undefined : 'não consultado',
+      },
+    ]
+  }, [analysis, computedAt, sourceAvailability.binlist, sourceAvailability.mastercard, sourceAvailability.neutrino])
 
   return (
     <div className="mx-auto w-full max-w-7xl space-y-6 px-4 py-10 text-foreground">
@@ -389,74 +508,47 @@ export function Premium3DAnalyzer({ initialAnalysis = null, initialHistory = [] 
 
       {analysis ? (
         <div className="space-y-6">
-          <div className="grid gap-4 lg:grid-cols-4">
-            <Card className={`border ${getRiskTone(analysis.holistic.riskLevel)}`}>
+          <section className="grid gap-4 lg:grid-cols-3">
+            <div className="lg:col-span-1">
+              <RiskGauge
+                score={analysis.holistic.overallScore}
+                confirmedSources={confirmedSources}
+                totalSources={3}
+                source={verifiedSource}
+                computedAt={computedAt}
+                confidence={overallConfidence}
+              />
+            </div>
+            <Card className="border-border bg-card lg:col-span-2">
               <CardHeader>
-                <CardDescription>Score geral</CardDescription>
-                <CardTitle className="text-2xl font-bold">{analysis.holistic.overallScore}/100</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <Badge variant="outline" className="border-current text-current">{analysis.holistic.riskLevel}</Badge>
-              </CardContent>
-            </Card>
-
-            <Card className="border-border bg-card">
-              <CardHeader>
-                <CardDescription>Frictionless</CardDescription>
-                <CardTitle className="text-2xl font-bold">{analysis.threeDSAnalysis.frictionlessProbability}%</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <Progress value={analysis.threeDSAnalysis.frictionlessProbability} />
-              </CardContent>
-            </Card>
-
-            <Card className="border-border bg-card">
-              <CardHeader>
-                <CardDescription>Challenge 3DS</CardDescription>
-                <CardTitle className="text-2xl font-bold">{analysis.threeDSAnalysis.challengeProbability}%</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <Progress value={analysis.threeDSAnalysis.challengeProbability} />
-              </CardContent>
-            </Card>
-
-            <Card className="border-border bg-card">
-              <CardHeader>
-                <CardDescription>Bypass aplicável</CardDescription>
-                <CardTitle className="text-2xl font-bold">{analysis.threeDSAnalysis.bypassProbability}%</CardTitle>
-              </CardHeader>
-              <CardContent className="flex flex-wrap gap-2">
-                {analysis.threeDSAnalysis.applicableBypassMechanisms.length > 0 ? (
-                  analysis.threeDSAnalysis.applicableBypassMechanisms.map((mechanism) => (
-                    <Badge key={mechanism} variant="outline">{mechanism}</Badge>
-                  ))
-                ) : (
-                  <span className="text-sm text-muted-foreground">Nenhum mecanismo favorável detectado.</span>
-                )}
-              </CardContent>
-            </Card>
-          </div>
-
-          {(analysis.sources || analysis.consensus || analysis.multiSource) ? (
-            <Card className={`border ${getConfidenceTone(consensus?.confidence)}`}>
-              <CardHeader>
-                <CardTitle className="text-lg font-semibold">Multi-Source Consensus</CardTitle>
-                <CardDescription>Dados confirmados por {confirmedSources} de 3 fontes.</CardDescription>
+                <CardTitle className="text-lg font-semibold">Resumo do BIN analisado</CardTitle>
+                <CardDescription>
+                  {analysis.technicalData.issuer ?? 'Emissor não informado'} · {analysis.technicalData.countryName ?? analysis.technicalData.countryCode ?? 'País não informado'} ·{' '}
+                  {analysis.technicalData.brand ?? 'Bandeira não informada'}
+                </CardDescription>
               </CardHeader>
               <CardContent className="space-y-3">
+                <DataSourceBadges sources={dataSources} />
                 <div className="flex flex-wrap items-center gap-2">
-                  <Badge variant="outline" className={sourceAvailability.neutrino ? 'border-primary/40 text-primary' : 'text-muted-foreground'}>
-                    Neutrino {sourceAvailability.neutrino ? '✓' : '—'}
-                  </Badge>
-                  <Badge variant="outline" className={sourceAvailability.mastercard ? 'border-primary/40 text-primary' : 'text-muted-foreground'}>
-                    Mastercard {sourceAvailability.mastercard ? '✓' : '—'}
-                  </Badge>
-                  <Badge variant="outline" className={sourceAvailability.binlist ? 'border-primary/40 text-primary' : 'text-muted-foreground'}>
-                    BinList {sourceAvailability.binlist ? '✓' : '—'}
-                  </Badge>
+                  <Badge variant="outline">Fontes confirmadas: {confirmedSources}/3</Badge>
                   <Badge variant="outline" className={getConfidenceTone(consensus?.confidence)}>
-                    Confiança: {consensus?.confidence ?? 'LOW'}
+                    Confiança geral: {consensus?.confidence ?? 'LOW'}
                   </Badge>
+                  <Dialog>
+                    <DialogTrigger asChild>
+                      <Button variant="outline" size="sm" type="button">
+                        Ver metodologia
+                      </Button>
+                    </DialogTrigger>
+                    <DialogContent>
+                      <DialogHeader>
+                        <DialogTitle>Metodologia (prévia)</DialogTitle>
+                        <DialogDescription>
+                          Esta visualização mostra apenas um resumo. A metodologia completa com fórmula e pesos detalhados será liberada na Fase 3.
+                        </DialogDescription>
+                      </DialogHeader>
+                    </DialogContent>
+                  </Dialog>
                 </div>
 
                 {consensus?.discrepancies && consensus.discrepancies.length > 0 ? (
@@ -468,50 +560,60 @@ export function Premium3DAnalyzer({ initialAnalysis = null, initialHistory = [] 
                 ) : null}
               </CardContent>
             </Card>
-          ) : null}
+          </section>
 
-          {peerComparison ? (
-            <Card className="border-border bg-card">
-              <CardHeader>
-                <CardTitle className="text-lg font-semibold">Comparação com Pares</CardTitle>
-                <CardDescription>{peerComparison.percentile > 50 ? 'Top de risco mais alto na coorte.' : 'Posição favorável na coorte.'}</CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-3">
-                <div className="flex items-center justify-between gap-3">
-                  <p className="text-sm text-muted-foreground">Percentil de risco: {clampPercentile(peerComparison.percentile)}/100 entre BINs comparáveis</p>
-                  {peerComparison.percentile > 50 ? (
-                    <TrendingUp className="h-5 w-5 text-destructive" aria-hidden="true" />
-                  ) : (
-                    <TrendingDown className="h-5 w-5 text-primary" aria-hidden="true" />
-                  )}
-                </div>
-                <Progress value={peerComparison.percentile} />
-                <p className="text-sm text-muted-foreground">{peerComparison.description}</p>
-              </CardContent>
-            </Card>
-          ) : null}
+          <section className="grid gap-4 lg:grid-cols-3">
+            <div className="lg:col-span-2">
+              <RiskRadar
+                dimensions={riskDimensions}
+                medianPeer={peerComparison?.percentile}
+                source={analysis.source.provider}
+                computedAt={computedAt}
+                confidence={overallConfidence}
+              />
+            </div>
+            <div className="lg:col-span-1">
+              <ScoreComposition entries={compositionEntries} rulesetVersion="v3.x.x" confidence={{ level: 'CALCULATED', source: analysis.source.provider }} />
+            </div>
+          </section>
+
+          <section className="grid gap-4 lg:grid-cols-2">
+            <PeerComparisonBar
+              percentile={peerComparison?.percentile ?? null}
+              distribution={peerDistribution}
+              sampleSize={0}
+              confidence={overallConfidence}
+            />
+            <FraudSparkline
+              points={fraudSeries}
+              source={analysis.source.provider}
+              computedAt={computedAt}
+              confidence={{ level: fraudSeries ? 'CALCULATED' : 'UNAVAILABLE', source: fraudSeries ? analysis.source.provider : null }}
+            />
+          </section>
+
+          <section>
+            <ComplianceHeatmap rows={complianceRows} confidence={{ level: 'ESTIMATED', source: analysis.source.provider, margin: '±8' }} />
+          </section>
 
           <Card className="border-border bg-card">
             <CardHeader>
-              <CardTitle className="text-lg font-semibold">Análise Detalhada de Fatores de Risco</CardTitle>
-              <CardDescription>Radar 6D consolidado e fatores explicáveis por dimensão.</CardDescription>
+              <CardTitle className="text-lg font-semibold">Fatores detalhados</CardTitle>
+              <CardDescription>Explanação por dimensão com contexto técnico e modo popular.</CardDescription>
             </CardHeader>
             <CardContent className="space-y-6">
-              <RiskRadarChart dimensions={riskDimensions} overallScore={analysis.holistic.overallScore} />
-
               <Accordion type="multiple" className="w-full">
                 {[
                   { key: 'binRisk', label: 'Risco de BIN', icon: Shield, value: analysis.holistic.binRisk },
                   { key: 'geographicRisk', label: 'Risco Geográfico', icon: MapPinned, value: analysis.holistic.geographicRisk },
                   { key: 'behavioralRisk', label: 'Risco Comportamental', icon: Target, value: analysis.holistic.behavioralRisk },
-                  { key: 'gatewayRisk', label: 'Risco de Gateway', icon: Wallet, value: analysis.holistic.gatewayRisk },
+                  { key: 'gatewayRisk', label: 'Risco de Esquema', icon: Wallet, value: analysis.holistic.gatewayRisk },
                   { key: 'temporalRisk', label: 'Risco Temporal', icon: Clock3, value: analysis.holistic.temporalRisk },
                   { key: 'deviceRisk', label: 'Risco de Dispositivo', icon: Cpu, value: analysis.holistic.deviceRisk },
                 ].map((dimension) => {
                   const Icon = dimension.icon
-                  const dimExplanation = languageMode === 'TECHNICAL'
-                    ? dimension.value.explanation.technical
-                    : dimension.value.explanation.popular
+                  const dimExplanation =
+                    languageMode === 'TECHNICAL' ? dimension.value.explanation.technical : dimension.value.explanation.popular
 
                   return (
                     <AccordionItem key={dimension.key} value={dimension.key}>
@@ -526,9 +628,7 @@ export function Premium3DAnalyzer({ initialAnalysis = null, initialHistory = [] 
                           </div>
                           <div className="text-right">
                             <p className="text-sm font-semibold">{dimension.value.score}/100</p>
-                            <p className="text-xs text-muted-foreground">
-                              {dimension.value.dataAvailable ? 'Dados disponíveis' : 'Dados parciais'}
-                            </p>
+                            <p className="text-xs text-muted-foreground">{dimension.value.dataAvailable ? 'Dados disponíveis' : 'Sem dados (não pontua)'}</p>
                           </div>
                         </div>
                       </AccordionTrigger>
@@ -543,7 +643,11 @@ export function Premium3DAnalyzer({ initialAnalysis = null, initialHistory = [] 
                                   <p className="text-sm font-medium">{factor.label}</p>
                                   <p className="mt-1 text-xs text-muted-foreground">{formatFactorText(factor, languageMode)}</p>
                                 </div>
-                                <span className={`text-sm font-semibold ${factor.impact > 0 ? 'text-destructive' : factor.impact < 0 ? 'text-primary' : 'text-muted-foreground'}`}>
+                                <span
+                                  className={`text-sm font-semibold ${
+                                    factor.impact > 0 ? 'text-destructive' : factor.impact < 0 ? 'text-primary' : 'text-muted-foreground'
+                                  }`}
+                                >
                                   {formatImpact(factor.impact)}
                                 </span>
                               </div>
