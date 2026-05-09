@@ -63,7 +63,7 @@ export function RiskRadarChart({ dimensions, overallScore }: RiskRadarChartProps
           <PolarAngleAxis dataKey="label" tick={{ fill: 'hsl(var(--muted-foreground))', fontSize: 12 }} />
           <PolarRadiusAxis domain={[0, 100]} tick={{ fill: 'hsl(var(--muted-foreground))', fontSize: 11 }} />
           <Tooltip
-            formatter={(value: number) => [`${value}/100`, 'Score']}
+            formatter={(value) => [`${value}/100`, 'Score']}
             contentStyle={{
               borderRadius: 8,
               border: '1px solid hsl(var(--border))',

@@ -6,9 +6,6 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { AlertCircle, CheckCircle2, XCircle, AlertTriangle, Globe, Zap, Shield, TrendingUp, Info, Database, Lock, Eye, EyeOff, Percent, Target } from 'lucide-react';
-import { calculateRisk } from '@/lib/premium-3-0/riskEngine';
-import { analyzeBIN } from '@/lib/premium-3-0/binIntelligence';
-import { analyze3DS, getTimeOfDay, getDayOfWeek } from '@/lib/premium-3-0/threeDSEngine';
 import type { AnalysisRequest, AnalysisResponse, LanguageMode } from '@/lib/premium-3-0/types';
 
 const LANGUAGE_MODES: Record<string, LanguageMode> = {
@@ -77,36 +74,40 @@ export function Premium3DAnalyzer({ userId }: { userId?: string } = {}) {
         transactionAmount: 500,
         transactionCurrency: 'BRL',
         merchantCountry: 'BR',
-        cardholderCountry: 'BR',
         deviceType: 'DESKTOP',
         isNewCard: false,
         isFirstTransaction: false,
       };
 
-      const riskAnalysis = calculateRisk(request);
-      const binAnalysis = analyzeBIN(request.bin);
+      const res = await fetch('/api/bin-analysis-v2', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(request),
+      });
 
-      const threeDSContext = {
-        transactionAmount: request.transactionAmount,
-        transactionCurrency: request.transactionCurrency,
-        merchantCountry: request.merchantCountry,
-        cardholderCountry: request.cardholderCountry,
-        deviceType: request.deviceType as any,
-        isNewCard: request.isNewCard,
-        isFirstTransaction: request.isFirstTransaction,
-        timeOfDay: getTimeOfDay(),
-        dayOfWeek: getDayOfWeek(),
-      };
+      if (!res.ok) {
+        const body = await res.json().catch(() => null);
+        throw new Error(body?.error?.message ?? `Erro ${res.status}`);
+      }
 
-      const threeDSAnalysis = analyze3DS(threeDSContext, binAnalysis.riskScore, binAnalysis.frictionlessLikelihood);
+      const data = await res.json();
 
+      // Mapeia resposta da API para o shape esperado pelo UI
       const response: AnalysisResponse = {
-        requestId: `req_${Date.now()}`,
-        timestamp: new Date().toISOString(),
-        binAnalysis,
-        threeDSAnalysis,
-        riskAnalysis,
+        requestId: data.requestId ?? `req_${Date.now()}`,
+        timestamp: data.timestamp ?? new Date().toISOString(),
+        binAnalysis: data.binAnalysis ?? data,
+        threeDSAnalysis: data.threeDSAnalysis ?? data,
+        riskAnalysis: data.riskAnalysis ?? data,
         languageMode: LANGUAGE_MODES[languageMode],
+        holistic: data.holistic,
+        peerComparison: data.peerComparison,
+        sessionRisk: data.sessionRisk,
+        fraudLabs: data.fraudLabs,
+        mastercardEnhanced: data.mastercardEnhanced,
+        dataProvenance: data.dataProvenance,
+        apiDiagnostics: data.apiDiagnostics,
+        exchangeRatesUsed: data.exchangeRatesUsed,
       };
 
       setAnalysis(response);

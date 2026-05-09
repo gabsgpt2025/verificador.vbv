@@ -53,7 +53,7 @@ export function PeerComparisonBar({
               <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border-subtle))" />
               <XAxis dataKey="bucket" tick={{ fontSize: 10 }} />
               <YAxis tick={{ fontSize: 10 }} />
-              <Tooltip formatter={(value: number) => [`${value}`, 'Quantidade de BINs']} />
+              <Tooltip formatter={(value) => [`${value}`, 'Quantidade de BINs']} />
               <Bar dataKey="count" fill="#2563eb" />
               {typeof percentile === 'number' ? <ReferenceLine x={`${Math.round(percentile)}`} stroke="#ef4444" strokeWidth={2} /> : null}
             </BarChart>

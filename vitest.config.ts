@@ -3,8 +3,8 @@ import { resolve } from "path"
 
 export default defineConfig({
   esbuild: {
-    jsx: "automatic",
-  },
+    jsx: "automatic" as unknown as undefined,
+  } as Record<string, unknown>,
   test: {
     environment: "node",
   },

@@ -69,7 +69,7 @@ export function ScoreComposition({
                   <Cell key={entry.key} fill={COLORS[index % COLORS.length]} />
                 ))}
               </Pie>
-              <Tooltip formatter={(value: number) => [`${value}%`, 'Peso']} />
+              <Tooltip formatter={(value) => [`${value}%`, 'Peso']} />
               <Legend />
             </PieChart>
           </ResponsiveContainer>

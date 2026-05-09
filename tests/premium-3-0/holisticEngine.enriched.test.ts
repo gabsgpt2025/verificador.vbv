@@ -20,6 +20,7 @@ import type { EnrichedAnalysisResult } from "@/lib/premium-3-0/services/enriched
 function makeBin(overrides: Partial<BinApiData> = {}): BinApiData {
   return {
     bin: "411111",
+    binLength: 6,
     brand: "VISA",
     type: "CREDIT",
     category: "CLASSIC",
