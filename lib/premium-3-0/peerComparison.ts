@@ -7,7 +7,7 @@
  * Agora consulta `bin_analysis_logs` no Supabase para calcular percentis reais
  * baseados em análises dos últimos 30 dias do mesmo cohort (country + type + brand).
  *
- * Fallback: quando não há dados suficientes (< 10 análises no cohort),
+ * Fallback: quando não há dados suficientes (< 50 análises no cohort),
  * usa estimativa heurística com disclaimer transparente.
  *
  * @module peerComparison
@@ -31,7 +31,7 @@ export interface PeerComparison {
   dataSource: "SUPABASE_REAL" | "HEURISTIC_ESTIMATE"
 }
 
-const MIN_COHORT_SIZE = 10
+const MIN_COHORT_SIZE = 50
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type SupabaseClient = any

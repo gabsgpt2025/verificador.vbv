@@ -1,6 +1,6 @@
 # VeriFiBIN 3.0 Premium — Relatório Técnico Completo
 
-> **Versão**: 3.0.1 · **Data**: 2026-05-08 · **Status**: Produção
+> **Versão**: 3.0.2 · **Data**: 2026-05-09 · **Status**: Produção
 >
 > _Documento sincronizado com código real (auditoria fase 1)_
 
@@ -106,11 +106,13 @@ lib/
     applyBinOverrides.ts       ← aplica correções manuais da tabela
     saveBinAnalysisLog.ts      ← persiste log no Supabase
     country3dsMaturity.ts      ← tabela de maturidade 3DS por país
-    mlModels.ts
+    peerComparison.ts          ← peer comparison com dados reais do Supabase
     presentation.ts
     glossary.ts
-    currencyConverter.ts
+    currencyConverter.ts       ← delega ao ExchangeRateService SSOT
     useAnalysisMode.ts
+    services/
+      exchangeRateService.ts   ← SSOT de câmbio (Upstash Redis + ExchangeRate-API)
   supabase/
     client.ts                  ← cliente browser
     server.ts                  ← cliente SSR
@@ -143,7 +145,7 @@ docs/
   DISCOVERY_AUDIT.md
 ```
 
-> **Nota**: `lib/bin/` foi **removido** em PRs anteriores. O único motor canônico é `lib/premium-3-0/`. `src/lib/intelligence/` não existe mais neste repositório.
+> **Nota**: `lib/bin/` foi **removido** em PRs anteriores. O único motor canônico é `lib/premium-3-0/`. `mlModels.ts` foi **removido na FASE 1** (dados fabricados substituídos por badge "Análise Heurística v3.0"). `src/lib/intelligence/` não existe mais neste repositório.
 
 ### 2.2 Camadas da Arquitetura
 

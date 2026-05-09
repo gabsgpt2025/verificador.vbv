@@ -6,15 +6,23 @@
  *   - enrichment/gatewayRisk.ts (EUR_EXCHANGE_RATE + BRL_EXCHANGE_RATE, 6+6 moedas)
  *   - currencyConverter.ts (EXCHANGE_RATES, 30 moedas)
  *
- * Fontes de dados:
- *   1. API real: ExchangeRate-API Open Access (https://open.er-api.com/v6/latest/USD)
+ * Fontes de dados (ordem de prioridade):
+ *   1. Cache em memória fresco (evita round-trip Redis)
+ *   2. Upstash Redis (se UPSTASH_REDIS_REST_URL e UPSTASH_REDIS_REST_TOKEN estiverem definidos)
+ *      - Chave: `exchange_rates:usd`, TTL: 3600 segundos
+ *      - Permite compartilhamento de cache entre instâncias serverless/Vercel
+ *   3. API real: ExchangeRate-API Open Access (https://open.er-api.com/v6/latest/USD)
  *      - Gratuita, sem API key, atualização diária
- *   2. Cache em memória com TTL de 1 hora
- *   3. Fallback: últimas taxas válidas obtidas (stale-while-revalidate)
- *   4. Último recurso: taxas estáticas de emergência (snapshot 2026-05-09)
+ *   4. Cache em memória stale (fallback)
+ *   5. Último recurso: taxas estáticas de emergência (snapshot 2026-05-09)
+ *
+ * Se o Redis não estiver configurado ou falhar, o serviço degrada graciosamente
+ * para o comportamento anterior (in-memory cache + fallback estático).
  *
  * @module exchangeRateService
  */
+
+import { Redis } from "@upstash/redis"
 
 // ---------------------------------------------------------------------------
 // Tipos
@@ -42,6 +50,19 @@ interface CacheEntry {
 const API_URL = "https://open.er-api.com/v6/latest/USD"
 const CACHE_TTL_MS = 60 * 60 * 1000 // 1 hora
 const FETCH_TIMEOUT_MS = 8_000 // 8 segundos
+const REDIS_CACHE_KEY = "exchange_rates:usd"
+const REDIS_TTL_SECS = 3600 // 1 hora
+
+// ---------------------------------------------------------------------------
+// Upstash Redis (opcional — degrada graciosamente se não configurado)
+// ---------------------------------------------------------------------------
+
+function getRedisClient(): Redis | null {
+  const url = process.env.UPSTASH_REDIS_REST_URL
+  const token = process.env.UPSTASH_REDIS_REST_TOKEN
+  if (!url || !token) return null
+  return new Redis({ url, token })
+}
 
 // ---------------------------------------------------------------------------
 // Cache em memória (módulo-level singleton)
@@ -122,6 +143,16 @@ async function fetchRatesFromApi(): Promise<CacheEntry> {
     // Atualiza cache em memória
     memoryCache = entry
 
+    // Persiste no Redis (se disponível)
+    try {
+      const redis = getRedisClient()
+      if (redis) {
+        await redis.set(REDIS_CACHE_KEY, JSON.stringify(entry), { ex: REDIS_TTL_SECS })
+      }
+    } catch (redisError) {
+      console.warn("[ExchangeRateService] Falha ao persistir no Redis:", redisError)
+    }
+
     return entry
   } finally {
     clearTimeout(timeout)
@@ -138,10 +169,10 @@ function isCacheFresh(entry: CacheEntry): boolean {
 
 /**
  * Obtém taxas de câmbio atuais com base USD.
- * Prioridade: cache fresco → API → cache stale → fallback estático.
+ * Prioridade: cache fresco em memória → Redis → API → cache stale → fallback estático.
  */
 export async function getExchangeRates(): Promise<ExchangeRates> {
-  // 1. Cache fresco em memória
+  // 1. Cache fresco em memória (evita round-trip Redis)
   if (memoryCache && isCacheFresh(memoryCache)) {
     return {
       base: "USD",
@@ -152,7 +183,31 @@ export async function getExchangeRates(): Promise<ExchangeRates> {
     }
   }
 
-  // 2. Buscar da API
+  // 2. Redis (se configurado)
+  try {
+    const redis = getRedisClient()
+    if (redis) {
+      const raw = await redis.get<string>(REDIS_CACHE_KEY)
+      if (raw) {
+        const parsed: CacheEntry = typeof raw === "string" ? JSON.parse(raw) : raw
+        if (parsed && isCacheFresh(parsed)) {
+          // Popula cache em memória para requests subsequentes
+          memoryCache = parsed
+          return {
+            base: "USD",
+            rates: parsed.rates,
+            source: "CACHE",
+            lastUpdated: parsed.lastUpdated,
+            nextUpdate: parsed.nextUpdate,
+          }
+        }
+      }
+    }
+  } catch (redisError) {
+    console.warn("[ExchangeRateService] Falha ao ler do Redis:", redisError)
+  }
+
+  // 3. Buscar da API
   try {
     const entry = await fetchRatesFromApi()
     return {
@@ -169,7 +224,7 @@ export async function getExchangeRates(): Promise<ExchangeRates> {
     )
   }
 
-  // 3. Cache stale (melhor que nada)
+  // 4. Cache stale (melhor que nada)
   if (memoryCache) {
     console.warn("[ExchangeRateService] Usando cache stale de", memoryCache.lastUpdated)
     return {
@@ -181,7 +236,7 @@ export async function getExchangeRates(): Promise<ExchangeRates> {
     }
   }
 
-  // 4. Fallback estático de emergência
+  // 5. Fallback estático de emergência
   console.warn("[ExchangeRateService] Usando taxas estáticas de fallback (snapshot 2026-05-09)")
   return {
     base: "USD",
@@ -359,9 +414,13 @@ export function getCacheStatus(): {
   isFresh: boolean
   lastFetchedAt: string | null
   cacheAgeSecs: number | null
+  redisAvailable: boolean
 } {
+  const redisAvailable = !!(
+    process.env.UPSTASH_REDIS_REST_URL && process.env.UPSTASH_REDIS_REST_TOKEN
+  )
   if (!memoryCache) {
-    return { hasCachedData: false, isFresh: false, lastFetchedAt: null, cacheAgeSecs: null }
+    return { hasCachedData: false, isFresh: false, lastFetchedAt: null, cacheAgeSecs: null, redisAvailable }
   }
   const ageSecs = Math.round((Date.now() - memoryCache.fetchedAt) / 1000)
   return {
@@ -369,5 +428,6 @@ export function getCacheStatus(): {
     isFresh: isCacheFresh(memoryCache),
     lastFetchedAt: new Date(memoryCache.fetchedAt).toISOString(),
     cacheAgeSecs: ageSecs,
+    redisAvailable,
   }
 }
