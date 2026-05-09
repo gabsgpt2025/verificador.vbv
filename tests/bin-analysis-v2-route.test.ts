@@ -9,8 +9,6 @@ const {
   lookupBinMultiSourceMock,
   applyBinOverridesMock,
   runFullBinAnalysisMock,
-  runHolisticAnalysisMock,
-  computePeerComparisonMock,
   saveBinAnalysisLogMock,
 } = vi.hoisted(() => ({
   createClientMock: vi.fn(),
@@ -18,8 +16,6 @@ const {
   lookupBinMultiSourceMock: vi.fn(),
   applyBinOverridesMock: vi.fn(),
   runFullBinAnalysisMock: vi.fn(),
-  runHolisticAnalysisMock: vi.fn(),
-  computePeerComparisonMock: vi.fn(),
   saveBinAnalysisLogMock: vi.fn(),
 }))
 
@@ -41,15 +37,10 @@ vi.mock("@/lib/premium-3-0/applyBinOverrides", () => ({
 
 vi.mock("@/lib/premium-3-0", () => ({
   runFullBinAnalysis: runFullBinAnalysisMock,
-  runHolisticAnalysis: runHolisticAnalysisMock,
 }))
 
 vi.mock("@/lib/premium-3-0/saveBinAnalysisLog", () => ({
   saveBinAnalysisLog: saveBinAnalysisLogMock,
-}))
-
-vi.mock("@/lib/premium-3-0/peerComparison", () => ({
-  computePeerComparison: computePeerComparisonMock,
 }))
 
 vi.mock("@/lib/premium-3-0/services/exchangeRateService", () => ({
@@ -58,25 +49,6 @@ vi.mock("@/lib/premium-3-0/services/exchangeRateService", () => ({
     rates: { USD: 1, EUR: 0.92, BRL: 5.65, GBP: 0.79 },
     source: "CACHE",
     lastUpdated: "2026-05-09T00:00:00Z",
-  }),
-}))
-
-vi.mock("@/lib/premium-3-0/services/enrichedAnalysisService", () => ({
-  runEnrichedAnalysis: vi.fn().mockResolvedValue({
-    sessionRisk: null,
-    ipProbe: null,
-    fraudLabs: null,
-    mastercardIdentity: null,
-    mastercardFraud: null,
-    dataProvenance: {
-      binData: "MULTI_SOURCE_LOOKUP",
-      sessionRisk: "NOT_AVAILABLE",
-      fraudScoring: "NOT_AVAILABLE",
-      identityCheck: "NOT_AVAILABLE",
-      ipProbe: "NOT_AVAILABLE",
-      overallConfidence: "LOW",
-    },
-    apiDiagnostics: [],
   }),
 }))
 
@@ -121,10 +93,7 @@ describe("/api/bin-analysis-v2 route", () => {
         challengeLikelihood: "LOW",
         protocolLikely: "EMV_3DS_2_2",
         authMethodsLikely: [],
-        explanation: {
-          technical: "ok",
-          popular: "ok",
-        },
+        explanation: { technical: "ok", popular: "ok" },
         inferred: true,
         frictionlessProbability: 88,
         challengeProbability: 12,
@@ -150,11 +119,7 @@ describe("/api/bin-analysis-v2 route", () => {
         regulationNote: "ok",
         complianceRisk: "LOW",
       },
-      finalSummary: {
-        title: "ok",
-        message: "ok",
-        action: "ok",
-      },
+      finalSummary: { title: "ok", message: "ok", action: "ok" },
     }
 
     const mastercardData: MastercardBinResult = {
@@ -187,29 +152,37 @@ describe("/api/bin-analysis-v2 route", () => {
         confidence: "HIGH",
         discrepancies: [],
       },
+      diagnostics: [],
     })
     applyBinOverridesMock.mockResolvedValue({ data: normalizedBinData })
-    runFullBinAnalysisMock.mockReturnValue(fullAnalysis)
-    runHolisticAnalysisMock.mockReturnValue({
-      binRisk: { score: 10, factors: [] },
-      temporalRisk: { score: 10, factors: [] },
-      behavioralRisk: { score: 40, factors: [] },
-      geographicRisk: { score: 5, factors: [] },
-      deviceRisk: { score: 15, factors: [] },
+
+    // runFullBinAnalysis agora retorna FullOrchestrationResult
+    runFullBinAnalysisMock.mockResolvedValue({
+      analysis: fullAnalysis,
+      holistic: {
+        binRisk: { score: 10, factors: [] },
+        temporalRisk: { score: 10, factors: [] },
+        behavioralRisk: { score: 40, factors: [] },
+        geographicRisk: { score: 5, factors: [] },
+        deviceRisk: { score: 15, factors: [] },
         gatewayRisk: { score: 20, factors: [] },
         overallScore: 15,
         riskLevel: "LOW",
         peerComparison: { percentile: 90, description: "Melhor que 90%." },
         recommendation: "APPROVE",
         ensembleConfidence: 100,
-      })
-    computePeerComparisonMock.mockResolvedValue({
-      percentile: 90,
-      peerCount: 42,
-      betterThan: 90,
-      peerGroup: "VISA-BR-CREDIT",
-      dataSource: "HEURISTIC_ESTIMATE",
+        sourcesUsed: [],
+      },
+      enrichedAnalysis: null,
+      peerComparison: {
+        percentile: 90,
+        peerCount: 42,
+        betterThan: 90,
+        peerGroup: "VISA-BR-CREDIT",
+        description: "Melhor que 90%.",
+      },
     })
+
     saveBinAnalysisLogMock.mockResolvedValue(undefined)
     subtractCreditsMock.mockResolvedValue({ success: true, message: "ok", newBalance: 7 })
   })
@@ -226,7 +199,7 @@ describe("/api/bin-analysis-v2 route", () => {
 
     expect(response.status).toBe(200)
     expect(lookupBinMultiSourceMock).toHaveBeenCalledTimes(1)
-    expect(runHolisticAnalysisMock).toHaveBeenCalledTimes(1)
+    expect(runFullBinAnalysisMock).toHaveBeenCalledTimes(1)
     expect(subtractCreditsMock).toHaveBeenCalledTimes(1)
     expect(payload.holistic.overallScore).toBe(15)
     expect(payload.context.userAgentPresent).toBe(false)

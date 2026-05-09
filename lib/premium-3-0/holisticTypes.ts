@@ -259,6 +259,231 @@ export interface AnalysisResponse {
     identityInsights: MastercardIdentityInsightsResponse
   }
   languageMode: LanguageMode
+
+  // ── FASE 2: Campos de enriquecimento via APIs externas ──
+
+  /**
+   * Risco da sessão derivado de Neutrino (ip-info, ip-blocklist, ua-lookup, host-reputation).
+   * `null` quando nenhum dado de IP/UA foi fornecido na requisição.
+   */
+  sessionRisk?: SessionRiskSummary | null
+
+  /**
+   * Resultado do FraudLabs Pro.
+   * `null` quando a API está desabilitada ou falhou.
+   */
+  fraudLabs?: FraudLabsSummary | null
+
+  /**
+   * Dados dos serviços Mastercard Enhanced (Identity Insights + Fraud Scoring).
+   * Ambos os campos podem ser `null` individualmente se a respectiva chamada falhar.
+   */
+  mastercardEnhanced?: MastercardEnhancedSummary
+
+  /**
+   * Proveniência de cada fonte de dado utilizada na análise enriquecida.
+   * Indica qual API forneceu cada categoria de dado e a confiança geral.
+   */
+  dataProvenance?: DataProvenanceSummary
+
+  /**
+   * Diagnósticos de cada API externa chamada (latência, status, erros).
+   * Útil para debug e monitoramento de integrações.
+   */
+  apiDiagnostics?: ApiDiagnosticEntry[]
+
+  /**
+   * Análise holística multidimensional (6 ou 7 dimensões quando há dados de APIs externas).
+   * Inclui scores individuais por dimensão, score geral, recomendação e confiança do ensemble.
+   */
+  holistic?: HolisticScoreSummary
+
+  /**
+   * Comparação com pares (percentil do BIN em relação a BINs similares).
+   */
+  peerComparison?: PeerComparisonSummary
+
+  /**
+   * Informações sobre taxas de câmbio utilizadas na análise.
+   */
+  exchangeRatesUsed?: { source: string; lastUpdated: string } | null
+}
+
+// ============================================================================
+// TIPOS DE SUPORTE PARA AnalysisResponse (FASE 2)
+// ============================================================================
+
+/** Resumo do risco de sessão retornado na resposta da API. */
+export interface SessionRiskSummary {
+  /** Score de risco da sessão (0–100). */
+  score: number
+  /** Nível de risco. */
+  level: RiskLevel
+  /** Ação recomendada para a sessão. */
+  recommendation: SessionRiskRecommendation
+  /** Flags de rede (TOR, VPN, proxy, etc.). */
+  network: NetworkFlags
+  /** Informações de dispositivo (browser, OS, tipo). */
+  device: DeviceInfo
+  /** IP parcialmente mascarado para exibição segura. */
+  ipMasked: string
+  /** Geolocalização do IP. */
+  geo: {
+    country: string | null
+    city: string | null
+    isp: string | null
+    asn: string | null
+    hostname: string | null
+  }
+  /** Fatores que contribuíram para o score. */
+  factors: Array<{ label: string; impact: number; reason: string }>
+  /** Fontes de dados usadas. */
+  sourcesUsed: string[]
+}
+
+/** Resumo do FraudLabs Pro retornado na resposta da API. */
+export interface FraudLabsSummary {
+  /** Score de fraude (0–100). */
+  fraudScore: number
+  /** Status da decisão. */
+  status: "APPROVE" | "REJECT" | "REVIEW"
+  /** Se o IP é proxy. */
+  isProxy: boolean
+  /** Se o país do IP corresponde ao BIN. */
+  isCountryMatch: boolean
+  /** Se o IP está em blacklist. */
+  isIpBlacklisted: boolean
+  /** Se é país de alto risco. */
+  isHighRiskCountry: boolean
+  /** Se o BIN é pré-pago. */
+  isBinPrepaid: boolean
+  /** País do BIN detectado. */
+  binCountry: string | null
+  /** Emissor do BIN. */
+  binIssuer: string | null
+}
+
+/** Resumo dos serviços Mastercard Enhanced retornados na resposta da API. */
+export interface MastercardEnhancedSummary {
+  /** Resultado do Identity Insights. */
+  identity: MastercardIdentityInsightsSummary | null
+  /** Resultado do Fraud Scoring. */
+  fraudScore: MastercardFraudScoreSummary | null
+}
+
+/** Dados do Mastercard Identity Insights. */
+export interface MastercardIdentityInsightsSummary {
+  /** Score de confiança da identidade (0–100). */
+  identityScore: number
+  /** Indicadores de risco encontrados. */
+  riskIndicators: string[]
+  /** Recomendação. */
+  recommendation: "APPROVE" | "REVIEW" | "DECLINE"
+  /** Fonte. */
+  source: string
+  /** Timestamp. */
+  queriedAt: string
+}
+
+/** Dados do Mastercard Fraud Scoring. */
+export interface MastercardFraudScoreSummary {
+  /** Score de fraude (0–999, menor = menos risco). */
+  fraudScore: number
+  /** Score normalizado para 0–100. */
+  fraudScoreNormalized: number
+  /** Códigos de razão do score. */
+  reasonCodes: string[]
+  /** Nível de risco. */
+  riskLevel: "LOW" | "MEDIUM" | "HIGH"
+  /** Fonte. */
+  source: string
+  /** Timestamp. */
+  queriedAt: string
+}
+
+/** Proveniência de dados do enriquecimento. */
+export interface DataProvenanceSummary {
+  /** Fonte dos dados do BIN. */
+  binData: string
+  /** Fonte dos dados de risco de sessão. */
+  sessionRisk: string
+  /** Fonte dos dados de fraude. */
+  fraudScoring: string
+  /** Fonte dos dados de identidade. */
+  identityCheck: string
+  /** Fonte dos dados de IP avançado. */
+  ipProbe: string
+  /** Confiança geral nos dados. */
+  overallConfidence: "HIGH" | "MEDIUM" | "LOW"
+}
+
+/** Diagnóstico de uma chamada a API externa. */
+export interface ApiDiagnosticEntry {
+  /** Nome da API. */
+  api: string
+  /** Status da chamada. */
+  status: "success" | "error" | "disabled" | "skipped"
+  /** Latência em milissegundos. */
+  latencyMs: number
+  /** Mensagem descritiva. */
+  message: string
+}
+
+/** Resumo do score holístico retornado na resposta da API. */
+export interface HolisticScoreSummary {
+  /** Score geral (0–100). */
+  overallScore: number
+  /** Nível de risco. */
+  riskLevel: "LOW" | "MEDIUM" | "HIGH" | "CRITICAL"
+  /** Recomendação. */
+  recommendation: "APPROVE" | "REVIEW" | "REQUIRE_3DS" | "BLOCK_PREVENTIVELY" | "INSUFFICIENT_DATA"
+  /** Confiança do ensemble (0–100). */
+  ensembleConfidence: number
+  /** Fontes de dados usadas. */
+  sourcesUsed: string[]
+  /** Comparação com pares (inline no holístico). */
+  peerComparison: { percentile: number; description: string }
+  /** Dimensões individuais. */
+  binRisk: HolisticDimensionSummary
+  temporalRisk: HolisticDimensionSummary
+  behavioralRisk: HolisticDimensionSummary
+  geographicRisk: HolisticDimensionSummary
+  deviceRisk: HolisticDimensionSummary
+  gatewayRisk: HolisticDimensionSummary
+  /** 7ª dimensão: risco de APIs externas (presente apenas quando há dados). */
+  externalApiRisk?: HolisticDimensionSummary
+}
+
+/** Dimensão individual do score holístico. */
+export interface HolisticDimensionSummary {
+  /** Score da dimensão (0–100). */
+  score: number
+  /** Peso da dimensão no score geral. */
+  weight: number
+  /** Fatores que contribuíram. */
+  factors: Array<{ label: string; impact: number; reason: string }>
+  /** Explicação técnica e popular. */
+  explanation: { technical: string; popular: string }
+  /** Se havia dados disponíveis para esta dimensão. */
+  dataAvailable: boolean
+}
+
+/** Comparação com pares (peer comparison). */
+export interface PeerComparisonSummary {
+  /** Percentil do BIN (1–99). */
+  percentile: number
+  /** Descrição textual do posicionamento. */
+  description: string
+  /** Número de BINs na amostra. */
+  similarCount?: number
+  /** Chave da coorte usada. */
+  cohortKey?: string
+  /** Quantidade de pares. */
+  peerCount?: number
+  /** Porcentagem de pares com score pior. */
+  betterThan?: number
+  /** Grupo de pares. */
+  peerGroup?: string
 }
 
 // ============================================================================
