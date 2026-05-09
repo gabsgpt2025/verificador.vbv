@@ -7,6 +7,7 @@ import { enrichTemporal } from "./enrichment/temporalEnrichment"
 import { enrichDevice } from "./enrichment/deviceEnrichment"
 import { enrichGateway } from "./enrichment/gatewayRisk"
 import type { BinApiData, BinRiskFactor, RiskContext } from "./types"
+import type { EnrichedAnalysisResult } from "./services/enrichedAnalysisService"
 
 export interface TransactionContext {
   amount?: number
@@ -37,6 +38,8 @@ export interface HolisticScore {
   geographicRisk: HolisticDimensionScore
   deviceRisk: HolisticDimensionScore
   gatewayRisk: HolisticDimensionScore
+  /** Dimensão adicional: risco da sessão/rede (quando dados de IP/UA disponíveis via APIs) */
+  externalApiRisk?: HolisticDimensionScore
   overallScore: number
   riskLevel: "LOW" | "MEDIUM" | "HIGH" | "CRITICAL"
   recommendation: "APPROVE" | "REVIEW" | "REQUIRE_3DS" | "BLOCK_PREVENTIVELY" | "INSUFFICIENT_DATA"
@@ -115,6 +118,200 @@ function buildBehavioralRisk(context: Partial<TransactionContext>): Omit<Holisti
         reason: "Quando a transação não é a primeira, o risco comportamental base cai para patamar moderado.",
       },
     ],
+  }
+}
+
+// ============================================================================
+// External API Risk Dimension (FASE 2)
+// ============================================================================
+
+/**
+ * Constrói a dimensão de risco baseada em dados de APIs externas (Neutrino session,
+ * FraudLabs Pro, Mastercard Identity/Fraud). Essa dimensão é optional — só é
+ * incluída quando há dados de enriquecimento disponíveis.
+ */
+function buildExternalApiRisk(
+  enriched: EnrichedAnalysisResult | undefined,
+): HolisticDimensionScore | null {
+  if (!enriched) return null
+
+  const factors: BinRiskFactor[] = []
+  let score = 20 // base score neutral
+  let hasData = false
+
+  // ── Session Risk (Neutrino) ──
+  if (enriched.sessionRisk) {
+    hasData = true
+    const sr = enriched.sessionRisk
+
+    // Incorpora o score da sessão (ponderado)
+    const sessionWeight = 0.4
+    score += Math.round((sr.riskScore - 20) * sessionWeight)
+
+    if (sr.network.isTor) {
+      factors.push({
+        label: "Rede TOR detectada (Neutrino)",
+        impact: 25,
+        reason: "IP identificado como nó TOR via Neutrino ip-info/blocklist.",
+      })
+    }
+    if (sr.network.isVpn) {
+      factors.push({
+        label: "VPN detectada (Neutrino)",
+        impact: 15,
+        reason: "IP identificado como VPN via Neutrino ip-info.",
+      })
+    }
+    if (sr.network.isProxy) {
+      factors.push({
+        label: "Proxy público detectado (Neutrino)",
+        impact: 12,
+        reason: "IP classificado como proxy público.",
+      })
+    }
+    if (sr.device.isBot) {
+      factors.push({
+        label: "Bot detectado via UA-Lookup (Neutrino)",
+        impact: 20,
+        reason: "User-Agent classificado como bot/automação pelo Neutrino ua-lookup.",
+      })
+    }
+    if (sr.hostReputation?.listed) {
+      factors.push({
+        label: "Hostname com reputação negativa (Neutrino)",
+        impact: 10,
+        reason: "O hostname do IP consta em listas de reputação negativa.",
+      })
+    }
+  }
+
+  // ── IP Probe (Neutrino advanced) ──
+  if (enriched.ipProbe) {
+    hasData = true
+    const probe = enriched.ipProbe
+    if (probe.is_vpn && !enriched.sessionRisk?.network.isVpn) {
+      score += 10
+      factors.push({
+        label: "VPN confirmada por IP Probe (Neutrino)",
+        impact: 10,
+        reason: "Detecção avançada de VPN via Neutrino ip-probe.",
+      })
+    }
+    if (probe.is_hosting) {
+      score += 8
+      factors.push({
+        label: "IP de hosting/datacenter (Neutrino ip-probe)",
+        impact: 8,
+        reason: "IP associado a servidor de hosting — não é IP residencial.",
+      })
+    }
+  }
+
+  // ── FraudLabs Pro ──
+  if (enriched.fraudLabs) {
+    hasData = true
+    const fl = enriched.fraudLabs
+    const fraudWeight = 0.35
+    score += Math.round((fl.fraudScore - 20) * fraudWeight)
+
+    if (fl.fraudScore >= 70) {
+      factors.push({
+        label: `FraudLabs Pro: alto risco (score ${fl.fraudScore})`,
+        impact: 20,
+        reason: "FraudLabs Pro classificou esta transação com score de fraude elevado.",
+      })
+    } else if (fl.fraudScore >= 40) {
+      factors.push({
+        label: `FraudLabs Pro: risco moderado (score ${fl.fraudScore})`,
+        impact: 10,
+        reason: "FraudLabs Pro detectou indicadores moderados de fraude.",
+      })
+    } else {
+      factors.push({
+        label: `FraudLabs Pro: baixo risco (score ${fl.fraudScore})`,
+        impact: -5,
+        reason: "FraudLabs Pro não encontrou indicadores significativos de fraude.",
+      })
+    }
+
+    if (fl.isIpBlacklisted) {
+      score += 15
+      factors.push({
+        label: "IP em blacklist (FraudLabs Pro)",
+        impact: 15,
+        reason: "O IP está na blacklist do FraudLabs Pro.",
+      })
+    }
+    if (!fl.isCountryMatch && fl.ipCountry && fl.binCountry) {
+      score += 10
+      factors.push({
+        label: "País do IP ≠ País do BIN (FraudLabs Pro)",
+        impact: 10,
+        reason: `País do IP (${fl.ipCountry}) difere do país do BIN (${fl.binCountry}).`,
+      })
+    }
+    if (fl.isProxy) {
+      score += 5
+      factors.push({
+        label: "Proxy detectado (FraudLabs Pro)",
+        impact: 5,
+        reason: "FraudLabs Pro identificou uso de proxy.",
+      })
+    }
+  }
+
+  // ── Mastercard Fraud Score ──
+  if (enriched.mastercardFraud) {
+    hasData = true
+    const mf = enriched.mastercardFraud
+    const mcWeight = 0.25
+    score += Math.round((mf.fraudScoreNormalized - 20) * mcWeight)
+
+    factors.push({
+      label: `Mastercard Fraud Score: ${mf.riskLevel} (${mf.fraudScoreNormalized}/100)`,
+      impact: mf.fraudScoreNormalized > 50 ? 15 : mf.fraudScoreNormalized > 30 ? 5 : -5,
+      reason: `Mastercard classificou com fraud score ${mf.fraudScore}/999 (normalizado: ${mf.fraudScoreNormalized}/100).`,
+    })
+  }
+
+  // ── Mastercard Identity ──
+  if (enriched.mastercardIdentity) {
+    hasData = true
+    const mi = enriched.mastercardIdentity
+    if (mi.recommendation === "DECLINE") {
+      score += 15
+      factors.push({
+        label: "Mastercard Identity: DECLINE",
+        impact: 15,
+        reason: "Mastercard Identity Insights recomendou declínio desta transação.",
+      })
+    } else if (mi.recommendation === "REVIEW") {
+      score += 5
+      factors.push({
+        label: "Mastercard Identity: REVIEW",
+        impact: 5,
+        reason: "Mastercard Identity Insights recomendou revisão manual.",
+      })
+    } else {
+      factors.push({
+        label: "Mastercard Identity: APPROVE",
+        impact: -5,
+        reason: "Mastercard Identity Insights aprovou esta transação.",
+      })
+    }
+  }
+
+  if (!hasData) return null
+
+  return {
+    score: clamp(score, 0, 100),
+    weight: 0, // Weight is managed by the caller
+    factors,
+    explanation: {
+      technical: "Score composto a partir de APIs externas: Neutrino (session/ip-probe), FraudLabs Pro, Mastercard (identity/fraud).",
+      popular: "Análise combinada de múltiplas APIs de detecção de fraude e verificação de identidade.",
+    },
+    dataAvailable: hasData,
   }
 }
 
@@ -219,7 +416,19 @@ export function calculateHolisticRisk(context: RiskContext) {
   }
 }
 
-export function runHolisticAnalysis(binData: BinApiData, context: Partial<TransactionContext>): HolisticScore {
+/**
+ * Executa a análise holística do BIN, combinando 6 dimensões base + dimensão
+ * opcional de APIs externas (FASE 2).
+ *
+ * @param binData Dados do BIN normalizados
+ * @param context Contexto da transação
+ * @param enriched (Opcional) Resultado do enriquecimento via APIs externas (FASE 2)
+ */
+export function runHolisticAnalysis(
+  binData: BinApiData,
+  context: Partial<TransactionContext>,
+  enriched?: EnrichedAnalysisResult,
+): HolisticScore {
   const normalizedContext: Partial<TransactionContext> = {
     ...context,
     timestamp: typeof context?.timestamp === "number" ? context.timestamp : 0,
@@ -248,6 +457,19 @@ export function runHolisticAnalysis(binData: BinApiData, context: Partial<Transa
   const gatewayDataAvailable = gatewayRiskRaw.dataAvailable
   const sourcesUsed = [...geographicRisk.sourcesUsed, ...deviceRiskRaw.sourcesUsed, ...gatewayRiskRaw.sourcesUsed]
 
+  // ── FASE 2: External API Risk Dimension ──
+  const externalApiRiskDim = buildExternalApiRisk(enriched)
+  const externalApiDataAvailable = Boolean(externalApiRiskDim?.dataAvailable)
+
+  // Adiciona fontes das APIs externas
+  if (enriched?.apiDiagnostics) {
+    for (const diag of enriched.apiDiagnostics) {
+      if (diag.status === "success") {
+        sourcesUsed.push(diag.api)
+      }
+    }
+  }
+
   const dimensionsWithData = [
     binDataAvailable,
     temporalDataAvailable,
@@ -255,18 +477,46 @@ export function runHolisticAnalysis(binData: BinApiData, context: Partial<Transa
     geoDataAvailable,
     deviceDataAvailable,
     gatewayDataAvailable,
+    externalApiDataAvailable,
   ].filter(Boolean).length
 
-  const ensembleConfidence = Math.round((dimensionsWithData / 6) * 100)
+  // Total dimensions adjusts if external API data is available (7 vs 6)
+  const totalDimensions = externalApiDataAvailable ? 7 : 6
+  const ensembleConfidence = Math.round((dimensionsWithData / totalDimensions) * 100)
 
-  const overallScore = normalizeScore(
-    binRisk.score * WEIGHTS.binRisk +
-      geographicRisk.score * WEIGHTS.geographicRisk +
-      behavioralRisk.score * WEIGHTS.behavioralRisk +
-      temporalRiskRaw.score * WEIGHTS.temporalRisk +
-      deviceRiskRaw.score * WEIGHTS.deviceRisk +
-      gatewayRiskRaw.score * WEIGHTS.gatewayRisk,
-  )
+  // Pesos dinâmicos: quando dados de API externa estão disponíveis,
+  // redistribui os pesos para incluir a nova dimensão (15% para external API).
+  let overallScore: number
+  if (externalApiRiskDim && externalApiDataAvailable) {
+    // Redistribui: reduz levemente geo e behavioral para dar espaço à external API
+    const adjustedWeights = {
+      binRisk: 0.25,
+      geographicRisk: 0.15,
+      behavioralRisk: 0.12,
+      temporalRisk: 0.08,
+      deviceRisk: 0.12,
+      gatewayRisk: 0.08,
+      externalApi: 0.20,
+    }
+    overallScore = normalizeScore(
+      binRisk.score * adjustedWeights.binRisk +
+        geographicRisk.score * adjustedWeights.geographicRisk +
+        behavioralRisk.score * adjustedWeights.behavioralRisk +
+        temporalRiskRaw.score * adjustedWeights.temporalRisk +
+        deviceRiskRaw.score * adjustedWeights.deviceRisk +
+        gatewayRiskRaw.score * adjustedWeights.gatewayRisk +
+        externalApiRiskDim.score * adjustedWeights.externalApi,
+    )
+  } else {
+    overallScore = normalizeScore(
+      binRisk.score * WEIGHTS.binRisk +
+        geographicRisk.score * WEIGHTS.geographicRisk +
+        behavioralRisk.score * WEIGHTS.behavioralRisk +
+        temporalRiskRaw.score * WEIGHTS.temporalRisk +
+        deviceRiskRaw.score * WEIGHTS.deviceRisk +
+        gatewayRiskRaw.score * WEIGHTS.gatewayRisk,
+    )
+  }
 
   const riskLevel = getOverallRiskLevel(overallScore)
   const recommendation = getRecommendation(riskLevel, ensembleConfidence)
@@ -334,6 +584,13 @@ export function runHolisticAnalysis(binData: BinApiData, context: Partial<Transa
       },
       dataAvailable: gatewayDataAvailable,
     },
+    // ── FASE 2: External API Risk (opcional) ──
+    ...(externalApiRiskDim ? {
+      externalApiRisk: {
+        ...externalApiRiskDim,
+        weight: externalApiDataAvailable ? 0.20 : 0,
+      },
+    } : {}),
     overallScore,
     riskLevel,
     recommendation,

@@ -8,6 +8,7 @@ import { saveBinAnalysisLog } from "@/lib/premium-3-0/saveBinAnalysisLog"
 import { computePeerComparison } from "@/lib/premium-3-0/peerComparison"
 import { lookupBinMultiSource } from "@/lib/premium-3-0/multiSourceLookup"
 import { getExchangeRates } from "@/lib/premium-3-0/services/exchangeRateService"
+import { runEnrichedAnalysis } from "@/lib/premium-3-0/services/enrichedAnalysisService"
 import type { BinApiData, FullBinAnalysis } from "@/lib/premium-3-0/types"
 import type { AnalysisRequest, AnalysisSourceSummary, MultiSourceConsensus, SourceDiagnostic, ValidationResult } from "@/lib/premium-3-0/holisticTypes"
 import type { MastercardBinResult } from "@/lib/integrations/mastercard"
@@ -272,9 +273,30 @@ export async function POST(request: NextRequest) {
       ? (await applyBinOverrides(supabase, binData)).data
       : binData
 
+    // ── FASE 2: Enriquecimento via APIs externas (paralelo ao fluxo principal) ──
+    // Executa Neutrino (ip-info, ip-blocklist, ip-probe, ua-lookup, host-reputation),
+    // FraudLabs Pro, e Mastercard (Identity, Fraud Score) em paralelo.
+    // Todas as chamadas são fail-safe — falha em qualquer uma não bloqueia a análise.
+    const enrichedAnalysis = await runEnrichedAnalysis({
+      bin: cleanBin,
+      ip: resolvedContext.ipAddress,
+      userAgent: resolvedContext.userAgent,
+      amount: resolvedContext.amount,
+      currency: resolvedContext.currency,
+      merchantCountry: resolvedContext.merchantCountry,
+      countryCode: binDataWithOverrides.countryCode ?? undefined,
+    }).catch((error) => {
+      console.warn("[bin-analysis-v2] Enriched analysis failed (non-blocking)", {
+        requestId,
+        error: error instanceof Error ? error.message : String(error),
+      })
+      return null
+    })
+
     // Executa análise completa
     const analysis: FullBinAnalysis = runFullBinAnalysis(binDataWithOverrides, resolvedContext)
-    const holistic = runHolisticAnalysis(binDataWithOverrides, resolvedContext)
+    // Passa enrichedAnalysis para o motor holístico (FASE 2)
+    const holistic = runHolisticAnalysis(binDataWithOverrides, resolvedContext, enrichedAnalysis ?? undefined)
     const peerComparison = await computePeerComparison(
       binDataWithOverrides,
       supabase,
@@ -319,6 +341,37 @@ export async function POST(request: NextRequest) {
       exchangeRatesUsed: exchangeRateInfo
         ? { source: exchangeRateInfo.source, lastUpdated: exchangeRateInfo.lastUpdated }
         : null,
+      // ── FASE 2: Dados de enriquecimento de APIs externas ──
+      ...(enrichedAnalysis ? {
+        sessionRisk: enrichedAnalysis.sessionRisk ? {
+          score: enrichedAnalysis.sessionRisk.riskScore,
+          level: enrichedAnalysis.sessionRisk.riskLevel,
+          recommendation: enrichedAnalysis.sessionRisk.recommendation,
+          network: enrichedAnalysis.sessionRisk.network,
+          device: enrichedAnalysis.sessionRisk.device,
+          ipMasked: enrichedAnalysis.sessionRisk.ipMasked,
+          geo: enrichedAnalysis.sessionRisk.geo,
+          factors: enrichedAnalysis.sessionRisk.factors,
+          sourcesUsed: enrichedAnalysis.sessionRisk.sourcesUsed,
+        } : null,
+        fraudLabs: enrichedAnalysis.fraudLabs ? {
+          fraudScore: enrichedAnalysis.fraudLabs.fraudScore,
+          status: enrichedAnalysis.fraudLabs.status,
+          isProxy: enrichedAnalysis.fraudLabs.isProxy,
+          isCountryMatch: enrichedAnalysis.fraudLabs.isCountryMatch,
+          isIpBlacklisted: enrichedAnalysis.fraudLabs.isIpBlacklisted,
+          isHighRiskCountry: enrichedAnalysis.fraudLabs.isHighRiskCountry,
+          isBinPrepaid: enrichedAnalysis.fraudLabs.isBinPrepaid,
+          binCountry: enrichedAnalysis.fraudLabs.binCountry,
+          binIssuer: enrichedAnalysis.fraudLabs.binIssuer,
+        } : null,
+        mastercardEnhanced: {
+          identity: enrichedAnalysis.mastercardIdentity ?? null,
+          fraudScore: enrichedAnalysis.mastercardFraud ?? null,
+        },
+        dataProvenance: enrichedAnalysis.dataProvenance,
+        apiDiagnostics: enrichedAnalysis.apiDiagnostics,
+      } : {}),
     })
   } catch (error) {
     console.error("[bin-analysis-v2] Unexpected error", {

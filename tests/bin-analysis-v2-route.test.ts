@@ -61,6 +61,25 @@ vi.mock("@/lib/premium-3-0/services/exchangeRateService", () => ({
   }),
 }))
 
+vi.mock("@/lib/premium-3-0/services/enrichedAnalysisService", () => ({
+  runEnrichedAnalysis: vi.fn().mockResolvedValue({
+    sessionRisk: null,
+    ipProbe: null,
+    fraudLabs: null,
+    mastercardIdentity: null,
+    mastercardFraud: null,
+    dataProvenance: {
+      binData: "MULTI_SOURCE_LOOKUP",
+      sessionRisk: "NOT_AVAILABLE",
+      fraudScoring: "NOT_AVAILABLE",
+      identityCheck: "NOT_AVAILABLE",
+      ipProbe: "NOT_AVAILABLE",
+      overallConfidence: "LOW",
+    },
+    apiDiagnostics: [],
+  }),
+}))
+
 import { POST } from "@/app/api/bin-analysis-v2/route"
 
 describe("/api/bin-analysis-v2 route", () => {
