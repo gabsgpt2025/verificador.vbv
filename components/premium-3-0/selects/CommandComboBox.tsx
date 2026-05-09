@@ -1,6 +1,6 @@
 'use client'
 
-import { useMemo, useRef, useState } from 'react'
+import { useMemo, useState } from 'react'
 import { Check, ChevronsUpDown } from 'lucide-react'
 
 import { Button } from '@/components/ui/button'
@@ -51,7 +51,6 @@ export function CommandComboBox({
 
   const selected = options.find((option) => option.value === value)
   const filtered = useMemo(() => filterOptions(options, query), [options, query])
-  const parentRef = useRef<HTMLDivElement | null>(null)
 
   return (
     <Popover open={open} onOpenChange={setOpen}>
@@ -66,7 +65,7 @@ export function CommandComboBox({
           <CommandInput placeholder={searchPlaceholder} value={query} onValueChange={setQuery} />
           <CommandList>
             <CommandEmpty>{emptyLabel}</CommandEmpty>
-            <div ref={parentRef} className="max-h-72 overflow-auto" aria-label={sourceLabel}>
+            <div className="max-h-72 overflow-auto" aria-label={sourceLabel}>
               {filtered.map((option) => (
                 <CommandItem
                   key={option.value}

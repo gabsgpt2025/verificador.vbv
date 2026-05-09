@@ -98,11 +98,14 @@ function analyzeBIN(bin: string): BINAnalysisResult {
     bypassMechanism: 'UNKNOWN',
     frictionlessLikelihood: 'MEDIUM',
     alerts: [],
-    recommendations: [] as string[],
+    recommendations: [],
   };
 }
 
-// Compatibilidade temporária: assinatura preservada para o componente legado.
+/**
+ * Compatibilidade temporária: preserva chamada legada
+ * analyze3DS(context, riskScore, frictionlessLikelihood).
+ */
 function analyze3DS(..._unusedArgs: unknown[]): ThreeDSAnalysis {
   return {
     frictionlessLikelihood: 'MEDIUM',
@@ -145,12 +148,11 @@ function calculateRisk(request: AnalysisRequest): RiskEngineResult {
 }
 
 type Premium3DAnalyzerProps = {
-  userId?: string;
   initialAnalysis?: AnalysisResponse | null;
   initialHistory?: unknown[];
 };
 
-export function Premium3DAnalyzer({ userId: _userId, initialAnalysis }: Premium3DAnalyzerProps = {}) {
+export function Premium3DAnalyzer({ initialAnalysis }: Premium3DAnalyzerProps = {}) {
   const [languageMode, setLanguageMode] = useState<'TECHNICAL' | 'POPULAR'>('TECHNICAL');
   const [cardNumber, setCardNumber] = useState('');
   const [analysis, setAnalysis] = useState<AnalysisResponse | null>(initialAnalysis ?? null);
