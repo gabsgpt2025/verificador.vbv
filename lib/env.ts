@@ -1,18 +1,5 @@
 import { z } from "zod"
 
-const envBoolean = z.preprocess((value) => {
-  if (typeof value === "string") {
-    const normalized = value.trim().toLowerCase()
-    if (["true", "1", "yes", "on"].includes(normalized)) {
-      return true
-    }
-    if (["false", "0", "no", "off", ""].includes(normalized)) {
-      return false
-    }
-  }
-  return value
-}, z.boolean())
-
 const envSchema = z
   .object({
     NODE_ENV: z.enum(["development", "test", "production"]).optional(),
@@ -26,33 +13,52 @@ const envSchema = z
 
     NEUTRINO_API_KEY: z.string().min(1).optional(),
     NEUTRINO_USER_ID: z.string().min(1).optional(),
-    NEUTRINO_IP_INFO_ENABLED: envBoolean.default(false),
-    NEUTRINO_IP_BLOCKLIST_ENABLED: envBoolean.default(false),
-    NEUTRINO_IP_PROBE_ENABLED: envBoolean.default(false),
-    NEUTRINO_UA_LOOKUP_ENABLED: envBoolean.default(false),
-    NEUTRINO_HOST_REPUTATION_ENABLED: envBoolean.default(false),
-    NEUTRINO_EMAIL_VALIDATE_ENABLED: envBoolean.default(false),
-    NEUTRINO_PHONE_VALIDATE_ENABLED: envBoolean.default(false),
-    NEUTRINO_BAD_WORD_FILTER_ENABLED: envBoolean.default(false),
-    NEUTRINO_BROWSER_BOT_ENABLED: envBoolean.default(false),
-    NEUTRINO_HTML_CLEAN_ENABLED: envBoolean.default(false),
-    NEUTRINO_URL_INFO_ENABLED: envBoolean.default(false),
-    NEUTRINO_HLR_LOOKUP_ENABLED: envBoolean.default(false),
-    NEUTRINO_PHONE_VERIFY_ENABLED: envBoolean.default(false),
-    NEUTRINO_SMS_VERIFY_ENABLED: envBoolean.default(false),
-    NEUTRINO_VERIFY_SECURITY_CODE_ENABLED: envBoolean.default(false),
-    NEUTRINO_PHONE_PLAYBACK_ENABLED: envBoolean.default(false),
-    NEUTRINO_GEOCODE_ADDRESS_ENABLED: envBoolean.default(false),
-    NEUTRINO_GEOCODE_REVERSE_ENABLED: envBoolean.default(false),
-    NEUTRINO_DOMAIN_LOOKUP_ENABLED: envBoolean.default(false),
-    NEUTRINO_EMAIL_VERIFY_ENABLED: envBoolean.default(false),
-    NEUTRINO_IP_BLOCKLIST_DOWNLOAD_ENABLED: envBoolean.default(false),
-    NEUTRINO_BIN_LIST_DOWNLOAD_ENABLED: envBoolean.default(false),
-    NEUTRINO_CURRENCY_CONVERT_ENABLED: envBoolean.default(false),
-    NEUTRINO_HTML_RENDER_ENABLED: envBoolean.default(false),
-    NEUTRINO_IMAGE_RESIZE_ENABLED: envBoolean.default(false),
-    NEUTRINO_IMAGE_WATERMARK_ENABLED: envBoolean.default(false),
-    NEUTRINO_QR_CODE_ENABLED: envBoolean.default(false),
+    NEUTRINO_IP_INFO_ENABLED: z.coerce.boolean().default(false),
+    NEUTRINO_IP_BLOCKLIST_ENABLED: z.coerce.boolean().default(false),
+    NEUTRINO_IP_PROBE_ENABLED: z.coerce.boolean().default(false),
+    NEUTRINO_UA_LOOKUP_ENABLED: z.coerce.boolean().default(false),
+    NEUTRINO_HOST_REPUTATION_ENABLED: z.coerce.boolean().default(false),
+
+    // Data Tools
+    NEUTRINO_BAD_WORD_FILTER_ENABLED: z.coerce.boolean().default(false),
+    NEUTRINO_EMAIL_VALIDATE_ENABLED: z.coerce.boolean().default(false),
+    NEUTRINO_PHONE_VALIDATE_ENABLED: z.coerce.boolean().default(false),
+
+    // E-commerce
+    NEUTRINO_BIN_LIST_DOWNLOAD_ENABLED: z.coerce.boolean().default(false),
+    NEUTRINO_CONVERT_ENABLED: z.coerce.boolean().default(false),
+
+    // Geolocation
+    NEUTRINO_GEOCODE_ADDRESS_ENABLED: z.coerce.boolean().default(false),
+    NEUTRINO_GEOCODE_REVERSE_ENABLED: z.coerce.boolean().default(false),
+
+    // Imaging
+    NEUTRINO_HTML_RENDER_ENABLED: z.coerce.boolean().default(false),
+    NEUTRINO_IMAGE_RESIZE_ENABLED: z.coerce.boolean().default(false),
+    NEUTRINO_IMAGE_WATERMARK_ENABLED: z.coerce.boolean().default(false),
+    NEUTRINO_QR_CODE_ENABLED: z.coerce.boolean().default(false),
+
+    // Security and Networking
+    NEUTRINO_DOMAIN_LOOKUP_ENABLED: z.coerce.boolean().default(false),
+    NEUTRINO_EMAIL_VERIFY_ENABLED: z.coerce.boolean().default(false),
+    NEUTRINO_IP_BLOCKLIST_DOWNLOAD_ENABLED: z.coerce.boolean().default(false),
+
+    // Telephony
+    NEUTRINO_HLR_LOOKUP_ENABLED: z.coerce.boolean().default(false),
+    NEUTRINO_PHONE_PLAYBACK_ENABLED: z.coerce.boolean().default(false),
+    NEUTRINO_PHONE_VERIFY_ENABLED: z.coerce.boolean().default(false),
+    NEUTRINO_SMS_VERIFY_ENABLED: z.coerce.boolean().default(false),
+    NEUTRINO_VERIFY_SECURITY_CODE_ENABLED: z.coerce.boolean().default(false),
+
+    // WWW
+    NEUTRINO_BROWSER_BOT_ENABLED: z.coerce.boolean().default(false),
+    NEUTRINO_HTML_CLEAN_ENABLED: z.coerce.boolean().default(false),
+    NEUTRINO_URL_INFO_ENABLED: z.coerce.boolean().default(false),
+
+    // Util
+    NEUTRINO_MULTI_ENABLED: z.coerce.boolean().default(false),
+    NEUTRINO_PING_ENABLED: z.coerce.boolean().default(false),
+    NEUTRINO_STATS_ENABLED: z.coerce.boolean().default(false),
     UPSTASH_REDIS_REST_URL: z.string().url().optional(),
     UPSTASH_REDIS_REST_TOKEN: z.string().min(1).optional(),
 
