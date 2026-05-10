@@ -63,19 +63,20 @@ function makeAnalysis(overrides: Partial<FullBinAnalysis> = {}): FullBinAnalysis
       message: "Mensagem",
       action: "Ação",
     },
+    // HolisticScore: dimensões ficam DIRETAMENTE no objeto raiz (sem .dimensions)
     holistic: {
       overallScore: 35,
-      level: "MEDIUM",
+      riskLevel: "MEDIUM",
       recommendation: "REVIEW",
       ensembleConfidence: 82,
-      dimensions: {
-        binRisk: { score: 40, weight: 30, factors: [], explanation: { technical: "t", popular: "p" }, dataAvailable: true },
-        temporalRisk: { score: 30, weight: 10, factors: [], explanation: { technical: "t", popular: "p" }, dataAvailable: true },
-        behavioralRisk: { score: 35, weight: 15, factors: [], explanation: { technical: "t", popular: "p" }, dataAvailable: true },
-        geographicRisk: { score: 30, weight: 20, factors: [], explanation: { technical: "t", popular: "p" }, dataAvailable: true },
-        deviceRisk: { score: 30, weight: 10, factors: [], explanation: { technical: "t", popular: "p" }, dataAvailable: true },
-        gatewayRisk: { score: 30, weight: 15, factors: [], explanation: { technical: "t", popular: "p" }, dataAvailable: true },
-      },
+      sourcesUsed: ["INTERNAL"],
+      peerComparison: { percentile: 65, description: "melhor que 65% dos cartões" },
+      binRisk: { score: 40, weight: 0.3, factors: [], explanation: { technical: "t", popular: "p" }, dataAvailable: true },
+      temporalRisk: { score: 30, weight: 0.1, factors: [], explanation: { technical: "t", popular: "p" }, dataAvailable: true },
+      behavioralRisk: { score: 35, weight: 0.15, factors: [], explanation: { technical: "t", popular: "p" }, dataAvailable: true },
+      geographicRisk: { score: 30, weight: 0.2, factors: [], explanation: { technical: "t", popular: "p" }, dataAvailable: true },
+      deviceRisk: { score: 30, weight: 0.15, factors: [], explanation: { technical: "t", popular: "p" }, dataAvailable: true },
+      gatewayRisk: { score: 30, weight: 0.1, factors: [], explanation: { technical: "t", popular: "p" }, dataAvailable: true },
     },
     peerComparison: {
       percentile: 65,
@@ -96,7 +97,8 @@ describe("mapFullBinAnalysisToResponse", () => {
     expect(result.binAnalysis.binData.productType).toBe("CREDIT")
     expect(result.binAnalysis.recommendations.length).toBeGreaterThan(0)
     expect(result.threeDSAnalysis.recommendedFlow).toBe("FRICTIONLESS")
-    expect(result.riskAnalysis.overallRiskScore).toBe(42)
+    // overallRiskScore agora usa holistic.overallScore (35) em vez de riskAnalysis.score (42)
+    expect(result.riskAnalysis.overallRiskScore).toBe(35)
     expect(result.riskAnalysis.recommendations.action).toBe("REVIEW")
   })
 
@@ -127,6 +129,7 @@ describe("mapFullBinAnalysisToResponse", () => {
       }),
     )
 
+    // Com holistic presente (do makeAnalysis base), riskFactors vêm de holistic.*.score
     expect(result.riskAnalysis.riskFactors).toEqual({
       binRisk: 40,
       temporalRisk: 30,
@@ -137,5 +140,19 @@ describe("mapFullBinAnalysisToResponse", () => {
     })
     expect(result.riskAnalysis.alerts).toEqual([])
     expect(result.binAnalysis.binData.issuerName).toBe("Emissor não informado")
+  })
+
+  it("usa riskAnalysis.score como fallback quando holistic ausente", () => {
+    const result = mapFullBinAnalysisToResponse(
+      makeAnalysis({ holistic: undefined }),
+    )
+
+    // Sem holistic, overallRiskScore cai para riskAnalysis.score (42)
+    expect(result.riskAnalysis.overallRiskScore).toBe(42)
+    // riskFactors.binRisk cai para riskAnalysis.score (42) como fallback
+    expect(result.riskAnalysis.riskFactors.binRisk).toBe(42)
+    // Outros fatores ficam 0 sem holistic
+    expect(result.riskAnalysis.riskFactors.temporalRisk).toBe(0)
+    expect(result.riskAnalysis.riskFactors.geographicRisk).toBe(0)
   })
 })

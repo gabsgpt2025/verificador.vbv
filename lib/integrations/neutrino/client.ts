@@ -776,3 +776,27 @@ export async function neutrinoStats(_input: StatsRequest): Promise<StatsResponse
   })
   return result.data
 }
+
+// ── Aliases de compatibilidade (usados em testes e integrações legadas) ─────────
+// callNeutrinoBadWordFilter → neutrinoBadWordFilter
+export const callNeutrinoBadWordFilter = neutrinoBadWordFilter
+
+// callNeutrinoIpInfo: wrapper direto para o endpoint ip-info da Neutrino API.
+// Usado quando se precisa de acesso de baixo nível (sem cache) ao endpoint.
+export async function callNeutrinoIpInfo(input: { ip: string }): Promise<Record<string, unknown> | null> {
+  if (!getEnv().NEUTRINO_IP_INFO_ENABLED) return null
+  const { apiKey, userId } = getNeutrinoCredentials()
+  if (!apiKey || !userId) return null
+  const response = await fetch(`${NEUTRINO_BASE_URL}/ip-info`, {
+    method: "POST",
+    headers: {
+      "User-ID": userId,
+      "API-Key": apiKey,
+      "Content-Type": "application/x-www-form-urlencoded",
+    },
+    body: `ip=${encodeURIComponent(input.ip)}`,
+    signal: AbortSignal.timeout(NEUTRINO_TIMEOUT_MS),
+  })
+  if (!response.ok) return null
+  return response.json() as Promise<Record<string, unknown>>
+}

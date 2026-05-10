@@ -97,7 +97,9 @@ export function Premium3DAnalyzer({ userId }: { userId?: string } = {}) {
 
       // A rota v2 retorna o shape canônico (FullBinAnalysis no topo + extras).
       // Convertendo para AnalysisResponse legado usado por este componente.
-      const baseResponse = mapFullBinAnalysisToResponse(data as FullBinAnalysis);
+      // IMPORTANTE: passamos data.holistic para que o adapter use overallScore e dimensões corretas.
+      // HolisticScore NÃO tem .dimensions — dimensões ficam diretamente no objeto raiz.
+      const baseResponse = mapFullBinAnalysisToResponse({ ...(data as FullBinAnalysis), holistic: data.holistic });
 
       const response: AnalysisResponse = {
         ...baseResponse,
@@ -365,7 +367,7 @@ export function Premium3DAnalyzer({ userId }: { userId?: string } = {}) {
                   </div>
                 </div>
                 <div className="text-right">
-                  <div className="text-6xl font-bold text-white mb-2">{rawApiData?.riskAnalysis?.score ?? analysis.riskAnalysis.overallRiskScore}</div>
+                  <div className="text-6xl font-bold text-white mb-2">{rawApiData?.holistic?.overallScore ?? rawApiData?.riskAnalysis?.score ?? analysis.riskAnalysis.overallRiskScore}</div>
                   <Badge className="bg-white/20 text-white border-white/30 text-lg px-4 py-1">
                     {analysis.riskAnalysis.riskLevel}
                   </Badge>
