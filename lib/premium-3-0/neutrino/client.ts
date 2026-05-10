@@ -9,10 +9,24 @@ const NEUTRINO_BASE_URL = "https://neutrinoapi.net"
 const NEUTRINO_TIMEOUT_MS = 4000
 const NEUTRINO_RETRY_BASE_MS = 300
 
+type NeutrinoRequestBody = Record<string, string | number | boolean | undefined>
+
+function buildRequestBody(body: NeutrinoRequestBody): string {
+  const params = new URLSearchParams()
+  for (const [key, value] of Object.entries(body)) {
+    if (value === undefined) {
+      continue
+    }
+    params.set(key, String(value))
+  }
+
+  return params.toString()
+}
+
 export async function executeNeutrinoRequest<T>(config: {
   endpoint: string
   operation: string
-  body: Record<string, string>
+  body: NeutrinoRequestBody
   cacheKey: string
   cacheTtlSeconds: number
   schema: z.ZodType<T>
@@ -33,7 +47,7 @@ export async function executeNeutrinoRequest<T>(config: {
             "API-Key": apiKey,
             "Content-Type": "application/x-www-form-urlencoded",
           },
-          body: new URLSearchParams(config.body).toString(),
+          body: buildRequestBody(config.body),
           signal: AbortSignal.timeout(NEUTRINO_TIMEOUT_MS),
         })
 
@@ -62,6 +76,95 @@ export async function executeNeutrinoRequest<T>(config: {
           jitter: false,
         },
         parse: (raw) => config.schema.parse(raw),
+      },
+    )
+
+    const meta = {
+      endpoint: config.endpoint,
+      status: cached ? "cache_hit" : responseStatus,
+      durationMs: latencyMs,
+      cached,
+      breakerState: breaker.state,
+      networkSuccess: !cached,
+    } as const
+
+    console.info("[neutrino] request", meta)
+
+    return {
+      data,
+      meta,
+    }
+  } catch (error) {
+    if (error instanceof CircuitOpenError) {
+      responseStatus = "breaker_open"
+    }
+
+    const durationMs = Date.now() - startedAt
+    console.warn("[neutrino] request_failed", {
+      endpoint: config.endpoint,
+      status: responseStatus,
+      durationMs,
+      cached: false,
+      breakerState: breaker.state,
+      message: error instanceof Error ? error.message : String(error),
+    })
+
+    throw error
+  }
+}
+
+export async function executeNeutrinoBinaryRequest(config: {
+  endpoint: string
+  operation: string
+  body: NeutrinoRequestBody
+  cacheKey: string
+  cacheTtlSeconds: number
+}): Promise<NeutrinoResponse<ArrayBuffer>> {
+  const { apiKey, userId } = getNeutrinoCredentials()
+  const startedAt = Date.now()
+  const breakerName = `neutrino:${config.operation}`
+  const breaker = getBreaker(breakerName)
+  let responseStatus: number | "cache_hit" | "breaker_open" = 200
+
+  try {
+    const { data, cached, latencyMs } = await resilientFetch(
+      async () => {
+        const response = await fetch(`${NEUTRINO_BASE_URL}/${config.endpoint}`, {
+          method: "POST",
+          headers: {
+            "User-ID": userId,
+            "API-Key": apiKey,
+            "Content-Type": "application/x-www-form-urlencoded",
+          },
+          body: buildRequestBody(config.body),
+          signal: AbortSignal.timeout(NEUTRINO_TIMEOUT_MS),
+        })
+
+        responseStatus = response.status
+
+        if (!response.ok) {
+          const errorText = await response.text()
+          throw new NeutrinoError(`Neutrino API error: ${response.status} - ${errorText}`, response.status, config.endpoint)
+        }
+
+        return response.arrayBuffer()
+      },
+      {
+        providerName: "neutrino",
+        operation: config.operation,
+        cacheKey: config.cacheKey,
+        cacheTtlSeconds: config.cacheTtlSeconds,
+        breakerOptions: {
+          name: breakerName,
+          failureThreshold: 5,
+          timeoutMs: NEUTRINO_TIMEOUT_MS,
+        },
+        retryOptions: {
+          maxAttempts: 2,
+          baseDelayMs: NEUTRINO_RETRY_BASE_MS,
+          jitter: false,
+        },
+        parse: (raw) => raw as ArrayBuffer,
       },
     )
 
