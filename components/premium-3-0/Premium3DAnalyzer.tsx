@@ -50,6 +50,7 @@ export function Premium3DAnalyzer({ userId }: { userId?: string } = {}) {
   const [languageMode, setLanguageMode] = useState<'TECHNICAL' | 'POPULAR'>('TECHNICAL');
   const [cardNumber, setCardNumber] = useState('');
   const [analysis, setAnalysis] = useState<AnalysisResponse | null>(null);
+  const [rawApiData, setRawApiData] = useState<FullBinAnalysis | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [showDetails, setShowDetails] = useState(true);
@@ -92,6 +93,7 @@ export function Premium3DAnalyzer({ userId }: { userId?: string } = {}) {
       }
 
       const data = await res.json();
+      setRawApiData(data);
 
       // A rota v2 retorna o shape canônico (FullBinAnalysis no topo + extras).
       // Convertendo para AnalysisResponse legado usado por este componente.
@@ -148,20 +150,17 @@ export function Premium3DAnalyzer({ userId }: { userId?: string } = {}) {
     }
   };
 
-  // Calcular scores numéricos para 3DS
-  // Preferir valores numéricos reais da API (frictionlessProbability, challengeProbability, bypassProbability)
-  // com fallback para mapeamento de likelihood quando não disponíveis.
-  const rawThreeDS = analysis ? (analysis as AnalysisResponse & {
-    threeDSAnalysis: { frictionlessProbability?: number; challengeProbability?: number; bypassProbability?: number }
-  }).threeDSAnalysis : null;
+  // Calcular scores numéricos para 3DS — usar valores numéricos precisos da API quando disponíveis
+  const rawOr = (rawValue: number | undefined, fallback: number) =>
+    Math.round(rawValue ?? fallback);
   const frictionlessPercentage = analysis
-    ? Math.round(rawThreeDS?.frictionlessProbability ?? likelihoodToPercentage(analysis.threeDSAnalysis.frictionlessLikelihood))
+    ? rawOr(rawApiData?.threeDSAnalysis?.frictionlessProbability, likelihoodToPercentage(analysis.threeDSAnalysis.frictionlessLikelihood))
     : 0;
   const challengePercentage = analysis
-    ? Math.round(rawThreeDS?.challengeProbability ?? likelihoodToPercentage(analysis.threeDSAnalysis.challengeLikelihood))
+    ? rawOr(rawApiData?.threeDSAnalysis?.challengeProbability, likelihoodToPercentage(analysis.threeDSAnalysis.challengeLikelihood))
     : 0;
   const bypassPercentage = analysis
-    ? Math.round(rawThreeDS?.bypassProbability ?? (100 - challengePercentage))
+    ? rawOr(rawApiData?.threeDSAnalysis?.bypassProbability, 100 - challengePercentage)
     : 0;
 
   return (
@@ -368,7 +367,7 @@ export function Premium3DAnalyzer({ userId }: { userId?: string } = {}) {
                   </div>
                 </div>
                 <div className="text-right">
-                  <div className="text-6xl font-bold text-white mb-2">{analysis.riskAnalysis.overallRiskScore}</div>
+                  <div className="text-6xl font-bold text-white mb-2">{rawApiData?.holistic?.overallScore ?? rawApiData?.riskAnalysis?.score ?? analysis.riskAnalysis.overallRiskScore}</div>
                   <Badge className="bg-white/20 text-white border-white/30 text-lg px-4 py-1">
                     {analysis.riskAnalysis.riskLevel}
                   </Badge>

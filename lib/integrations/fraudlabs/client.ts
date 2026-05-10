@@ -160,5 +160,7 @@ export async function screenOrderFraudLabs(
  * Verifica se o FraudLabs Pro está configurado e disponível.
  */
 export function isFraudLabsEnabled(): boolean {
-  return Boolean(process.env.FRAUDLABS_PRO_API_KEY?.trim())
+  const key = process.env.FRAUDLABS_PRO_API_KEY?.trim()
+  const enabled = process.env.FRAUDLABS_ENABLED === "true"
+  return Boolean(key) && enabled
 }

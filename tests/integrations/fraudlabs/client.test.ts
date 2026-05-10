@@ -35,10 +35,25 @@ describe("FraudLabs Pro Client", () => {
     expect(result).toBeNull()
   })
 
-  it("isFraudLabsEnabled returns true when key is set", async () => {
+  it("isFraudLabsEnabled returns true when key is set and FRAUDLABS_ENABLED is true", async () => {
     process.env.FRAUDLABS_PRO_API_KEY = "test-key-123"
+    process.env.FRAUDLABS_ENABLED = "true"
     const { isFraudLabsEnabled } = await import("@/lib/integrations/fraudlabs/client")
     expect(isFraudLabsEnabled()).toBe(true)
+  })
+
+  it("isFraudLabsEnabled returns false when key is set but FRAUDLABS_ENABLED is false", async () => {
+    process.env.FRAUDLABS_PRO_API_KEY = "test-key-123"
+    process.env.FRAUDLABS_ENABLED = "false"
+    const { isFraudLabsEnabled } = await import("@/lib/integrations/fraudlabs/client")
+    expect(isFraudLabsEnabled()).toBe(false)
+  })
+
+  it("isFraudLabsEnabled returns false when key is set but FRAUDLABS_ENABLED is missing", async () => {
+    process.env.FRAUDLABS_PRO_API_KEY = "test-key-123"
+    delete process.env.FRAUDLABS_ENABLED
+    const { isFraudLabsEnabled } = await import("@/lib/integrations/fraudlabs/client")
+    expect(isFraudLabsEnabled()).toBe(false)
   })
 
   it("isFraudLabsEnabled returns false when key is missing", async () => {
