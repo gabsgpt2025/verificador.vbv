@@ -69,6 +69,7 @@ const envSchema = z
     MASTERCARD_API_BASE: z.string().url().optional(),
 
     FRAUDLABS_PRO_API_KEY: z.string().min(1).optional(),
+    FRAUDLABS_ENABLED: z.coerce.boolean().default(false),
     MASTERCARD_SANDBOX_CLIENT_ID: z.string().min(1).optional(),
     MASTERCARD_P12_PATH: z.string().min(1).optional(),
     MASTERCARD_P12_CERT: z.string().min(1).optional(),

@@ -50,6 +50,7 @@ export function Premium3DAnalyzer({ userId }: { userId?: string } = {}) {
   const [languageMode, setLanguageMode] = useState<'TECHNICAL' | 'POPULAR'>('TECHNICAL');
   const [cardNumber, setCardNumber] = useState('');
   const [analysis, setAnalysis] = useState<AnalysisResponse | null>(null);
+  const [rawApiData, setRawApiData] = useState<Record<string, any> | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [showDetails, setShowDetails] = useState(true);
@@ -92,6 +93,7 @@ export function Premium3DAnalyzer({ userId }: { userId?: string } = {}) {
       }
 
       const data = await res.json();
+      setRawApiData(data);
 
       // A rota v2 retorna o shape canônico (FullBinAnalysis no topo + extras).
       // Convertendo para AnalysisResponse legado usado por este componente.
@@ -146,10 +148,16 @@ export function Premium3DAnalyzer({ userId }: { userId?: string } = {}) {
     }
   };
 
-  // Calcular scores numéricos para 3DS
-  const frictionlessPercentage = analysis ? likelihoodToPercentage(analysis.threeDSAnalysis.frictionlessLikelihood) : 0;
-  const challengePercentage = analysis ? likelihoodToPercentage(analysis.threeDSAnalysis.challengeLikelihood) : 0;
-  const bypassPercentage = analysis ? 100 - challengePercentage : 0;
+  // Calcular scores numéricos para 3DS — usar valores numéricos precisos da API quando disponíveis
+  const frictionlessPercentage = analysis
+    ? Math.round(rawApiData?.threeDSAnalysis?.frictionlessProbability ?? likelihoodToPercentage(analysis.threeDSAnalysis.frictionlessLikelihood))
+    : 0;
+  const challengePercentage = analysis
+    ? Math.round(rawApiData?.threeDSAnalysis?.challengeProbability ?? likelihoodToPercentage(analysis.threeDSAnalysis.challengeLikelihood))
+    : 0;
+  const bypassPercentage = analysis
+    ? Math.round(rawApiData?.threeDSAnalysis?.bypassProbability ?? (100 - challengePercentage))
+    : 0;
 
   return (
     <div className="w-full min-h-screen bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950 py-12">
@@ -355,7 +363,7 @@ export function Premium3DAnalyzer({ userId }: { userId?: string } = {}) {
                   </div>
                 </div>
                 <div className="text-right">
-                  <div className="text-6xl font-bold text-white mb-2">{analysis.riskAnalysis.overallRiskScore}</div>
+                  <div className="text-6xl font-bold text-white mb-2">{rawApiData?.riskAnalysis?.score ?? analysis.riskAnalysis.overallRiskScore}</div>
                   <Badge className="bg-white/20 text-white border-white/30 text-lg px-4 py-1">
                     {analysis.riskAnalysis.riskLevel}
                   </Badge>
