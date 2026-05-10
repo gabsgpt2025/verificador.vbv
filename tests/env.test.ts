@@ -37,4 +37,21 @@ describe("env validation", () => {
 
     expect(getEnv().NEXT_PUBLIC_REQUIRE_AUTH).toBe("false")
   })
+
+  it("expõe as novas flags Neutrino com default false e coerção booleana", async () => {
+    process.env = {
+      ...originalEnv,
+      NODE_ENV: "development",
+      NEUTRINO_BAD_WORD_FILTER_ENABLED: "true",
+      NEUTRINO_SMS_VERIFY_ENABLED: "1",
+    }
+
+    const { getEnv } = await loadEnvModule()
+    const env = getEnv()
+
+    expect(env.NEUTRINO_BAD_WORD_FILTER_ENABLED).toBe(true)
+    expect(env.NEUTRINO_SMS_VERIFY_ENABLED).toBe(true)
+    expect(env.NEUTRINO_STATS_ENABLED).toBe(false)
+    expect(env.NEUTRINO_BROWSER_BOT_ENABLED).toBe(false)
+  })
 })
