@@ -65,7 +65,7 @@ export interface PhoneValidateResponse extends NeutrinoResponsePayload {
   valid?: boolean
 }
 
-export interface BinListDownloadRequest extends NeutrinoRequestPayload {}
+export type BinListDownloadRequest = NeutrinoRequestPayload
 export interface BinListDownloadResponse extends NeutrinoResponsePayload {
   url?: string
 }
@@ -139,7 +139,7 @@ export interface EmailVerifyResponse extends NeutrinoResponsePayload {
   deliverable?: boolean
 }
 
-export interface IpBlocklistDownloadRequest extends NeutrinoRequestPayload {}
+export type IpBlocklistDownloadRequest = NeutrinoRequestPayload
 export interface IpBlocklistDownloadResponse extends NeutrinoResponsePayload {
   url?: string
 }
@@ -201,7 +201,7 @@ export interface UrlInfoResponse extends NeutrinoResponsePayload {
   host?: string
 }
 
-export interface MultiRequest extends NeutrinoRequestPayload {}
+export type MultiRequest = NeutrinoRequestPayload
 export interface MultiResponse extends NeutrinoResponsePayload {
   results?: unknown[]
 }
@@ -213,7 +213,7 @@ export interface PingResponse extends NeutrinoResponsePayload {
   alive?: boolean
 }
 
-export interface StatsRequest extends NeutrinoRequestPayload {}
+export type StatsRequest = NeutrinoRequestPayload
 export interface StatsResponse extends NeutrinoResponsePayload {
   api_calls?: number
 }
