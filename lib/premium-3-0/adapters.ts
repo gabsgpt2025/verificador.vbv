@@ -101,18 +101,34 @@ function mapBypassMechanism(
   return "UNKNOWN"
 }
 
+/**
+ * Mapeia a resposta canônica da API /api/bin-analysis-v2 para o formato AnalysisResponse
+ * utilizado pelo componente Premium3DAnalyzer.
+ *
+ * NOTA IMPORTANTE sobre holistic:
+ * - FullBinAnalysis.holistic é do tipo HolisticScore (de holisticEngine.ts)
+ * - As dimensões ficam DIRETAMENTE no objeto raiz: holistic.binRisk, holistic.temporalRisk, etc.
+ * - NÃO existe holistic.dimensions (esse wrapper pertencia ao tipo legado HolisticRiskAnalysis)
+ */
 export function mapFullBinAnalysisToResponse(apiData: FullBinAnalysis): AnalysisResponse {
   const now = new Date().toISOString()
   const challengeLikelihood = mapChallengeLikelihood(apiData?.threeDSAnalysis?.challengeLikelihood)
   const frictionlessLikelihood = mapFrictionlessLikelihood(apiData?.threeDSAnalysis)
   const recommendedFlow = mapRecommendedFlow(challengeLikelihood, frictionlessLikelihood)
-  const holisticDimensions = apiData?.holistic?.dimensions
+
+  // HolisticScore: dimensões ficam diretamente no objeto raiz (sem .dimensions)
+  const holistic = apiData?.holistic
+
   const estimatedSuccessRate = mapEstimatedSuccessRate(
     frictionlessLikelihood,
     challengeLikelihood,
     apiData?.threeDSAnalysis?.confidence,
   )
   const recommendationAction = mapRecommendationAction(apiData?.riskAnalysis?.recommendation)
+
+  // Score de risco geral: preferir holistic.overallScore (motor holístico completo)
+  // com fallback para riskAnalysis.score (motor simples de calculateRisk)
+  const overallRiskScore = holistic?.overallScore ?? apiData?.riskAnalysis?.score ?? 0
 
   return {
     requestId: `req_${Date.now()}`,
@@ -129,8 +145,8 @@ export function mapFullBinAnalysisToResponse(apiData: FullBinAnalysis): Analysis
         issuingNetwork: mapBrandToIssuingNetwork(apiData?.technicalData?.brand),
         lastUpdated: now,
       },
-      riskScore: apiData?.riskAnalysis?.score ?? 0,
-      riskLevel: apiData?.riskAnalysis?.level ?? "MEDIUM",
+      riskScore: overallRiskScore,
+      riskLevel: holistic?.riskLevel ?? apiData?.riskAnalysis?.level ?? "MEDIUM",
       frictionlessLikelihood,
       bypassMechanism: mapBypassMechanism(recommendedFlow, frictionlessLikelihood),
       alerts: [],
@@ -157,27 +173,28 @@ export function mapFullBinAnalysisToResponse(apiData: FullBinAnalysis): Analysis
       },
     },
     riskAnalysis: {
-      overallRiskScore: apiData?.riskAnalysis?.score ?? 0,
-      riskLevel: apiData?.riskAnalysis?.level ?? "MEDIUM",
+      overallRiskScore,
+      riskLevel: holistic?.riskLevel ?? apiData?.riskAnalysis?.level ?? "MEDIUM",
       riskFactors: {
+        // Dimensões ficam diretamente em holistic.binRisk (NÃO em holistic.dimensions.binRisk)
         binRisk:
-          holisticDimensions?.binRisk?.score ??
+          holistic?.binRisk?.score ??
           apiData?.riskAnalysis?.score ??
           0,
         temporalRisk:
-          holisticDimensions?.temporalRisk?.score ??
+          holistic?.temporalRisk?.score ??
           0,
         behavioralRisk:
-          holisticDimensions?.behavioralRisk?.score ??
+          holistic?.behavioralRisk?.score ??
           0,
         geographicRisk:
-          holisticDimensions?.geographicRisk?.score ??
+          holistic?.geographicRisk?.score ??
           0,
         deviceRisk:
-          holisticDimensions?.deviceRisk?.score ??
+          holistic?.deviceRisk?.score ??
           0,
         gatewayRisk:
-          holisticDimensions?.gatewayRisk?.score ??
+          holistic?.gatewayRisk?.score ??
           0,
       },
       alerts: [],

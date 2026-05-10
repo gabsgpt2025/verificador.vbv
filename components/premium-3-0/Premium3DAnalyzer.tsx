@@ -95,7 +95,9 @@ export function Premium3DAnalyzer({ userId }: { userId?: string } = {}) {
 
       // A rota v2 retorna o shape canônico (FullBinAnalysis no topo + extras).
       // Convertendo para AnalysisResponse legado usado por este componente.
-      const baseResponse = mapFullBinAnalysisToResponse(data as FullBinAnalysis);
+      // IMPORTANTE: passamos data.holistic para que o adapter use overallScore e dimensões corretas.
+      // HolisticScore NÃO tem .dimensions — dimensões ficam diretamente no objeto raiz.
+      const baseResponse = mapFullBinAnalysisToResponse({ ...(data as FullBinAnalysis), holistic: data.holistic });
 
       const response: AnalysisResponse = {
         ...baseResponse,
@@ -147,9 +149,20 @@ export function Premium3DAnalyzer({ userId }: { userId?: string } = {}) {
   };
 
   // Calcular scores numéricos para 3DS
-  const frictionlessPercentage = analysis ? likelihoodToPercentage(analysis.threeDSAnalysis.frictionlessLikelihood) : 0;
-  const challengePercentage = analysis ? likelihoodToPercentage(analysis.threeDSAnalysis.challengeLikelihood) : 0;
-  const bypassPercentage = analysis ? 100 - challengePercentage : 0;
+  // Preferir valores numéricos reais da API (frictionlessProbability, challengeProbability, bypassProbability)
+  // com fallback para mapeamento de likelihood quando não disponíveis.
+  const rawThreeDS = analysis ? (analysis as AnalysisResponse & {
+    threeDSAnalysis: { frictionlessProbability?: number; challengeProbability?: number; bypassProbability?: number }
+  }).threeDSAnalysis : null;
+  const frictionlessPercentage = analysis
+    ? Math.round(rawThreeDS?.frictionlessProbability ?? likelihoodToPercentage(analysis.threeDSAnalysis.frictionlessLikelihood))
+    : 0;
+  const challengePercentage = analysis
+    ? Math.round(rawThreeDS?.challengeProbability ?? likelihoodToPercentage(analysis.threeDSAnalysis.challengeLikelihood))
+    : 0;
+  const bypassPercentage = analysis
+    ? Math.round(rawThreeDS?.bypassProbability ?? (100 - challengePercentage))
+    : 0;
 
   return (
     <div className="w-full min-h-screen bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950 py-12">

@@ -49,7 +49,8 @@ export type {
   PeerComparisonSummary,
 } from "./holisticTypes"
 import type { BypassMechanism, RiskLevel } from "./holisticTypes"
-import type { HolisticDimensionScore, TransactionContext } from "./holisticEngine"
+import type { HolisticDimensionScore, HolisticScore, TransactionContext } from "./holisticEngine"
+export type { HolisticScore }
 
 // ============================================================================
 // TIPOS DE CONTEXTO INTERNO (não fazem parte do contrato público)
@@ -274,7 +275,13 @@ export type FullBinAnalysis = {
     message: string
     action: string
   }
-  holistic?: HolisticRiskAnalysis
+  /**
+   * Score holístico retornado por runHolisticAnalysis.
+   * As dimensões ficam diretamente no objeto raiz (holistic.binRisk, etc.),
+   * NÃO em holistic.dimensions (que pertence ao tipo legado HolisticRiskAnalysis).
+   * @see lib/premium-3-0/holisticEngine.ts HolisticScore
+   */
+  holistic?: HolisticScore
   peerComparison?: PeerComparison
 }
 
