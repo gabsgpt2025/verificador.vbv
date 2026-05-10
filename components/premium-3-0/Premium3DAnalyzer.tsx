@@ -50,7 +50,7 @@ export function Premium3DAnalyzer({ userId }: { userId?: string } = {}) {
   const [languageMode, setLanguageMode] = useState<'TECHNICAL' | 'POPULAR'>('TECHNICAL');
   const [cardNumber, setCardNumber] = useState('');
   const [analysis, setAnalysis] = useState<AnalysisResponse | null>(null);
-  const [rawApiData, setRawApiData] = useState<Record<string, any> | null>(null);
+  const [rawApiData, setRawApiData] = useState<FullBinAnalysis | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [showDetails, setShowDetails] = useState(true);
@@ -149,14 +149,16 @@ export function Premium3DAnalyzer({ userId }: { userId?: string } = {}) {
   };
 
   // Calcular scores numéricos para 3DS — usar valores numéricos precisos da API quando disponíveis
+  const rawOr = (rawValue: number | undefined, fallback: number) =>
+    Math.round(rawValue ?? fallback);
   const frictionlessPercentage = analysis
-    ? Math.round(rawApiData?.threeDSAnalysis?.frictionlessProbability ?? likelihoodToPercentage(analysis.threeDSAnalysis.frictionlessLikelihood))
+    ? rawOr(rawApiData?.threeDSAnalysis?.frictionlessProbability, likelihoodToPercentage(analysis.threeDSAnalysis.frictionlessLikelihood))
     : 0;
   const challengePercentage = analysis
-    ? Math.round(rawApiData?.threeDSAnalysis?.challengeProbability ?? likelihoodToPercentage(analysis.threeDSAnalysis.challengeLikelihood))
+    ? rawOr(rawApiData?.threeDSAnalysis?.challengeProbability, likelihoodToPercentage(analysis.threeDSAnalysis.challengeLikelihood))
     : 0;
   const bypassPercentage = analysis
-    ? Math.round(rawApiData?.threeDSAnalysis?.bypassProbability ?? (100 - challengePercentage))
+    ? rawOr(rawApiData?.threeDSAnalysis?.bypassProbability, 100 - challengePercentage)
     : 0;
 
   return (
