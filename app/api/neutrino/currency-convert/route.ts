@@ -11,7 +11,7 @@ const schema = z.object({
 
 export async function POST(request: Request) {
   const env = getEnv()
-  if (!env.NEUTRINO_CURRENCY_CONVERT_ENABLED) {
+  if (!env.NEUTRINO_CONVERT_ENABLED) {
     return NextResponse.json({ success: false, error: "Endpoint disabled" }, { status: 503 })
   }
 
@@ -27,4 +27,3 @@ export async function POST(request: Request) {
     return NextResponse.json({ success: false, error: error instanceof Error ? error.message : "Unknown error" }, { status: 400 })
   }
 }
-
